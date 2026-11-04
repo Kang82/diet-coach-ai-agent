@@ -17,6 +17,7 @@ v2 변경: 스펙 리뷰 반영. 끼니별 외식 메뉴 목록, `checkPlan` 시
 - 프로필 저장과 불러오기, 식단표 저장
 - 지원 목표: 감량, 혈당 관리, 콜레스테롤 관리와 그 조합
 - 끼니 장소: 거름, 외식, 집밥 (도시락은 첫 시연 이후)
+- React 화면 5개: 인터뷰, 프로필 확인, 기간 선택, 메뉴 분류 확인, 식단표 (7장). 같은 Worker에서 함께 배포한다 (7.1)
 
 **첫 시연 이후:** 하루 재조정, 레시피, 지난주 체크 반영, 근육 증가 목표, 도시락
 
@@ -426,6 +427,24 @@ formatCheckSummary(stats: CheckStats, profile: Pick<Profile, 'avoid'>): string[]
 
 저장된 프로필이 있으면 첫 화면은 "지난 프로필로 시작 / 바뀐 항목 고치기" 선택이다.
 
+**식단표 화면에서 기다리는 동안:** 생성에 약 3분이 걸린다(11.5). "식단표를 만드는 중이에요(약 3분)"와 경과 시간을 보여 준다. 창을 닫았다 다시 열어도 같은 대화를 다시 읽으므로 진행 중이면 진행 상태를, 끝났으면 결과를 보여 준다. 다시 추천 루프가 도는 중이면 "몇 칸을 다시 고르는 중이에요"처럼 알린다.
+
+### 7.1 기술 설계
+
+| 항목 | 정한 것 |
+| --- | --- |
+| 배포 위치 | 에이전트와 **같은 Worker**. Workers 정적 자산(assets)으로 React 빌드 결과를 내보낸다. 화면과 API가 같은 출처라 CORS 설정이 필요 없다 |
+| 빌드 | 지금 쓰는 Vite에 `@vitejs/plugin-react`를 더한다. `@cloudflare/vite-plugin`이 클라이언트 빌드와 Worker 빌드를 함께 처리한다 |
+| 라우팅 | `/agents/*`, `/api/*`는 Worker(`app.ts`)가 먼저 받고, 나머지 경로는 SPA(`index.html`)로 보낸다 (`wrangler.jsonc`의 `assets.run_worker_first`, `not_found_handling: "single-page-application"`) |
+| 대화 연결 | `@flue/react`의 `useFlueAgent({ url: '/agents/diet-coach/<대화 ID>' })`. HTTP와 스트림 처리는 `@flue/sdk`가 맡는다 |
+| 식단표 받기 | 식단표 생성은 에이전트의 도구 호출로 실행하고, 도구 결과(`Plan`과 점검 요약)를 대화 메시지의 `dynamic-tool` 부분 `output`으로 받는다. Flue가 검증된 도구 출력을 메시지에 그대로 남기므로 별도 데이터 채널이 필요 없다 |
+| 진행 상태 | `useFlueAgent`의 `status`와 도구 부분의 `state`(입력 받음 → 결과 있음)로 판단한다 |
+| 사용자 구분 | 첫 시연은 고유 링크(`/?t=<토큰>`)로 들어온다. 토큰은 SDK 요청에 실어 보내고, Worker 미들웨어가 확인한다 (11.4). 대화 ID는 토큰에서 정한다 |
+| 위치 | 화면 코드는 `src/ui/`. `src/core`의 타입과 `formatCheckSummary`를 가져다 쓴다 |
+| 화면 폭 | 휴대폰 폭(약 400px)에서도 식단표가 읽히게 한다. 넓은 화면에서는 요일 × 끼니 표, 좁은 화면에서는 요일별 카드 |
+
+> 라우팅 설정 이름(`run_worker_first`, `not_found_handling`)과 토큰을 SDK 요청에 싣는 방법은 Flue·Cloudflare 문서로 구현할 때 확인한다.
+
 ## 8. 테스트
 
 ### 8.1 기본 픽스처
@@ -550,9 +569,10 @@ LLM 단계는 결과가 매번 다르므로 페르소나별로 여러 번 돌려
 3. `buildCriteria`, `checkPlan` (TDD)
 4. `formatCheckSummary`, 메모리 `Storage`
 5. `generatePlan`, `regenerateCells`, 점검 루프 + 평가 세트, 한도 초과 처리(11.3), 모델 후보 비교(11.1)
+5-1. **식단표 화면 먼저**: React 설정(7.1)과 식단표 화면. 인터뷰 없이 페르소나 A 프로필로 식단표를 만들어 보여 준다. 시연의 핵심 장면과 약 3분 기다리는 경험을 일찍 확인하기 위해 앞당겼다
 6. `classifyMenus`
 7. 인터뷰 (`nextField`, 분기, LLM 턴)
-8. React 화면 연결
+8. 나머지 화면 연결: 인터뷰, 프로필 확인, 기간 선택, 메뉴 분류 확인
 9. D1 `Storage` 구현
 10. 한도 보호: 토큰 확인, 사용자별 호출 제한, 전체 사용량 안전선 (11.4). **배포 전 필수**
 
