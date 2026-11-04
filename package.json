@@ -1,0 +1,33 @@
+{
+  "name": "diet-coach",
+  "version": "1.0.0",
+  "description": "식단 코치 에이전트 (Flue + Cloudflare)",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "deploy": "vite build && wrangler deploy",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "UNLICENSED",
+  "type": "module",
+  "dependencies": {
+    "@flue/runtime": "^2.3.0",
+    "hono": "^4.13.16"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.67.0",
+    "@flue/vite": "^2.3.0",
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.1.0",
+    "wrangler": "^4.157.0"
+  },
+  "private": true,
+  "overrides": {
+    "@earendil-works/pi-ai": "1.4.0",
+    "@earendil-works/pi-agent-core": "1.4.0"
+  }
+}

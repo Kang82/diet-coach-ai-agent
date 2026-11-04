@@ -1,0 +1,10 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "diet-coach",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // 에이전트를 추가할 때마다 마이그레이션을 뒤에 덧붙인다. 배포한 항목은 고치지 않는다.
+  "migrations": [
+    { "tag": "flue-class-FlueDietCoachAgent", "new_sqlite_classes": ["FlueDietCoachAgent"] }
+  ]
+}
