@@ -95,14 +95,13 @@ describe('checkPlan', () => {
     ]);
   });
 
-  it('7. 일정이 있는 끼니를 건너뛰고 이어 본다', () => {
+  it('7. 일정이 있는 끼니를 건너뛰고 이어 본다 (같은 끼니 연속 요일로 중복 보고하지 않음)', () => {
     const ctx = setup();
-    removeCell(ctx.plan, 'thu', 'dinner');
-    ctx.plan.events.push({ day: 'thu', meal: 'dinner', note: '회식, 고깃집' });
-    Object.assign(cellAt(ctx.plan, 'thu', 'lunch'), { menuId: '백반', tags: ['fish'] });
-    Object.assign(cellAt(ctx.plan, 'fri', 'lunch'), { menuId: '백반', tags: ['fish'] });
+    removeCell(ctx.plan, 'sat', 'dinner');
+    ctx.plan.events.push({ day: 'sat', meal: 'dinner', note: '가족 외식' });
+    cellAt(ctx.plan, 'sun', 'lunch').menuId = '비빔밥';
     expect(run(ctx).violations).toEqual([
-      { rule: 'consecutive_menu', cells: [s('thu', 'lunch'), s('fri', 'lunch')], regenerate: [s('fri', 'lunch')] },
+      { rule: 'consecutive_menu', cells: [s('sat', 'lunch'), s('sun', 'lunch')], regenerate: [s('sun', 'lunch')] },
     ]);
   });
 
@@ -193,6 +192,109 @@ describe('checkPlan', () => {
     expect(run(ctx).violations).toEqual([
       { rule: 'avoid_tag', cells: [s('thu', 'lunch')], regenerate: [s('thu', 'lunch')], detail: 'pork' },
     ]);
+  });
+
+  describe('메뉴 다양성 (열린 질문 8)', () => {
+    it('17. 띄어쓰기만 다른 이름은 같은 메뉴로 본다', () => {
+      const ctx = setup();
+      cellAt(ctx.plan, 'sat', 'dinner').menuId = '비 빔밥';
+      expect(run(ctx).violations).toEqual([
+        { rule: 'consecutive_menu', cells: [s('sat', 'lunch'), s('sat', 'dinner')], regenerate: [s('sat', 'dinner')] },
+      ]);
+    });
+
+    it('18. 같은 끼니 연속 요일 (저녁)', () => {
+      const ctx = setup();
+      cellAt(ctx.plan, 'tue', 'dinner').menuId = '두부 채소 볶음';
+      const result = run(ctx);
+      expect(result.violations).toEqual([
+        {
+          rule: 'same_meal_consecutive_days',
+          cells: [s('mon', 'dinner'), s('tue', 'dinner')],
+          regenerate: [s('tue', 'dinner')],
+        },
+      ]);
+      expect(result.stats.consecutiveCount).toBe(1);
+    });
+
+    it('18-1. 같은 끼니 연속 요일도 띄어쓰기를 무시한다', () => {
+      const ctx = setup();
+      cellAt(ctx.plan, 'tue', 'dinner').menuId = '두부채소볶음';
+      expect(run(ctx).violations.map((v) => v.rule)).toEqual(['same_meal_consecutive_days']);
+    });
+
+    it('19. 같은 끼니 연속 요일 (외식 점심)', () => {
+      const ctx = setup();
+      Object.assign(cellAt(ctx.plan, 'tue', 'lunch'), { menuId: '회덮밥', tags: ['fish'] });
+      expect(run(ctx).violations).toEqual([
+        {
+          rule: 'same_meal_consecutive_days',
+          cells: [s('mon', 'lunch'), s('tue', 'lunch')],
+          regenerate: [s('tue', 'lunch')],
+        },
+      ]);
+    });
+
+    it('20. 하루 건너 같은 메뉴는 주 2회까지 괜찮다', () => {
+      const ctx = setup();
+      Object.assign(cellAt(ctx.plan, 'wed', 'lunch'), { menuId: '회덮밥', tags: ['fish'] });
+      expect(run(ctx).violations).toEqual([]);
+    });
+
+    it('20-1. 일정이 있는 날은 연속 요일을 끊는다', () => {
+      const ctx = setup();
+      removeCell(ctx.plan, 'tue', 'lunch');
+      ctx.plan.events.push({ day: 'tue', meal: 'lunch', note: '거래처 점심' });
+      Object.assign(cellAt(ctx.plan, 'wed', 'lunch'), { menuId: '회덮밥', tags: ['fish'] });
+      expect(run(ctx).violations).toEqual([]);
+    });
+
+    it('21. 같은 메뉴 주 3회', () => {
+      const ctx = setup();
+      Object.assign(cellAt(ctx.plan, 'wed', 'lunch'), { menuId: '회덮밥', tags: ['fish'] });
+      Object.assign(cellAt(ctx.plan, 'fri', 'lunch'), { menuId: '회덮밥', tags: ['fish'] });
+      expect(run(ctx).violations).toEqual([
+        {
+          rule: 'menu_weekly_limit',
+          cells: [s('mon', 'lunch'), s('wed', 'lunch'), s('fri', 'lunch')],
+          regenerate: [s('fri', 'lunch')],
+          detail: '회덮밥',
+        },
+      ]);
+    });
+
+    it('21-1. 집밥도 띄어쓰기를 무시하고 센다', () => {
+      const ctx = setup();
+      cellAt(ctx.plan, 'wed', 'dinner').menuId = '두부채소 볶음';
+      cellAt(ctx.plan, 'fri', 'dinner').menuId = '두부 채소볶음';
+      expect(run(ctx).violations).toEqual([
+        {
+          rule: 'menu_weekly_limit',
+          cells: [s('mon', 'dinner'), s('wed', 'dinner'), s('fri', 'dinner')],
+          regenerate: [s('fri', 'dinner')],
+          detail: '두부 채소 볶음', // 처음 나온 칸의 이름
+        },
+      ]);
+    });
+
+    it('22. 주 1회 이하로 분류된 메뉴는 더 엄격한 규칙만 적용한다', () => {
+      const ctx = setup();
+      Object.assign(cellAt(ctx.plan, 'thu', 'lunch'), { menuId: '백반', tags: ['fish'] });
+      for (const day of ['mon', 'wed', 'fri'] as const) {
+        Object.assign(cellAt(ctx.plan, day, 'lunch'), { menuId: '돈가스', tags: ['meat', 'pork', 'fried', 'wheat'] });
+      }
+      expect(run(ctx).violations.map((v) => v.rule)).toEqual(['class_weekly_limit', 'tag_weekly_limit']);
+    });
+
+    it('23. 이어진 칸이면 같은 끼니 연속 요일로 중복 보고하지 않는다', () => {
+      const ctx = setup();
+      ctx.profile.meals.find((m) => m.dayType === 'weekday' && m.meal === 'dinner')!.place = 'skip';
+      for (const day of ['mon', 'tue', 'wed', 'thu', 'fri'] as const) removeCell(ctx.plan, day, 'dinner');
+      Object.assign(cellAt(ctx.plan, 'tue', 'lunch'), { menuId: '회덮밥', tags: ['fish'] });
+      expect(run(ctx).violations).toEqual([
+        { rule: 'consecutive_menu', cells: [s('mon', 'lunch'), s('tue', 'lunch')], regenerate: [s('tue', 'lunch')] },
+      ]);
+    });
   });
 
   it('16. 여러 위반은 규칙 순서로 정렬된다', () => {

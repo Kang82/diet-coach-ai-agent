@@ -137,6 +137,8 @@ export const RULE_IDS = [
   'class_weekly_limit',
   'tag_weekly_limit',
   'consecutive_menu',
+  'same_meal_consecutive_days', // 같은 끼니, 연속된 요일에 같은 메뉴
+  'menu_weekly_limit', // 같은 메뉴 주 2회 초과
   'cook_time_exceeded',
   'reason_criterion',
 ] as const;

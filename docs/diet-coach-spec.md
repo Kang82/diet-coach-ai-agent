@@ -164,7 +164,8 @@ interface Plan {
 
 - 외식 칸의 `menuId`는 그 끼니 설정의 `menus` 중 하나와 정확히 같은 문자열이다. "백반 (생선 반찬)"처럼 설명이 붙은 이름은 `title`에만 쓴다.
 - 집밥 칸의 `menuId`는 설명을 뺀 메뉴 이름이다 ("두부 채소 볶음").
-- 정규화(앞뒤 공백 제거, 괄호 설명 제거)는 LLM 출력 검증 단계에서 한다. `checkPlan`은 정규화된 값을 받는다고 가정하고 정확히 일치하는지만 비교한다.
+- 정규화(앞뒤 공백 제거, 괄호 설명 제거)는 LLM 출력 검증 단계에서 한다. 외식 메뉴 목록과 분류는 정확히 일치하는지로 비교한다.
+- **같은 메뉴인지** 판정할 때(`consecutive_menu`, `same_meal_consecutive_days`, `menu_weekly_limit`)는 `menuKey(menuId)`(공백을 모두 뺀 값)로 비교한다. "닭가슴살 채소 볶음"과 "닭가슴살 채소볶음"은 같은 메뉴다.
 
 ### 1.5 점검 결과
 
@@ -179,6 +180,8 @@ type RuleId =
   | "class_weekly_limit"   // "주 1회 이하" 메뉴를 2회 이상 배치함
   | "tag_weekly_limit"     // 기준별 태그 횟수 제한을 넘음
   | "consecutive_menu"     // 같은 메뉴가 연속됨
+  | "same_meal_consecutive_days" // 같은 끼니, 연속된 요일에 같은 메뉴
+  | "menu_weekly_limit"    // 같은 메뉴 주 2회 초과
   | "cook_time_exceeded"   // 집밥 조리 시간 초과
   | "reason_criterion";    // 이유의 근거가 식단 기준에 없음
 
@@ -193,7 +196,7 @@ interface CheckStats {
   avoidTagCounts: Partial<Record<AvoidTag, number>>;   // 프로필 avoid(펼친 집합)의 태그별 횟수
   limitedMenuCounts: Record<string, number>;           // weekly_max_1 메뉴별 횟수 (외식 칸)
   limitedTagCounts: Partial<Record<NutritionTag, number>>; // 제한이 있는 태그별 횟수
-  consecutiveCount: number;                            // 연속된 같은 메뉴 쌍의 수
+  consecutiveCount: number;                            // consecutive_menu + same_meal_consecutive_days 위반 수
 }
 
 interface CheckResult {
@@ -262,7 +265,9 @@ checkPlan(
 | `class_avoid` | 외식 칸의 `menuId`가 `avoid`로 분류됨 | 칸마다 1개 | 그 칸 |
 | `class_weekly_limit` | `weekly_max_1` 메뉴가 외식 칸에 2회 이상 | 메뉴마다 1개. `detail`은 메뉴 이름 | 두 번째 이후 칸 |
 | `tag_weekly_limit` | `rules.tagLimits`의 태그가 모든 칸 합산으로 제한을 넘음 | 태그마다 1개. `detail`은 태그 이름 | 제한 횟수 다음부터의 칸 (제한이 0이면 전부) |
-| `consecutive_menu` | 이어진 두 칸의 `menuId`가 같음 | 이어진 쌍마다 1개 | 뒤쪽 칸 |
+| `consecutive_menu` | 이어진 두 칸의 `menuKey`가 같음 | 이어진 쌍마다 1개 | 뒤쪽 칸 |
+| `same_meal_consecutive_days` | 같은 끼니(점심끼리, 저녁끼리)의 달력상 연속된 두 요일 칸의 `menuKey`가 같음. 한쪽 요일에 칸이 없으면(거름, 일정, 빠짐) 연속으로 보지 않는다. `consecutive_menu`가 볼 수 있는 이어진 칸 쌍은 건너뛴다(중복 보고 방지) | 쌍마다 1개 | 뒤쪽 칸 |
+| `menu_weekly_limit` | 같은 `menuKey`가 모든 칸 합산으로 주 2회를 넘음. `weekly_max_1`·`avoid`로 분류된 메뉴는 더 엄격한 규칙이 맡으므로 제외 | 메뉴마다 1개. `detail`은 처음 나온 칸의 `menuId` | 세 번째 이후 칸 |
 | `cook_time_exceeded` | 집밥 칸의 `cookMinutes`가 그 끼니 설정의 `cookMinutes`보다 큼. 설정에 값이 없으면 점검하지 않음 | 칸마다 1개 | 그 칸 |
 | `reason_criterion` | 칸의 `criterionIds`가 비었거나 `rules.criteria`에 없는 값이 있음 | 칸마다 1개 | 그 칸 |
 
@@ -336,6 +341,8 @@ classifyMenus(profile: Profile, rules: CriteriaRules): MenuClassification[]
 - 사용자가 분류를 고치면 그 값을 그대로 쓴다.
 
 ### 4.3 식단표 만들기 (LLM)
+
+1주일 칸 전체를 **한 번의 호출**로 만든다(10장 7번). Flue `harness.prompt(text, { result: 스키마 })`로 받고, 프롬프트에는 3.2의 다양성 규칙(같은 끼니 연속 요일 금지, 같은 메뉴 주 2회 이하)도 함께 적는다.
 
 ```ts
 generatePlan(input: {
@@ -461,7 +468,7 @@ formatCheckSummary(stats: CheckStats, profile: Pick<Profile, 'avoid'>): string[]
 | 4 | 분류에서 쌀국수를 `avoid`로 | `class_avoid` 수 점심 |
 | 5 | 금 저녁 태그에 `fried` 추가 | `tag_weekly_limit` cells [목 점심, 금 저녁], regenerate [금 저녁], detail `"fried"` |
 | 6 | 토 저녁 `menuId`를 비빔밥으로 | `consecutive_menu` cells [토 점심, 토 저녁], regenerate [토 저녁] |
-| 7 | 목 저녁을 `events`로 옮기고 칸 삭제, 목·금 점심을 백반으로 | `consecutive_menu` cells [목 점심, 금 점심], regenerate [금 점심] |
+| 7 | 토 저녁을 `events`로 옮기고 칸 삭제, 일 점심을 비빔밥으로 | `consecutive_menu` cells [토 점심, 일 점심], regenerate [일 점심]. 연속 요일 점심이지만 이어진 칸이라 `same_meal_consecutive_days`로 중복 보고하지 않음 |
 | 8 | 수 점심 `menuId`를 짜장면으로 (태그는 `wheat`, `refined_carb_main`) | `eat_out_not_in_list` 수 점심 |
 | 9 | 월 저녁 `cookMinutes` 30 | `cook_time_exceeded` 월 저녁 |
 | 10 | 토 저녁 `cookMinutes` 90 | 없음 (주말 집밥은 시간 제한 없음) |
@@ -471,6 +478,16 @@ formatCheckSummary(stats: CheckStats, profile: Pick<Profile, 'avoid'>): string[]
 | 14 | 월 점심 칸을 하나 더 추가 (회덮밥) | `unexpected_cell` 두 번째 월 점심, regenerate []. 이 칸은 다른 규칙에서 빠지므로 `consecutive_menu` 없음 |
 | 15 | 프로필 `avoid`를 `["meat"]`로, `rules`는 그대로 | `avoid_tag`가 화 저녁, 수 점심, 목 점심, 금 점심, 일 저녁 각각 (시간순 5개) (detail은 각 칸에서 걸린 태그, 예: 목 점심 `"meat,pork"`) |
 | 16 | 2번 + 3번 + 9번을 함께 | `avoid_tag` → `class_weekly_limit` → `cook_time_exceeded` 순서로 3개 |
+| 17 | 토 저녁 `menuId`를 "비 빔밥"으로 | `consecutive_menu` [토 점심, 토 저녁] (공백 무시) |
+| 18 | 화 저녁을 "두부 채소 볶음"으로 | `same_meal_consecutive_days` cells [월 저녁, 화 저녁], regenerate [화 저녁]. `consecutiveCount` 1 |
+| 18-1 | 화 저녁을 "두부채소볶음"으로 | `same_meal_consecutive_days` (공백 무시) |
+| 19 | 화 점심을 회덮밥으로 | `same_meal_consecutive_days` cells [월 점심, 화 점심], regenerate [화 점심] |
+| 20 | 수 점심을 회덮밥으로 (월·수 2회) | 없음 |
+| 20-1 | 화 점심을 일정으로 옮기고 수 점심을 회덮밥으로 | 없음 (일정이 있는 날은 연속 요일을 끊음) |
+| 21 | 수·금 점심을 회덮밥으로 (월·수·금 3회) | `menu_weekly_limit` cells [월, 수, 금 점심], regenerate [금 점심], detail "회덮밥" |
+| 21-1 | 수 저녁 "두부채소 볶음", 금 저녁 "두부 채소볶음" | `menu_weekly_limit` cells [월, 수, 금 저녁], regenerate [금 저녁], detail "두부 채소 볶음" |
+| 22 | 목 점심을 백반으로, 월·수·금 점심을 돈가스로 | `class_weekly_limit`, `tag_weekly_limit`만. 주 1회 이하 메뉴는 `menu_weekly_limit`에서 제외 |
+| 23 | 평일 저녁을 거름으로 바꾸고 칸 삭제, 화 점심을 회덮밥으로 | `consecutive_menu` [월 점심, 화 점심]만 (중복 보고 없음) |
 
 ### 8.3 `buildCriteria` 단위 테스트
 
@@ -545,8 +562,10 @@ LLM 단계는 결과가 매번 다르므로 페르소나별로 여러 번 돌려
 2. **사용자 구분:** ~~첫 시연에서 고유 링크 토큰으로 충분한지~~ → 고유 링크 토큰을 필수로 확정 (11.4). 로그인이 필요한지는 첫 시연 이후에 정한다.
 3. **태그를 누가 붙이나:** LLM이 칸마다 붙이는 태그를 믿을 수 있는지. 자주 나오는 메뉴는 코드에 메뉴 → 태그 사전을 두고 LLM 태그와 합치는 방식도 검토
 4. **Flue 연동:** 구조화된 출력 검증과 재요청, 인터뷰 상태를 Flue 안에서 어떻게 표현할지 (포럼 기능 질문과 연결)
-5. **JSON 출력 강제:** 후보 모델 두 개 모두 `response_format` 파라미터가 있지만, Cloudflare 문서에 JSON 스키마를 강제할 수 있는지는 나와 있지 않다. 강제가 안 되면 프롬프트 지시 + 스키마 검증 + 재요청(1장)에 기댄다. 5단계 시작할 때 실제 호출로 확인한다.
+5. ~~**JSON 출력 강제**~~ → 해결 (11.5). Flue는 `harness.prompt(text, { result: valibot 스키마 })`로 구조화된 출력을 받는다. 모델이 스키마가 붙은 `finish` 도구를 호출하고, 검증에 실패하면 Flue가 다시 요청한다. 1장의 "스키마 검증과 재요청(최대 2회)"은 직접 구현하지 않고 이 기능을 쓴다. 스키마는 zod 대신 valibot으로 쓴다.
 6. **한도 초과 에러 형태:** Workers AI가 무료 한도를 넘었을 때 돌려주는 에러를 어떻게 구분할지 (11.3). 실제 에러를 보고 판별 함수를 확정한다.
+7. ~~**1주일 식단표 생성 방식**~~ → **B(한 번에 14칸)로 확정** (11.5 측정). A(요일별 7회 동시)보다 약 2배 느리지만(2분 44초~3분 54초) Neuron은 약 4분의 1이고 메뉴 다양성이 좋다. 화면에서는 "식단표를 만드는 중이에요(약 3분)"처럼 진행 상태를 보여 주고, 창을 닫았다 와도 결과를 볼 수 있게 한다.
+8. ~~**메뉴 다양성 규칙**~~ → 해결. `same_meal_consecutive_days`, `menu_weekly_limit`(주 2회) 규칙과 `menuKey`(공백 무시) 비교를 추가했다 (3.2). 11.5의 A 결과 두 개는 이제 위반 4개, 6개로 걸린다. "닭가슴살 샐러드"와 "닭가슴살 브로콜리 볶음"처럼 이름은 다르지만 주재료가 같은 반복은 아직 잡지 못한다.
 
 ## 11. LLM 모델과 사용량 (Cloudflare Workers AI)
 
@@ -604,4 +623,42 @@ isQuotaExceeded(error: unknown): boolean   // Workers AI 에러를 판별 (열�
 2. **사용자별 하루 호출 제한:** 사용자 하나가 하루에 시작할 수 있는 LLM 호출 수를 제한한다(초안: 하루 60회. 1회 사용에 약 10~15회 호출). 넘으면 429와 11.3과 같은 안내를 돌려준다.
 3. **전체 하루 사용량 안전선:** Worker 전체의 하루 Neuron 사용량 추정치를 센다. 8,000 Neuron에 닿으면 새 식단표 만들기와 인터뷰 시작을 막고 11.3 안내를 보여 준다. 이미 진행 중인 요청은 끝까지 처리한다. 추정치는 호출마다 입출력 토큰 수와 11.1 모델의 토큰당 Neuron 값으로 계산한다.
 
+Flue가 돌려주는 `usage.cost`는 Workers AI 모델에서 항상 0이다(11.5). 그래서 Neuron은 `usage.input`, `usage.output` 토큰 수에 11.1 모델의 토큰당 Neuron 값을 곱해 직접 계산한다.
+
 카운터(2, 3번)는 날짜(UTC)별로 저장하고 00:00 UTC에 초기화된다. 저장 위치(Durable Object, D1, KV)는 구현할 때 정한다. 이 세 가지는 단위 테스트로 검증한다: 토큰 없음·틀림 → 401, 사용자 제한 초과 → 429, 안전선 초과 → 새 요청 차단·진행 중 요청 허용.
+
+### 11.5 실제 호출 측정 (2026-11-04)
+
+로컬 개발 서버에서 Flue `harness.prompt` + `result` 스키마로 페르소나 A의 월요일 점심·저녁 **2칸**을 요청했다. 각 1회씩이라 참고용이다.
+
+| 모델 | 설정 | 걸린 시간 | 입력 / 출력 토큰 | 추정 Neuron | 결과 품질 |
+| --- | --- | --- | --- | --- | --- |
+| gemma | 기본(thinking medium) | 70초 | 1,199 / 1,654 | 약 56 | 좋음: 메뉴 목록 준수, 태그 정확, 이유 자연스러움 |
+| gemma | `thinkingLevel: 'off'` | 107초 | 1,200 / 4,636 | 약 137 | 좋음. 단 더 느리고 토큰이 늘어 `off`가 효과 없음 |
+| glm | 기본 | 44초 | 5,051 / 2,492 | 약 118 | 나쁨: 회덮밥에 `meat`·`chicken`·`fried` 태그, 이유에 없는 재료(곱창), 닭볶음탕에 `fried` |
+
+확인된 것:
+
+- 두 모델 모두 한국어가 들어간 중첩 스키마로 `finish` 도구를 호출해 검증을 통과했다. 외식 칸의 `menuId`도 목록 문자열과 정확히 같았다.
+- **품질은 gemma가 확실히 낫다.** glm은 태그를 틀리게 붙여 `checkPlan`이 걸러 내더라도 다시 추천 루프가 자주 돌 것이다. 기본 모델은 gemma로 유지한다.
+- glm의 입력 토큰이 4배인 것은 스키마 재요청이 여러 번 일어났을 가능성이 크다.
+- `usage.cost`는 Workers AI에서 0이다. Neuron은 직접 계산해야 한다 (11.4).
+- **속도가 가장 큰 문제다.** 2칸에 1분 넘게 걸렸다. 14칸을 한 번에 만들면 몇 분이 걸릴 수 있다. 1주일 식단표 1회의 실제 시간과 Neuron은 아직 재지 않았다 (열린 질문 7).
+- 11.2의 1회 사용 예산(약 400 Neuron)은 이 측정으로 보면 낮게 잡혔을 수 있다. 1주일 측정 뒤 다시 계산한다.
+**1주일 식단표 A/B 비교 (gemma, 페르소나 A, 각 2회):**
+
+A는 요일별로 대화 7개를 동시에 시작해 하루 2칸씩, B는 대화 1개에서 한 번에 14칸을 만들었다. 시간은 요청부터 마지막 결과까지, Neuron은 식단 생성 호출의 토큰으로 계산했다(에이전트가 도구를 고르는 바깥 턴은 빠짐).
+
+| 방식 | 회차 | 걸린 시간 | 입력 / 출력 토큰 | Neuron | `checkPlan` | 메뉴 다양성 |
+| --- | --- | --- | --- | --- | --- | --- |
+| B (한 번에 14칸) | 1 | 3분 54초 | 1,648 / 6,226 | 약 185 | 통과 | 좋음: 평일 점심 4가지, 저녁 5가지 모두 다름 |
+| B | 2 | 2분 44초 | 1,648 / 6,974 | 약 205 | 통과 | 좋음: 평일 점심 4가지, 저녁 5가지 모두 다름 |
+| A (요일별 7회 동시) | 1 | 1분 25초 | 12,542 / 22,157 | 약 718 | 통과 | 나쁨: 평일 저녁 5일 중 4일이 닭가슴살 볶음류, 토·일 점심 둘 다 소불고기 |
+| A | 2 | 1분 53초 | 16,354 / 26,190 | 약 863 | 통과 | 나쁨: 평일 점심 5일 모두 회덮밥, 평일 저녁 5일 모두 닭가슴살 |
+
+- **B가 Neuron을 약 4분의 1만 쓴다.** 하루치를 따로 만들어도 출력 토큰(대부분 추론)이 1주일치의 절반 가까이 나와서, 7번 부르면 크게 늘어난다.
+- **A가 약 2배 빠르다.** 하지만 B도 3~4분이고, Flue는 요청을 받은 뒤 결과를 대화에 남기므로 사용자가 창을 닫았다 와도 결과를 볼 수 있다.
+- **A는 요일끼리 서로 모르기 때문에 같은 메뉴를 반복한다.** 그런데도 `checkPlan`을 통과했다. 3장 규칙의 빈틈이다 (열린 질문 8).
+- 두 방식 모두 피할 음식, 메뉴 목록, 주 1회 이하, 튀김 횟수 규칙은 지켰다.
+
+- 개발 메모: Windows의 Git Bash에서 `curl -d '한글'`로 보내면 본문이 깨진다. 요청 본문은 UTF-8 파일로 만들어 `--data-binary @파일`로 보낸다.

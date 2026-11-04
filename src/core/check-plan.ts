@@ -1,6 +1,6 @@
 // 스펙 3장 규칙 점검. 순수 함수이고 LLM을 부르지 않는다.
 // 프로필과 식단표가 스키마 검증을 통과했다고 가정한다.
-import { compareSlots, dayType, expandAvoid, slotOrder, toSlot } from './helpers.ts';
+import { compareSlots, dayType, expandAvoid, menuKey, slotOrder, toSlot } from './helpers.ts';
 import { DAYS, MEAL_TYPES, NUTRITION_TAGS, RULE_IDS } from './types.ts';
 import type {
   AvoidTag,
@@ -127,14 +127,55 @@ export function checkPlan(
     }
   }
 
-  // consecutive_menu
+  // consecutive_menu: 시간순으로 바로 이어진 두 칸
   let consecutiveCount = 0;
+  const adjacentPairs = new Set<string>();
   for (let i = 1; i < cells.length; i++) {
     const prev = cells[i - 1]!;
     const cur = cells[i]!;
-    if (prev.menuId === cur.menuId) {
+    adjacentPairs.add(pairKey(prev, cur));
+    if (menuKey(prev.menuId) === menuKey(cur.menuId)) {
       consecutiveCount++;
       violations.push({ rule: 'consecutive_menu', cells: [toSlot(prev), toSlot(cur)], regenerate: [toSlot(cur)] });
+    }
+  }
+
+  // same_meal_consecutive_days: 같은 끼니, 달력상 연속된 요일. 이미 이어진 칸으로 보고한 쌍은 건너뛴다.
+  const cellAt = new Map(cells.map((c) => [slotOrder(c), c]));
+  for (const meal of MEAL_TYPES) {
+    for (let d = 1; d < DAYS.length; d++) {
+      const prev = cellAt.get(slotOrder({ day: DAYS[d - 1]!, meal }));
+      const cur = cellAt.get(slotOrder({ day: DAYS[d]!, meal }));
+      if (!prev || !cur || adjacentPairs.has(pairKey(prev, cur))) continue;
+      if (menuKey(prev.menuId) === menuKey(cur.menuId)) {
+        consecutiveCount++;
+        violations.push({
+          rule: 'same_meal_consecutive_days',
+          cells: [toSlot(prev), toSlot(cur)],
+          regenerate: [toSlot(cur)],
+        });
+      }
+    }
+  }
+
+  // menu_weekly_limit: 같은 메뉴 주 2회 초과. 주 1회 이하·피하기로 분류된 메뉴는 더 엄격한 규칙이 맡는다.
+  const strictKeys = new Set(classes.filter((c) => c.class !== 'often').map((c) => menuKey(c.menu)));
+  const byMenu = new Map<string, PlanCell[]>();
+  for (const cell of cells) {
+    const key = menuKey(cell.menuId);
+    if (strictKeys.has(key)) continue;
+    const list = byMenu.get(key) ?? [];
+    list.push(cell);
+    byMenu.set(key, list);
+  }
+  for (const list of byMenu.values()) {
+    if (list.length > MENU_WEEKLY_MAX) {
+      violations.push({
+        rule: 'menu_weekly_limit',
+        cells: list.map(toSlot),
+        regenerate: list.slice(MENU_WEEKLY_MAX).map(toSlot),
+        detail: list[0]!.menuId,
+      });
     }
   }
 
@@ -156,6 +197,13 @@ export function checkPlan(
 
   const stats: CheckStats = { avoidTagCounts, limitedMenuCounts, limitedTagCounts, consecutiveCount };
   return { passed: violations.length === 0, violations: sortViolations(violations), stats };
+}
+
+/** 같은 메뉴는 주 2회까지 (스펙 3.2) */
+export const MENU_WEEKLY_MAX = 2;
+
+function pairKey(a: Slot, b: Slot): string {
+  return `${slotOrder(a)}-${slotOrder(b)}`;
 }
 
 function slotFromOrder(order: number): Slot {

@@ -22,6 +22,11 @@ export function toSlot(slot: Slot): Slot {
   return { day: slot.day, meal: slot.meal };
 }
 
+/** 같은 메뉴인지 판정할 때 쓰는 키. 공백을 모두 뺀다. */
+export function menuKey(menuId: string): string {
+  return menuId.replace(/\s+/g, '');
+}
+
 const MEAT_FAMILY: readonly AvoidTag[] = ['pork', 'beef', 'chicken'];
 
 /** "meat"가 있으면 구체적인 고기 태그를 더한다. AvoidTag 선언 순서로 돌려준다. */
