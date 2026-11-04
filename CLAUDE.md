@@ -1,0 +1,67 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## 프로젝트
+
+식단 코치 에이전트. 인터뷰로 목표와 식사 환경을 받아 1주일 식단표를 만든다. Flue(에이전트 프레임워크) + Cloudflare Workers, LLM은 Workers AI 무료 모델.
+
+- `docs/diet-coach-agent-screener.md`: 기획서 (무엇을 왜)
+- `docs/diet-coach-spec.md`: 구현 스펙. **데이터 모양, 규칙, 테스트 케이스의 기준은 이 문서다.** 코드 주석의 "스펙 3장", "8.2" 같은 표기는 이 문서의 절을 가리킨다. 9장이 구현 순서, 10장이 열린 질문, 11장이 모델·사용량·배포 전 필수 항목이다.
+- 문서, 주석, 커밋 메시지, 사용자 응대는 한국어로 쓴다.
+
+## 명령
+
+```bash
+npm test                                   # 단위 테스트 (vitest run)
+npx vitest run src/core/check-plan.test.ts # 파일 하나
+npx vitest run -t "18. 같은 끼니"           # 이름으로 테스트 하나
+npm run typecheck                          # tsc --noEmit
+npm run build                              # vite build → Cloudflare Worker (dist/)
+npm run dev                                # vite dev (workerd). AI 호출은 원격이라 `npx wrangler login` 필요
+```
+
+- `vitest.config.ts`는 단위 테스트 전용이다. `vite.config.ts`의 Cloudflare 플러그인을 테스트에서 불러오지 않으려고 분리했다. LLM 평가 세트는 나중에 `vitest.evals.config.ts`로 따로 둔다 (스펙 8.5).
+- `npm run deploy`는 스펙 11.4(토큰 확인, 사용자별 호출 제한, 전체 Neuron 안전선)가 구현되기 전에는 쓰지 않는다. Flue 에이전트 경로에는 인증이 없어서, 열어 두면 누구나 하루 무료 한도를 소진시킬 수 있다.
+
+## 구조
+
+```
+src/core/     순수 로직. Flue·Cloudflare를 import하지 않는다.
+src/storage/  Storage 인터페이스, 메모리 구현, 계약 테스트
+src/agents/   Flue 에이전트 ('use agent'), 모델 ID (models.ts)
+src/app.ts    Hono 라우트 맵. 에이전트를 마운트한다.
+```
+
+**처리 원칙: 결과를 보장해야 하는 일은 코드, 판단과 문장은 LLM.** 식단 기준 계산(`buildCriteria`), 규칙 점검(`checkPlan`), 요약 문구(`formatCheckSummary`), 저장은 코드다. LLM 출력은 `checkPlan`이 걸러 내고, 위반한 칸만 다시 추천하는 루프(스펙 4.4)를 돈다.
+
+### core
+
+- `types.ts`의 배열 상수(`RULE_IDS`, `CRITERION_IDS`, `AVOID_TAGS`, `DAYS` 등)는 **선언 순서가 곧 정렬 순서**다. 순서를 바꾸면 테스트 기대값이 깨진다.
+- `checkPlan`은 순수 함수다. 위반은 `{ rule, cells, regenerate, detail? }`이고 `RULE_IDS` 순서 → 첫 칸 시간순 → detail 순으로 정렬된다. `cells`는 관련된 칸 전부, `regenerate`는 다시 추천할 칸(대개 허용 횟수를 넘긴 뒤쪽 칸)이다. 문구는 만들지 않고 `stats`만 돌려준다.
+- 같은 메뉴 판정은 `menuKey()`(공백 제거)로 한다. 외식 메뉴 목록과 분류 비교는 정확히 일치로 한다.
+- 규칙을 추가할 때: `RULE_IDS`에 위치를 정해 넣고, 스펙 3.2 표(판정·위반 단위·regenerate)와 8.2 테스트 표를 함께 고친다.
+- `checkPlan` 테스트는 `__fixtures__/persona-a.ts`(통과하는 1주일 식단표)를 `structuredClone`해서 한 군데만 바꾸고, 기대한 위반 **목록 전체**를 `toEqual`로 비교한다. 기준 값은 `buildCriteria`가 아니라 고정값 `__fixtures__/rules-a.ts`를 쓴다.
+
+### storage
+
+새 `Storage` 구현(D1 등)은 `storageContract('이름', () => new 구현())` 한 줄로 `storage-contract.ts`의 계약 테스트를 통과해야 한다.
+
+### Flue
+
+- 설치된 Flue 문서가 `node_modules/@flue/runtime/docs/`에 있다. 웹 검색보다 이쪽이 설치 버전과 맞다.
+- 에이전트를 추가하려면 세 가지가 필요하다: `'use agent'` 파일, `app.ts`의 `app.route(...)`, `wrangler.jsonc`의 Durable Object 마이그레이션(뒤에 덧붙이기만, 배포한 항목은 고치지 않음). 함수 이름이 곧 저장 식별자라서 이름을 바꾸면 마이그레이션이 필요하다.
+- 구조화된 출력은 `harness.prompt(text, { result: valibot 스키마 })`로 받는다. 모델이 프레임워크의 `finish` 도구를 호출하고, 검증 실패 시 Flue가 다시 요청한다. 스키마는 zod가 아니라 valibot이다.
+- Workers AI 모델에서는 `usage.cost`가 항상 0이다. Neuron은 토큰 수 × 모델별 단가로 직접 계산한다 (스펙 11.4).
+- `package.json`의 `overrides`로 `@earendil-works/pi-ai`와 `pi-agent-core`를 1.4.0에 고정했다. 1.5.0은 Flue 2.3.0과 호환되지 않아 빌드가 깨진다. Flue를 올릴 때 이 고정을 풀 수 있는지 확인한다.
+
+## Workers AI 무료 한도
+
+- 하루 10,000 Neuron, 00:00 UTC(한국 오전 9시) 초기화. 넘으면 호출이 에러로 실패한다. **로컬 `vite dev`도 원격 호출이라 같은 한도를 쓴다.**
+- 기본 모델은 `@cf/google/gemma-4-26b-a4b-it`(`src/agents/models.ts`). glm-4.7-flash는 태그 품질이 나빠 후순위다.
+- 측정값(스펙 11.5): 1주일 14칸을 한 번에 만들면 약 3분, 약 200 Neuron. 2칸만 만들어도 1분 이상 걸린다. 실제 모델을 부르는 확인이나 평가는 사용량을 먼저 어림하고 돌린다.
+
+## Windows 개발 환경 메모
+
+- Git Bash에서 `curl -d '한글'`은 본문이 깨진다. UTF-8 파일로 만들어 `--data-binary @파일`로 보낸다.
+- `vite dev`를 끝낼 때 node와 `workerd.exe` 프로세스가 남는다. 포트(예: 5199)를 쓰는 프로세스까지 종료한다.
