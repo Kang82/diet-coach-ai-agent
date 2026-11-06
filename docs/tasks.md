@@ -98,23 +98,33 @@
 
 시연의 핵심 장면과 약 3분 기다리는 경험을 일찍 확인하려고 인터뷰보다 앞당겼다. 프로필은 페르소나 A로 고정한다.
 
-- [ ] **T2-1. React 설정** (스펙 7.1)
+- [x] **T2-1. React 설정** (스펙 7.1) (2026-11-06)
   - `react`, `react-dom`, `@vitejs/plugin-react`, `@flue/react`, `@flue/sdk`. Vite 설정, `wrangler.jsonc`의 정적 자산과 SPA 라우팅, `src/ui/` 진입점
   - 완료 기준: 개발 서버에서 `/`는 React 페이지, `/api/ping`은 `pong`. `npm run build` 통과
   - 선행: T0-1
+  - `@flue/react`·`@flue/sdk`는 runtime과 같은 2.3.0. `assets`는 `not_found_handling: single-page-application`, `run_worker_first: ["/api/*", "/agents/*"]`(디렉터리는 Cloudflare Vite 플러그인이 정함)
 
-- [ ] **T2-2. 식단표 생성 도구** (스펙 4.3, 4.4, 7.1)
+- [x] **T2-2. 식단표 생성 도구** (스펙 4.3, 4.4, 7.1) (2026-11-06)
   - 에이전트에 식단표를 만드는 도구를 붙인다. 도구 안에서 점검·다시 추천 루프를 돌리고, `Plan`과 점검 요약을 도구 결과로 돌려준다
-  - T1-5에서 `create_week_plan`을 먼저 만들었다. 남은 일: 도구 결과 모양을 화면(T2-3)에 맞게 정하고, 바깥 턴 사용량까지 세는 방법을 정한다
   - 완료 기준: 개발 서버에서 대화로 호출하면 도구 결과에 `checkPlan`을 통과한 `Plan`이 남음
   - `createPlan`의 `planId`, `createdAt`은 도구에서 만든다. 결과의 `usages`와 `PlanLoopError.usages`는 성공·실패와 관계없이 사용량으로 센다
   - 선행: T1-5
+  - 결정: 도구 결과 모양은 `core/plan-tool-output.ts`의 `PlanToolOutput`(도구, 화면, 평가 세트가 함께 씀). `ok`에 `notices`(`core/plan-notices.ts`의 `buildPlanNotices`: 의료 조언 아님 + 약 복용 시 상담 권고)를 더했다
+  - 결정: 도구 입력에서 `weekStart`를 뺐다. gemma가 오늘 날짜(금요일)를 넣은 적이 있다. 시작일은 `nextMondayKst`, 기간 선택(T5-3)이 생기면 그쪽 값을 쓴다
+  - 결정: 바깥 턴 사용량은 `useResponseFinish`로 응답 metadata(`usage`)에 남긴다. 이 값에는 도구 안 `harness.prompt` 사용량이 들어가지 않으므로 하루 사용량은 "응답 사용량 + 도구 `stats.usages`"로 센다 (T7-3). 실측 바깥 턴 약 2 Neuron
+  - 개발용 가짜 모드: `.dev.vars`에 `PLAN_GENERATOR=demo`면 `agents/demo-plan-generator.ts`(페르소나 A 칸을 5초 뒤 돌려줌). 바깥 턴은 실제 모델
 
-- [ ] **T2-3. 식단표 화면** (스펙 7장)
-  - "식단표 만들기" 버튼 → 기다리는 화면(경과 시간, 다시 고르는 중 안내) → 식단표(이유, 주문 팁, 점검 요약, 의료 조언 아님 안내)
+- [x] **T2-3. 식단표 화면** (스펙 7장) (2026-11-06)
+  - "식단표 만들기" 버튼 → 기다리는 화면(경과 시간) → 식단표(이유, 주문 팁, 점검 요약, 의료 조언 아님 안내)
   - 넓은 화면은 요일 × 끼니 표, 휴대폰 폭은 요일별 카드
   - 완료 기준: 개발 서버에서 버튼을 누르면 약 3분 뒤 식단표가 보이고, 새로고침이나 창을 닫았다 열어도 진행 상태나 결과가 이어짐
   - 선행: T2-1, T2-2
+  - 결과: 실제 모드 1회 3분 7초, 약 288 Neuron, 처음에 통과 ([실험 기록](experiments/2026-11-06-b1-ui-real-run.md)). 새로고침 이어짐과 휴대폰 폭 카드는 가짜 모드로 확인
+  - 코드: `ui/plan-view-state.ts`(대화 → 화면 상태, 테스트 있음), `ui/plan-layout.ts`(요일 × 끼니 배치), `App.tsx`, `WaitingView.tsx`, `PlanBoard.tsx`, `styles.css`. 대화 ID는 `localStorage`, 시작 시각은 사용자 메시지의 서버 시각
+  - 디자인: `frontend-design` skill로 기본안(구내식당 주간 메뉴판 모티프), `web-design-guidelines`로 점검. 보면서 바꿀 예정
+  - 화면 폭: 1024px 이상은 요일 × 끼니 표, 641~1023px(태블릿)은 요일 카드 2열, 640px 이하(휴대폰)는 1열. 7열 표는 태블릿에서 칸이 너무 좁다. Chrome에서만 확인했고 Safari·삼성 인터넷은 실기기 확인 전
+  - 대화 ID는 `ui/conversation-id.ts`. `crypto.randomUUID`가 없는 http 사설 주소(휴대폰으로 개발 서버 확인)에서는 `getRandomValues`로 만든다. 휴대폰으로 볼 때는 `npm run dev -- --port 5199 --host`
+  - 빠진 것: "몇 칸을 다시 고르는 중" 안내. 도구의 `log` 이벤트는 클라이언트가 읽는 대화에 나오지 않는다 (아래 "나중에")
 
 - [ ] **T2-4. 칸별 "다시 추천"** (스펙 4.4-4)
   - `editPlanCells` 결과의 `changed`에 고르지 않은 칸이 있으면 "다른 칸도 바꿨어요", `unchangedTargets`가 있으면 "요청을 반영하지 못했어요"를 알린다. `invalid_targets`는 고를 수 없는 칸이라고 알린다
@@ -190,4 +200,7 @@
 ## 나중에
 
 - 이름은 다르지만 주재료가 같은 메뉴의 반복 제한 (예: 닭가슴살 샐러드, 닭가슴살 볶음)
+- 기다리는 화면의 "몇 칸을 다시 고르는 중" 안내 (스펙 7장). 도구 `log`는 대화에 안 나오므로 `useDataWriter` 같은 다른 통로가 필요하다. 지금까지 다시 추천 0회라 미뤘다
+- "새로 만들기"를 누르면 지금 식단표를 다시 볼 방법이 없다 (대화 ID만 바뀜). 저장(T6)이나 지난 식단표 목록이 생길 때 함께 정한다
+- 제목에 주문 팁이 괄호로 들어가 주문 팁 칸과 겹친다("백반 (생선 반찬 고르기)"). 프롬프트에서 제목은 메뉴 이름만 쓰게 할지
 - 첫 시연 이후 기능: 하루 재조정, 레시피, 지난주 체크 반영, 근육 증가 목표, 도시락

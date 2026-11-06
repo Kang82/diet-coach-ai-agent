@@ -39,6 +39,7 @@ npm run evals -- -t 페르소나A              # 평가 세트 (스펙 8.5). 개
 ```
 
 - `vitest.config.ts`는 단위 테스트 전용이다. `vite.config.ts`의 Cloudflare 플러그인을 테스트에서 불러오지 않으려고 분리했다. LLM 평가 세트는 `vitest.evals.config.ts`(`src/evals/**/*.eval.ts`)로 따로 돈다. 기본 2회이고 `EVAL_RUNS=1`로 줄일 수 있다 (스펙 8.5).
+- 화면 개발 중에는 `.dev.vars`에 `PLAN_GENERATOR=demo`를 넣으면 식단 생성이 실제 모델 대신 페르소나 A 칸을 5초 뒤 돌려준다(바깥 턴만 실제 호출, 약 2 Neuron). `.dev.vars`를 바꾸면 개발 서버를 다시 띄운다. 평가 세트와 실제 확인은 이 줄을 지우거나 주석 처리한다.
 - `npm run deploy`는 스펙 11.4(토큰 확인, 사용자별 호출 제한, 전체 Neuron 안전선)가 구현되기 전에는 쓰지 않는다. Flue 에이전트 경로에는 인증이 없어서, 열어 두면 누구나 하루 무료 한도를 소진시킬 수 있다.
 
 ## 구조
@@ -47,6 +48,7 @@ npm run evals -- -t 페르소나A              # 평가 세트 (스펙 8.5). 개
 src/core/     순수 로직. Flue·Cloudflare를 import하지 않는다.
 src/storage/  Storage 인터페이스, 메모리 구현, 계약 테스트
 src/agents/   Flue 에이전트 ('use agent'), 모델 ID (models.ts)
+src/ui/       React 화면 (@flue/react). 화면 상태 판단은 순수 함수(plan-view-state.ts)로 두고 테스트한다
 src/app.ts    Hono 라우트 맵. 에이전트를 마운트한다.
 ```
 

@@ -55,7 +55,11 @@ describe('2026-11-04 1주일 생성 방식 A/B', () => {
 });
 
 describe('2026-11-06 실제 루프', () => {
-  it.each(['2026-11-06-t1-5-first-loop.json', '2026-11-06-t1-6-eval-persona-a.json'])('%s는 통과', (file) => {
+  it.each([
+    '2026-11-06-t1-5-first-loop.json',
+    '2026-11-06-t1-6-eval-persona-a.json',
+    '2026-11-06-b1-ui-real-run.json',
+  ])('%s는 통과', (file) => {
     const { output } = load<{ output: { plan: Plan } }>(file);
     expect(rulesOf(output.plan)).toEqual([]);
   });

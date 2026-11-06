@@ -8,23 +8,26 @@ import { buildCriteria } from '../core/criteria.ts';
 import { formatCheckSummary } from '../core/format-summary.ts';
 import { nextMondayKst } from '../core/helpers.ts';
 import { totalNeurons } from '../core/neurons.ts';
+import type { PlanGenerator, TokenUsage } from '../core/plan-generator.ts';
 import { createPlan, PlanLoopError } from '../core/plan-loop.ts';
-import type { TokenUsage } from '../core/plan-generator.ts';
+import { buildPlanNotices } from '../core/plan-notices.ts';
+import type { PlanToolOutput } from '../core/plan-tool-output.ts';
 import { QUOTA_EXCEEDED_MESSAGE } from '../core/quota.ts';
-import { createFluePlanGenerator } from './flue-plan-generator.ts';
+import { createDemoPlanGenerator } from './demo-plan-generator.ts';
+import { createFluePlanGenerator, type PromptHarness } from './flue-plan-generator.ts';
 import { NEURON_PRICES } from './models.ts';
 
 export const createWeekPlanTool = defineTool({
   name: 'create_week_plan',
   description: '사용자의 프로필로 1주일 식단표를 만들고 규칙을 점검한다. 몇 분 걸린다.',
-  input: v.object({
-    weekStart: v.optional(v.pipe(v.string(), v.isoDate()), undefined),
-  }),
+  // 시작일은 모델에게 맡기지 않는다. 입력으로 열어 두었더니 gemma가 오늘 날짜(금요일)를 넣었다 (2026-11-06).
+  // 기간 선택 화면(T5-3)이 생기면 그쪽에서 정한 값을 넘긴다.
+  input: v.object({}),
   harness: true,
-  async run({ harness, data, log }) {
+  async run({ harness, log }) {
     const profile = structuredClone(profileA);
     const ctx = { profile, rules: buildCriteria(profile.goals), classes: structuredClone(classesA) };
-    const weekStart = data.weekStart ?? nextMondayKst(new Date());
+    const weekStart = nextMondayKst(new Date());
     const startedAt = Date.now();
 
     const neurons = (usages: TokenUsage[]) =>
@@ -36,7 +39,7 @@ export const createWeekPlanTool = defineTool({
       );
 
     try {
-      const result = await createPlan(createFluePlanGenerator(harness), ctx, {
+      const result = await createPlan(pickGenerator(harness), ctx, {
         planId: crypto.randomUUID(),
         createdAt: new Date().toISOString(),
         weekStart,
@@ -52,7 +55,13 @@ export const createWeekPlanTool = defineTool({
 
       if (result.ok) {
         return {
-          output: toJson({ status: 'ok', plan: result.plan, summary: formatCheckSummary(result.check.stats, profile), stats }),
+          output: toJson({
+            status: 'ok',
+            plan: result.plan,
+            summary: formatCheckSummary(result.check.stats, profile),
+            notices: buildPlanNotices(profile),
+            stats,
+          }),
           // 식단표는 도구 결과로 화면에 보여 준다. 모델이 14칸을 다시 풀어 쓰며 Neuron을 쓰지 않게 여기서 끝낸다.
           terminate: true,
         };
@@ -79,7 +88,15 @@ export const createWeekPlanTool = defineTool({
   },
 });
 
-/** 도구 출력은 JSON 값이어야 한다. 인터페이스(Plan 등)를 JsonValue로 넘기려고 한 번 직렬화한다. */
-function toJson(value: unknown): JsonValue {
+/**
+ * 개발용 가짜 생성 모드: `.dev.vars`의 PLAN_GENERATOR=demo (demo-plan-generator.ts).
+ * nodejs_compat에서는 Worker의 vars가 process.env로도 들어온다. 값이 없으면 실제 모델을 쓴다.
+ */
+function pickGenerator(harness: PromptHarness): PlanGenerator {
+  return process.env.PLAN_GENERATOR === 'demo' ? createDemoPlanGenerator() : createFluePlanGenerator(harness);
+}
+
+/** 도구 출력은 JSON 값이어야 한다. 인터페이스(Plan 등)를 JsonValue로 넘기려고 한 번 직렬화한다. 모양은 PlanToolOutput으로 검사한다. */
+function toJson(value: PlanToolOutput): JsonValue {
   return JSON.parse(JSON.stringify(value)) as JsonValue;
 }

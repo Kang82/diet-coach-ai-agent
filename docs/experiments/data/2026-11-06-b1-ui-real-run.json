@@ -1,0 +1,355 @@
+{
+  "conversationId": "b1-real-run1",
+  "note": "B1 화면에서 실제 모드 1회. 바깥 턴 사용량은 responseUsage(useResponseFinish metadata)",
+  "toolInput": {},
+  "durationMs": 186568,
+  "responseUsage": {
+    "model": "cloudflare/@cf/google/gemma-4-26b-a4b-it",
+    "input": 17,
+    "output": 75,
+    "neurons": 2
+  },
+  "settlement": [
+    {
+      "outcome": "completed",
+      "timestamp": "2026-11-06T02:58:44.036Z"
+    }
+  ],
+  "output": {
+    "status": "ok",
+    "plan": {
+      "planId": "f4a90705-6629-4028-85be-15d12cd2b8f0",
+      "userId": "user-a",
+      "profileVersion": 1,
+      "weekStart": "2026-11-09",
+      "events": [],
+      "cells": [
+        {
+          "day": "mon",
+          "meal": "lunch",
+          "place": "eat_out",
+          "menuId": "백반",
+          "title": "백반 (생선 반찬 고르기)",
+          "ingredients": [
+            "생선",
+            "나물"
+          ],
+          "tags": [
+            "fish",
+            "soy"
+          ],
+          "orderTip": "생선 반찬을 골라 드세요.",
+          "cookMinutes": 0,
+          "reason": "생선과 나물 위주의 식단으로 포화지방을 줄이고 식이섬유를 늘립니다.",
+          "criterionIds": [
+            "reduce_saturated_fat",
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "mon",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "두부 채소 볶음",
+          "title": "두부 채소 볶음",
+          "ingredients": [
+            "두부",
+            "브로콜리",
+            "버섯"
+          ],
+          "tags": [
+            "soy"
+          ],
+          "orderTip": "",
+          "cookMinutes": 15,
+          "reason": "두부는 저칼로리 고단백 식품으로 체중 감량에 효과적입니다.",
+          "criterionIds": [
+            "reduce_portion_calories",
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "tue",
+          "meal": "lunch",
+          "place": "eat_out",
+          "menuId": "쌀국수",
+          "title": "쌀국수 (숙주 추가)",
+          "ingredients": [
+            "쌀국수 면",
+            "소고기",
+            "숙주"
+          ],
+          "tags": [
+            "meat",
+            "beef"
+          ],
+          "orderTip": "숙주를 추가해서 드세요.",
+          "cookMinutes": 0,
+          "reason": "숙주를 추가하여 식이섬유를 늘리고 포만감을 높입니다.",
+          "criterionIds": [
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "tue",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "닭가슴살 샐러드",
+          "title": "닭가슴살 샐러드",
+          "ingredients": [
+            "닭가슴살",
+            "양상추",
+            "방울토마토"
+          ],
+          "tags": [
+            "meat",
+            "chicken"
+          ],
+          "orderTip": "",
+          "cookMinutes": 10,
+          "reason": "닭가슴살을 활용해 칼로리를 낮추고 단백질을 보충합니다.",
+          "criterionIds": [
+            "reduce_portion_calories"
+          ]
+        },
+        {
+          "day": "wed",
+          "meal": "lunch",
+          "place": "eat_out",
+          "menuId": "회덮밥",
+          "title": "회덮밥 (초장 절반)",
+          "ingredients": [
+            "회",
+            "채소",
+            "현미밥"
+          ],
+          "tags": [
+            "fish"
+          ],
+          "orderTip": "초장을 절반만 넣어 드세요.",
+          "cookMinutes": 0,
+          "reason": "초장 사용량을 줄여 당분과 칼로리 섭취를 제한합니다.",
+          "criterionIds": [
+            "reduce_portion_calories",
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "wed",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "버섯 계란 볶음",
+          "title": "버섯 계란 볶음",
+          "ingredients": [
+            "버섯",
+            "계란",
+            "양파"
+          ],
+          "tags": [
+            "egg"
+          ],
+          "orderTip": "",
+          "cookMinutes": 10,
+          "reason": "버섯은 식이섬유가 풍부하여 포만감을 줍니다.",
+          "criterionIds": [
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "thu",
+          "meal": "lunch",
+          "place": "eat_out",
+          "menuId": "돈가스",
+          "title": "돈가스 (밥 반 공기, 소스 따로)",
+          "ingredients": [
+            "돈가스",
+            "양배추"
+          ],
+          "tags": [
+            "meat",
+            "pork",
+            "fried"
+          ],
+          "orderTip": "밥은 반 공기, 소스는 따로 요청하세요.",
+          "cookMinutes": 0,
+          "reason": "소스와 밥 양을 조절하여 튀김의 칼로리를 관리합니다.",
+          "criterionIds": [
+            "reduce_portion_calories",
+            "reduce_saturated_fat"
+          ]
+        },
+        {
+          "day": "thu",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "훈제연어 샐러드",
+          "title": "훈제연어 샐러드",
+          "ingredients": [
+            "훈제연어",
+            "어린잎 채소"
+          ],
+          "tags": [
+            "fish"
+          ],
+          "orderTip": "",
+          "cookMinutes": 10,
+          "reason": "연어의 불포화 지방산은 콜레스테롤 관리에 좋습니다.",
+          "criterionIds": [
+            "reduce_saturated_fat"
+          ]
+        },
+        {
+          "day": "fri",
+          "meal": "lunch",
+          "place": "eat_out",
+          "menuId": "백반",
+          "title": "백반 (생선 반찬 고르기)",
+          "ingredients": [
+            "생선",
+            "나물"
+          ],
+          "tags": [
+            "fish",
+            "soy"
+          ],
+          "orderTip": "생선 반찬을 골라 드세요.",
+          "cookMinutes": 0,
+          "reason": "다양한 나물 반찬을 통해 식이섬유를 충분히 섭취합니다.",
+          "criterionIds": [
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "fri",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "소고기 무국",
+          "title": "소고기 무국",
+          "ingredients": [
+            "소고기",
+            "무",
+            "파"
+          ],
+          "tags": [
+            "meat",
+            "beef"
+          ],
+          "orderTip": "",
+          "cookMinutes": 15,
+          "reason": "무를 넣어 소화를 돕고 적절한 열량을 섭취합니다.",
+          "criterionIds": [
+            "reduce_portion_calories"
+          ]
+        },
+        {
+          "day": "sat",
+          "meal": "lunch",
+          "place": "home",
+          "menuId": "곤약 비빔밥",
+          "title": "곤약 비빔밥",
+          "ingredients": [
+            "곤약",
+            "각종 채소",
+            "달걀"
+          ],
+          "tags": [
+            "egg"
+          ],
+          "orderTip": "",
+          "cookMinutes": 20,
+          "reason": "곤약을 사용하여 탄수화물과 칼로리를 낮춥니다.",
+          "criterionIds": [
+            "reduce_portion_calories"
+          ]
+        },
+        {
+          "day": "sat",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "삼겹살 구이",
+          "title": "삼겹살 구이 (쌈채소 듬뿍)",
+          "ingredients": [
+            "삼겹살",
+            "상추",
+            "깻잎"
+          ],
+          "tags": [
+            "meat",
+            "pork",
+            "fatty_meat"
+          ],
+          "orderTip": "",
+          "cookMinutes": 30,
+          "reason": "기름진 부위지만 쌈채소를 듬뿍 먹어 식이섬유를 보충합니다.",
+          "criterionIds": [
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "sun",
+          "meal": "lunch",
+          "place": "home",
+          "menuId": "두부 된장찌개",
+          "title": "두부 된장찌개",
+          "ingredients": [
+            "두부",
+            "된장",
+            "애호박"
+          ],
+          "tags": [
+            "soy"
+          ],
+          "orderTip": "",
+          "cookMinutes": 20,
+          "reason": "두부와 된장으로 식물성 단백질과 식이섬유를 챙깁니다.",
+          "criterionIds": [
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "sun",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "닭고기 야채 볶음",
+          "title": "닭고기 야채 볶음",
+          "ingredients": [
+            "닭고기",
+            "파프리카",
+            "양파"
+          ],
+          "tags": [
+            "meat",
+            "chicken"
+          ],
+          "orderTip": "",
+          "cookMinutes": 15,
+          "reason": "가벼운 닭고기 요리로 하루를 마무리하며 칼로리를 조절합니다.",
+          "criterionIds": [
+            "reduce_portion_calories"
+          ]
+        }
+      ],
+      "createdAt": "2026-11-06T02:55:37.467Z"
+    },
+    "summary": [
+      "유제품 0회",
+      "주 1회 이하 메뉴: 돈가스 1회",
+      "같은 메뉴 연속 없음"
+    ],
+    "notices": [
+      "일반적인 식단 지침을 따른 추천이며, 의료 조언이 아닙니다."
+    ],
+    "stats": {
+      "seconds": 187,
+      "regenerations": 0,
+      "usages": [
+        {
+          "model": "cloudflare/@cf/google/gemma-4-26b-a4b-it",
+          "input": 1928,
+          "output": 9827
+        }
+      ],
+      "neurons": 286
+    }
+  }
+}

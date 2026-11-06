@@ -1,0 +1,330 @@
+/* 식단표 화면. 모티프: 구내식당 주간 메뉴판. 외식은 겨자색, 집밥은 채소 녹색 띠로 구분한다. */
+:root {
+  --paper: #f4f6f5;
+  --ink: #1e3b36;
+  --ink-soft: #4d625d;
+  --tray: #cbd3d1;
+  --tray-light: #e4e9e7;
+  --out: #d9a21b;
+  --home: #3c8a55;
+  --surface: #ffffff;
+
+  --serif: 'Gowun Batang', 'Noto Serif KR', serif;
+  --sans: 'IBM Plex Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.page {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 48px 24px 64px;
+}
+
+p,
+h1,
+h2 {
+  margin: 0;
+}
+
+.display {
+  font-family: var(--serif);
+  font-weight: 700;
+  font-size: clamp(2rem, 4vw + 1rem, 3.25rem);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.lede {
+  max-width: 34em;
+  color: var(--ink-soft);
+  font-size: 1.0625rem;
+}
+
+.status-line {
+  color: var(--ink-soft);
+}
+
+/* 버튼 */
+button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+  touch-action: manipulation;
+}
+
+.primary {
+  padding: 14px 28px;
+  border: 0;
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 600;
+}
+
+.primary:hover {
+  background: #2c524b;
+}
+
+.secondary {
+  padding: 8px 16px;
+  border: 1px solid var(--tray);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.secondary:hover {
+  border-color: var(--ink-soft);
+}
+
+button:focus-visible {
+  outline: 3px solid var(--out);
+  outline-offset: 3px;
+}
+
+/* 첫 화면, 실패 화면 */
+.intro {
+  display: grid;
+  gap: 20px;
+  justify-items: start;
+  padding-top: 12vh;
+}
+
+/* 기다리는 화면 */
+.waiting {
+  display: grid;
+  gap: 20px;
+  padding-top: 12vh;
+}
+
+.clock {
+  font-family: var(--serif);
+  font-size: clamp(4rem, 10vw, 7rem);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.meter {
+  max-width: 480px;
+  height: 6px;
+  background: var(--tray-light);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.meter-fill {
+  height: 100%;
+  background: var(--home);
+  transform-origin: left;
+  transition: transform 1s linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meter-fill {
+    transition: none;
+  }
+}
+
+/* 식단표 */
+.plan-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: end;
+  justify-content: space-between;
+  margin-bottom: 32px;
+}
+
+.board {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 6px;
+  table-layout: fixed;
+  margin: 0 -6px;
+}
+
+.board thead th {
+  padding: 4px 8px 10px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid var(--ink);
+}
+
+.board .corner {
+  width: 56px;
+  border-bottom: 0;
+}
+
+.board .day {
+  display: block;
+  font-family: var(--serif);
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+.date {
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.board .weekend .day {
+  color: var(--ink-soft);
+}
+
+.board .meal {
+  vertical-align: top;
+  padding-top: 14px;
+  text-align: left;
+  font-family: var(--serif);
+  font-size: 1.0625rem;
+}
+
+.slot {
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  padding: 12px 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--tray-light);
+  border-left: 4px solid var(--tray);
+  border-radius: 4px;
+}
+
+.slot.eat_out {
+  border-left-color: var(--out);
+}
+
+.slot.home {
+  border-left-color: var(--home);
+}
+
+.slot.empty {
+  background: transparent;
+  border: 1px dashed var(--tray);
+}
+
+.menu {
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.place {
+  margin-top: 2px;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+
+.reason {
+  margin-top: 8px;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+.tip {
+  margin-top: 6px;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: #7a5a06;
+}
+
+.cards {
+  display: none;
+}
+
+.plan-foot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 32px;
+  margin-top: 40px;
+  padding-top: 24px;
+  border-top: 2px solid var(--ink);
+}
+
+.foot-title {
+  font-family: var(--serif);
+  font-size: 1.25rem;
+  margin-bottom: 8px;
+}
+
+.checks {
+  margin: 0;
+  padding-left: 1.2em;
+}
+
+.notices {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+}
+
+/* 1024px 미만(태블릿, 휴대폰): 7열 표는 칸이 너무 좁아 요일별 카드로 바꾼다 */
+@media (max-width: 1023px) {
+  .board {
+    display: none;
+  }
+
+  .cards {
+    display: grid;
+    gap: 28px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .card {
+    display: grid;
+    gap: 8px;
+    align-content: start;
+  }
+
+  .card-day {
+    font-family: var(--serif);
+    font-size: 1.375rem;
+    padding-bottom: 6px;
+    border-bottom: 2px solid var(--ink);
+  }
+
+  .meal-label {
+    font-family: var(--serif);
+    font-size: 0.9375rem;
+    margin-bottom: 2px;
+  }
+
+}
+
+/* 태블릿: 카드 2열 */
+@media (min-width: 641px) and (max-width: 1023px) {
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 24px;
+  }
+}
+
+/* 휴대폰: 카드 1열 */
+@media (max-width: 640px) {
+  .page {
+    padding: 32px 16px 48px;
+  }
+
+  .plan-foot {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

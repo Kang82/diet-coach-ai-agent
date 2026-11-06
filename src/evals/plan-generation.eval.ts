@@ -14,22 +14,14 @@ import { classesA, profileA } from '../core/__fixtures__/persona-a.ts';
 import { checkPlan } from '../core/check-plan.ts';
 import { buildCriteria } from '../core/criteria.ts';
 import { isQuotaExceeded } from '../core/quota.ts';
-import type { MenuClassification, Plan, Profile, Violation } from '../core/types.ts';
+import type { PlanToolOutput } from '../core/plan-tool-output.ts';
+import type { MenuClassification, Profile } from '../core/types.ts';
 import { recordRun, writeReport, type RunRecord } from './support/report.ts';
 import { assertServerUp, parseToolOutput, sendAndWait, toolParts } from './support/agent-http.ts';
 
 const RUNS = Number(process.env.EVAL_RUNS ?? 2);
 /** 스펙 8.5: 점검 루프 3회 안에 checkPlan 통과 8회 중 7회 이상 */
 const PASS_RATE = 7 / 8;
-
-interface ToolOutput {
-  status: 'ok' | 'violations' | 'quota';
-  plan?: Plan;
-  lastPlan?: Plan;
-  violations?: Violation[];
-  summary?: string[];
-  stats?: { seconds: number; regenerations: number; neurons: number };
-}
 
 interface Persona {
   name: string;
@@ -58,7 +50,7 @@ for (const persona of personas) {
 
         const res = await sendAndWait('식단표 만들어 줘');
         const call = toolParts(res.snapshot, 'create_week_plan');
-        const output = parseToolOutput<ToolOutput>(call.at(-1));
+        const output = parseToolOutput<PlanToolOutput>(call.at(-1));
 
         if (output?.status === 'quota' || (res.outcome === 'failed' && isQuotaExceeded(res.error))) {
           quotaHit = true;
@@ -74,8 +66,9 @@ for (const persona of personas) {
 
         // 도구가 돌려준 식단표를 평가 쪽에서도 같은 기준으로 다시 점검한다
         const rules = buildCriteria(persona.profile.goals);
-        const plan = output!.plan ?? output!.lastPlan!;
-        const check = checkPlan(plan, persona.profile, persona.classes, rules);
+        const plan = output!.status === 'ok' ? output!.plan : output!.status === 'violations' ? output!.lastPlan : undefined;
+        expect(plan).toBeDefined();
+        const check = checkPlan(plan!, persona.profile, persona.classes, rules);
         expect(check.passed).toBe(output!.status === 'ok');
 
         const result = check.passed ? 'pass' : 'fail';
