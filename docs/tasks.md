@@ -44,13 +44,16 @@
     - 사용자 칸 수정 요청이 실패하면 수정 전 식단표를 그대로 둔다
   - 선행: T1-1
 
-- [ ] **T1-4. 한도 초과 처리** (스펙 11.3)
+- [x] **T1-4. 한도 초과 처리** (스펙 11.3) (2026-11-06)
   - 완료 기준: 한도 초과 에러가 나면 루프가 즉시 멈추고 재시도 횟수로 세지 않는 테스트 통과
   - `isQuotaExceeded` 판별은 임시 구현으로 두고, 실제 에러를 본 뒤 확정한다 (열린 질문 6)
+  - `src/core/quota.ts`. 루프는 `QuotaExceededError`만 보고 `reason: 'quota'`를 돌려준다. 칸 수정이면 수정 전 식단표를 함께 돌려준다
   - 선행: T1-3
 
 - [ ] **T1-5. Flue로 실제 생성 연결** (스펙 4.3)
   - `PlanCell` valibot 스키마, 다양성 규칙이 들어간 프롬프트, `harness.prompt(..., { result })`
+  - 어댑터는 Flue 에러를 `isQuotaExceeded`로 판별해 `QuotaExceededError`로 바꿔 던진다. Flue의 스키마 재요청이 한도 초과에서도 다시 부르는지 확인한다 (스펙 11.3-2)
+  - Flue `usage`의 모델 이름을 `NEURON_PRICES` 키 모양으로 맞춘다
   - 완료 기준: 개발 서버에서 페르소나 A 1주일 식단표 1회 생성 → `checkPlan` 통과. 약 200 Neuron
   - 선행: T1-3
 

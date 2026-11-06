@@ -6,6 +6,7 @@ import { FAKE_USAGE, FakePlanGenerator } from './__fixtures__/fake-plan-generato
 import { checkPlan } from './check-plan.ts';
 import { createPlan, editPlanCells, MAX_REGENERATIONS, type PlanContext } from './plan-loop.ts';
 import type { RegenerateCellsInput } from './plan-generator.ts';
+import { QuotaExceededError } from './quota.ts';
 import type { Day, MealType, Plan, PlanCell, Slot } from './types.ts';
 
 const s = (day: Day, meal: MealType): Slot => ({ day, meal });
@@ -240,5 +241,64 @@ describe('editPlanCells', () => {
     });
 
     expect(regenInput(fake, 0).targets).toEqual([s('mon', 'lunch'), s('tue', 'lunch')]);
+  });
+});
+
+// 스펙 11.3-1, 2: 한도 초과는 재요청하지 않고 즉시 멈춘다. 재시도 횟수로 세지 않는다.
+describe('한도 초과', () => {
+  const bad = () => patched('tue', 'lunch', { tags: ['fish', 'dairy'] });
+
+  it('처음 만들 때 한도 초과면 바로 멈춘다', async () => {
+    const fake = new FakePlanGenerator({ plans: [new QuotaExceededError()] });
+
+    expect(await createPlan(fake, ctx(), weekInput)).toEqual({
+      ok: false,
+      reason: 'quota',
+      usages: [],
+      regenerations: 0,
+    });
+    expect(fake.methods).toEqual(['generatePlan']);
+  });
+
+  it('다시 추천 중에 한도 초과면 남은 회차를 쓰지 않고 멈추고, 실패한 호출은 세지 않는다', async () => {
+    const fake = new FakePlanGenerator({
+      plans: [planWith(bad())],
+      regenerations: [[bad()], new QuotaExceededError(), [cellOf(planA, 'tue', 'lunch')]],
+    });
+
+    const result = await createPlan(fake, ctx(), weekInput);
+
+    expect(result).toEqual({ ok: false, reason: 'quota', usages: [FAKE_USAGE, FAKE_USAGE], regenerations: 1 });
+    expect(fake.methods).toEqual(['generatePlan', 'regenerateCells', 'regenerateCells']);
+  });
+
+  it('칸 수정 중 한도 초과면 수정 전 식단표를 그대로 돌려준다', async () => {
+    const fake = new FakePlanGenerator({ regenerations: [[bad()], new QuotaExceededError()] });
+    const plan = structuredClone(planA);
+
+    const result = await editPlanCells(fake, ctx(), plan, {
+      targets: [s('tue', 'lunch')],
+      userRequest: '점심을 다른 걸로 바꿔 줘',
+    });
+
+    expect(result).toEqual({ ok: false, reason: 'quota', plan: planA, usages: [FAKE_USAGE], regenerations: 1 });
+    expect(plan).toEqual(planA);
+  });
+
+  it('칸 수정의 첫 호출에서 한도 초과여도 수정 전 식단표를 돌려준다', async () => {
+    const fake = new FakePlanGenerator({ regenerations: [new QuotaExceededError()] });
+
+    const result = await editPlanCells(fake, ctx(), structuredClone(planA), {
+      targets: [s('tue', 'lunch')],
+      userRequest: '점심을 다른 걸로 바꿔 줘',
+    });
+
+    expect(result).toEqual({ ok: false, reason: 'quota', plan: planA, usages: [], regenerations: 0 });
+  });
+
+  it('한도 초과가 아닌 에러는 다시 추천 중에도 그대로 던진다', async () => {
+    const fake = new FakePlanGenerator({ plans: [planWith(bad())], regenerations: [new Error('네트워크 오류')] });
+
+    await expect(createPlan(fake, ctx(), weekInput)).rejects.toThrow('네트워크 오류');
   });
 });
