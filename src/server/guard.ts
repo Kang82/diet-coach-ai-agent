@@ -20,7 +20,7 @@ export interface GuardOptions {
 }
 
 /** authorization: Bearer <토큰>의 사용자 ID. 없거나 모르는 토큰이면 null */
-async function authenticate(c: Context, store: GuardStore): Promise<string | null> {
+export async function authenticate(c: Context, store: GuardStore): Promise<string | null> {
   const match = /^Bearer (\S+)$/.exec(c.req.header('authorization') ?? '');
   if (!match) return null;
   return store.findUserByTokenHash(await hashToken(match[1]!));

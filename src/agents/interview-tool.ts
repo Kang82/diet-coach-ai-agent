@@ -13,7 +13,8 @@ import { parseInterviewSubmission } from './interview-schema.ts';
 import { goalNoteModel } from './models.ts';
 import { failureKind, failureMessage } from '../core/tool-failure.ts';
 import type { NeuronMeter } from './metered-harness.ts';
-import { countNeurons, metered, toJson } from './plan-tool-support.ts';
+import { persistInterview } from '../storage/persist.ts';
+import { countNeurons, metered, persistQuietly, toJson, type UserStore } from './plan-tool-support.ts';
 
 export const INTERVIEW_TOOL = 'submit_interview';
 
@@ -23,11 +24,14 @@ export function submitInterviewTool({
   saveResult,
   delivery,
   meter,
+  store,
 }: {
   saveResult: (result: InterviewResult) => void;
   delivery: DeliveredMessage;
   /** LLM 사용량을 전체 안전선 카운터에 더한다 (스펙 11.4-3) */
   meter: NeuronMeter;
+  /** 동의하면 프로필을 서버에 저장하고, 아니면 지운다 (T6-2) */
+  store?: UserStore;
 }) {
   return defineTool({
     name: INTERVIEW_TOOL,
@@ -65,6 +69,10 @@ export function submitInterviewTool({
       switch (out.kind) {
         case 'done':
           saveResult(out.result);
+          if (store) {
+            const result = out.result;
+            await persistQuietly(log, '프로필', () => persistInterview(store.storage, store.userId, result, new Date()));
+          }
           return done({ status: 'done', message: out.message, summary: out.summary, result: out.result, stats });
         case 'ask':
           return done({ status: 'ask', message: out.message, state: out.state, next: out.next, stats });

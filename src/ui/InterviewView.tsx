@@ -22,7 +22,7 @@ export function InterviewView({
 }: {
   conversationId: string;
   view: FormView;
-  /** 이 브라우저에 저장한 프로필이 있으면(전에 동의했으면) 저장 동의를 처음부터 체크 */
+  /** 서버에 저장한 프로필이 있으면(전에 동의했으면) 저장 동의를 처음부터 체크 */
   defaultConsent: boolean;
   onSubmit: (submission: InterviewSubmission) => void;
   onStartOver: () => void;

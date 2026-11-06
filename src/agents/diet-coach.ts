@@ -1,5 +1,5 @@
 'use agent';
-import { useDelivery, useModel, usePersistentState, useResponseFinish, useTool } from '@flue/runtime';
+import { type AgentProps, useDelivery, useModel, usePersistentState, useResponseFinish, useTool } from '@flue/runtime';
 import { EDIT_REQUEST_PREFIX } from '../core/edit-request.ts';
 import type { InterviewResult } from '../core/interview.ts';
 import { INTERVIEW_SUBMIT_PREFIX } from '../core/interview-form.ts';
@@ -13,13 +13,18 @@ import { EDIT_PLAN_TOOL, editPlanCellsTool } from './edit-plan-tool.ts';
 import { INTERVIEW_TOOL, submitInterviewTool } from './interview-tool.ts';
 import { DEFAULT_MODEL, INTERVIEW_THINKING, NEURON_PRICES } from './models.ts';
 import { usageMeter } from './usage-meter.ts';
+import { userIdFromConversation } from '../core/profile-store.ts';
+import type { UserStore } from './plan-tool-support.ts';
+import { agentStorage } from './storage-binding.ts';
 
 // 인터뷰는 화면에서 진행하고 끝나면 제출 메시지를 한 번 보낸다 (tasks.md B4).
 // 인터뷰가 끝나기 전에는 submit_interview만, 끝난 뒤에는 메뉴 분류·식단표 도구를 마운트한다.
 // 어느 도구를 부를지는 화면이 보낸 메시지의 접두어로 정해 모델이 판단할 일이 거의 없게 한다.
 // 식단표는 끝난 인터뷰와 확인된 메뉴 분류로 만든다 (tasks.md B5).
-export function DietCoach() {
+export function DietCoach({ id }: AgentProps) {
   const delivery = useDelivery();
+  // 서버 저장(T6-2): 대화 ID "<userId>-…"의 사용자. 한도 보호 미들웨어가 접두어를 확인했다
+  const store = userStoreFor(id);
 
   // 끝난 인터뷰 (스펙 4.1). 진행 중 상태는 화면이 들고 있다
   const [interviewResult, setInterviewResult] = usePersistentState<InterviewResult>('interviewResult');
@@ -37,7 +42,7 @@ export function DietCoach() {
   // 인터뷰 중 바깥 턴은 도구를 부르기만 하면 되므로 추론을 줄인다. 식단표 단계는 Flue 기본값('medium') 그대로
   useModel(DEFAULT_MODEL, interviewing ? { thinkingLevel: INTERVIEW_THINKING } : undefined);
   if (interviewing) {
-    useTool(submitInterviewTool({ saveResult: setInterviewResult, delivery, meter: usageMeter }));
+    useTool(submitInterviewTool({ saveResult: setInterviewResult, delivery, meter: usageMeter, store }));
   } else {
     useTool(
       classifyMenusTool({ interviewResult, saveClasses: setMenuClasses, savePeriod: setPeriod, delivery, meter: usageMeter }),
@@ -51,9 +56,12 @@ export function DietCoach() {
         savePlan: setPlan,
         delivery,
         meter: usageMeter,
+        store,
       }),
     );
-    useTool(editPlanCellsTool({ interviewResult, menuClasses, plan, savePlan: setPlan, delivery, meter: usageMeter }));
+    useTool(
+      editPlanCellsTool({ interviewResult, menuClasses, plan, savePlan: setPlan, delivery, meter: usageMeter, store }),
+    );
   }
 
   // 응답 하나의 사용량을 응답 metadata와 로그로 남기고 전체 안전선 카운터에 더한다 (스펙 11.4-3).
@@ -89,4 +97,13 @@ export function DietCoach() {
     `사용자 메시지가 "${CLASSIFY_REQUEST}"로 시작하면 ${CLASSIFY_TOOL} 도구를 한 번 부르세요. 메뉴와 일정은 도구가 직접 읽으므로 입력은 비워 두세요.`,
     `사용자 메시지가 "${PLAN_REQUEST_PREFIX}"로 시작하거나 식단표를 만들어 달라고 하면 ${CREATE_PLAN_TOOL} 도구를 한 번 부르세요. 바꾼 분류는 도구가 메시지에서 직접 읽으므로 입력은 비워 두세요.`,
   ].join('\n');
+}
+
+/** 사용자 ID를 알 수 있는 대화(웹 화면, 평가 세트)만 서버에 저장한다 */
+function userStoreFor(conversationId: string): UserStore | undefined {
+  try {
+    return { storage: agentStorage(), userId: userIdFromConversation(conversationId) };
+  } catch {
+    return undefined;
+  }
 }

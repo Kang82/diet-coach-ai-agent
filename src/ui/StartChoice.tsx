@@ -1,4 +1,4 @@
-// 첫 화면 분기 (스펙 7장, tasks.md B6 T5-5). 이 브라우저에 저장한 프로필이 있고 새 대화이면 보여 준다.
+// 첫 화면 분기 (스펙 7장, tasks.md B6 T5-5). 서버에 저장한 프로필이 있고 새 대화이면 보여 준다.
 import { summarizeInterviewResult } from '../core/interview-text.ts';
 import type { SavedProfile } from './saved-profile.ts';
 
@@ -16,7 +16,7 @@ export function StartChoice({
   onEditSaved: () => void;
   /** 인터뷰 처음부터 */
   onFresh: () => void;
-  /** 이 브라우저에 저장한 내 정보(프로필, 대화별 진행 값) 지우기 */
+  /** 저장한 내 정보(서버의 프로필·식단표, 이 브라우저의 진행 값) 지우기 */
   onForget: () => void;
 }) {
   return (
@@ -40,7 +40,7 @@ export function StartChoice({
         </button>
       </div>
       <button type="button" className="link" onClick={onForget}>
-        이 브라우저에 저장한 내 정보 지우기
+        저장한 내 정보 지우기
       </button>
     </section>
   );

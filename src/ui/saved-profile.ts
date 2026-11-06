@@ -1,12 +1,10 @@
-// 저장한 프로필 (tasks.md B6 T5-5). 서버 저장소(T6)와 사용자 토큰(T7-1)이 생기기 전까지 이 브라우저의 localStorage에 둔다.
-// 프로필 확인 화면에서 저장에 동의한 끝난 인터뷰만 저장한다. 동의하지 않고 진행하면 지운다.
-// 지우기 전체("내 정보 지우기")는 browser-store.ts의 clearAll이 한다.
-// 다른 기기에서는 불러오지 못한다. T6/T7에서 D1(토큰별)로 옮긴다.
+// 저장한 프로필 (tasks.md B6 T5-5, B9 T6-2). 서버 D1에 사용자(토큰)별로 있다.
+// 저장은 서버가 한다: 인터뷰 제출에서 동의했으면 저장하고, 동의하지 않았으면 지운다(storage/persist.ts).
+// 화면은 GET /api/profile로 불러오고 DELETE /api/profile로 지운다. 다른 기기에서도 같은 링크면 불러온다.
+// B8까지 쓰던 localStorage `diet-coach:profile`은 처음 열 때 지운다(clearLegacyProfile).
 import { profileFromInterview, type InterviewResult } from '../core/interview.ts';
 import { validateProfile } from '../core/profile-validation.ts';
-import { defaultStore, PROFILE_KEY } from './browser-store.ts';
-
-export const SAVED_PROFILE_KEY = PROFILE_KEY;
+import { defaultStore, PROFILE_KEY, type KeyValueStore } from './browser-store.ts';
 
 export interface SavedProfile {
   /** consentedAt이 있는 끝난 인터뷰 */
@@ -29,25 +27,35 @@ export function parseSavedProfile(raw: string | null): SavedProfile | undefined 
   }
 }
 
-export function loadSavedProfile(store = defaultStore()): SavedProfile | undefined {
+type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
+
+const auth = (token: string) => ({ authorization: `Bearer ${token}` });
+
+/** 서버에 저장한 프로필. 없거나, 모양이 틀리거나, 불러오지 못하면 undefined(인터뷰를 처음부터) */
+export async function fetchSavedProfile(token: string, fetchFn: FetchLike = fetch): Promise<SavedProfile | undefined> {
   try {
-    return parseSavedProfile(store?.getItem(SAVED_PROFILE_KEY) ?? null);
+    const res = await fetchFn('/api/profile', { headers: auth(token) });
+    if (!res.ok) return undefined;
+    return parseSavedProfile(await res.text());
   } catch {
-    // 저장소를 못 쓰는 환경(사생활 보호 창 등)에서는 저장한 프로필이 없는 것으로 본다
     return undefined;
   }
 }
 
-/** 동의한 결과면 저장하고, 아니면 지운다 (가장 나중의 선택을 따른다) */
-export function rememberResult(result: InterviewResult, store = defaultStore()): void {
+/** 서버에 저장한 프로필과 식단표를 지운다. 성공하면 true */
+export async function deleteSavedProfile(token: string, fetchFn: FetchLike = fetch): Promise<boolean> {
   try {
-    if (result.consentedAt) {
-      const saved: SavedProfile = { result: { ...result, consentedAt: result.consentedAt } };
-      store?.setItem(SAVED_PROFILE_KEY, JSON.stringify(saved));
-    } else {
-      store?.removeItem(SAVED_PROFILE_KEY);
-    }
+    return (await fetchFn('/api/profile', { method: 'DELETE', headers: auth(token) })).ok;
   } catch {
-    // 위와 같음
+    return false;
+  }
+}
+
+/** B8까지 이 브라우저에 두던 프로필(건강 정보)을 지운다 */
+export function clearLegacyProfile(store: KeyValueStore | undefined = defaultStore()): void {
+  try {
+    store?.removeItem(PROFILE_KEY);
+  } catch {
+    // 저장소를 못 쓰면 지울 것도 없다
   }
 }

@@ -12,7 +12,8 @@ import { QUOTA_EXCEEDED_MESSAGE } from '../core/quota.ts';
 import type { InterviewResult } from '../core/interview.ts';
 import type { MenuClassification, Plan } from '../core/types.ts';
 import type { NeuronMeter } from './metered-harness.ts';
-import { metered, pickGenerator, planContext, planFailure, toJson, toolStats, type SavePlan } from './plan-tool-support.ts';
+import { persistPlan } from '../storage/persist.ts';
+import { metered, persistQuietly, pickGenerator, planContext, planFailure, toJson, toolStats, type SavePlan, type UserStore } from './plan-tool-support.ts';
 
 export const EDIT_PLAN_TOOL = 'edit_plan_cells';
 
@@ -23,6 +24,7 @@ export function editPlanCellsTool({
   savePlan,
   delivery,
   meter,
+  store,
 }: {
   interviewResult: InterviewResult | undefined;
   /** 식단표를 만들 때 저장한 분류 (사용자 수정 반영) */
@@ -32,6 +34,8 @@ export function editPlanCellsTool({
   delivery: DeliveredMessage;
   /** LLM 사용량을 전체 안전선 카운터에 더한다 (스펙 11.4-3) */
   meter: NeuronMeter;
+  /** 동의한 프로필이 있으면 식단표를 서버에 저장한다 (T6-2) */
+  store?: UserStore;
 }) {
   return defineTool({
     name: EDIT_PLAN_TOOL,
@@ -57,6 +61,10 @@ export function editPlanCellsTool({
 
         if (result.ok) {
           savePlan(result.plan);
+          if (store) {
+            const plan = result.plan;
+            await persistQuietly(log, '고친 식단표', () => persistPlan(store.storage, store.userId, plan));
+          }
           return done({
             status: 'ok',
             plan: result.plan,

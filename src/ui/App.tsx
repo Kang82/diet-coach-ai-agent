@@ -1,6 +1,6 @@
 // (첫 화면 분기) → 인터뷰 → 프로필 확인 → 기간 선택 → 메뉴 분류 확인 → 식단표 (스펙 7장, tasks.md B4~B6).
 // 단계마다 앞 단계가 끝난 뒤의 메시지를 다음 화면 상태에 넘긴다. 식단표는 끝난 인터뷰와 확인한 메뉴 분류, 기간으로 만든다.
-// 프로필은 저장에 동의했을 때만 이 브라우저(localStorage)에 둔다 (saved-profile.ts).
+// 프로필은 저장에 동의했을 때만 서버(D1)에 남는다. 화면은 /api/profile로 불러오고 지운다 (saved-profile.ts, T6-2).
 // 대화별 진행 값(인터뷰 답, 일정, 고르던 분류)은 그 단계가 끝나면 지운다 (browser-store.ts, 리뷰 4번).
 // 대화 ID를 localStorage에 두어 새로고침하거나 창을 닫았다 열어도 같은 대화(진행 상태나 결과)를 다시 읽는다.
 // 대화 ID는 "<userId>-<UUID>"이고, 모든 요청에 사용자 링크 토큰을 붙인다 (스펙 11.4-1, AccessGate.tsx).
@@ -16,7 +16,7 @@ import type { PlanEvent } from '../core/types.ts';
 import { clearAll, clearDrafts, CONVERSATION_KEY, defaultStore, draftKey } from './browser-store.ts';
 import { progressFromResult } from './interview-form-state.ts';
 import { PeriodView } from './PeriodView.tsx';
-import { loadSavedProfile, rememberResult } from './saved-profile.ts';
+import { clearLegacyProfile, deleteSavedProfile, fetchSavedProfile, type SavedProfile } from './saved-profile.ts';
 import { defaultConsentFor, shouldOfferSaved, type StartChoice as StartChoiceKind } from './start-choice-state.ts';
 import { StartChoice } from './StartChoice.tsx';
 import { InterviewView } from './InterviewView.tsx';
@@ -52,8 +52,22 @@ export function App({ token, userId }: { token: string; userId: string }) {
       : undefined;
 
   // 첫 화면 분기 (T5-5): 저장한 프로필이 있고 이 대화의 인터뷰를 아직 시작하지 않았으면 고르게 한다
-  const [saved, setSaved] = useState(loadSavedProfile);
+  const [saved, setSaved] = useState<SavedProfile>();
+  // 서버에서 불러오기 전에는 인터뷰 첫 화면을 보여 주지 않는다 (불러온 뒤 첫 화면 분기로 바뀌어 깜빡이지 않게)
+  const [savedLoaded, setSavedLoaded] = useState(false);
   const [choice, setChoice] = useState<StartChoiceKind>();
+  useEffect(() => {
+    let cancelled = false;
+    clearLegacyProfile();
+    fetchSavedProfile(token).then((profile) => {
+      if (cancelled) return;
+      setSaved(profile);
+      setSavedLoaded(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
   const offerSaved = shouldOfferSaved({
     hasSaved: !!saved,
     decided: choice !== undefined,
@@ -61,14 +75,17 @@ export function App({ token, userId }: { token: string; userId: string }) {
     hasProgress: hasProgress(conversationId),
   });
 
-  // 인터뷰가 끝나면 저장 동의에 따라 프로필을 저장하거나 지우고, 이 대화의 인터뷰 진행 값을 지운다
+  // 인터뷰가 끝나면 이 대화의 인터뷰 진행 값을 지우고, 서버가 동의에 따라 저장하거나 지운 프로필을 다시 읽는다
   const doneResult = interview.kind === 'done' ? JSON.stringify(interview.result) : undefined;
   useEffect(() => {
     if (!doneResult) return;
-    rememberResult(JSON.parse(doneResult));
     clearDrafts(conversationId, ['interview']);
-    setSaved(loadSavedProfile());
-  }, [doneResult, conversationId]);
+    let cancelled = false;
+    fetchSavedProfile(token).then((profile) => !cancelled && setSaved(profile));
+    return () => {
+      cancelled = true;
+    };
+  }, [doneResult, conversationId, token]);
 
   // 분류가 끝나면 일정, 식단표가 나오면 고르던 분류를 지운다 (서버에 저장돼 있다)
   const classified = menu?.kind === 'classified';
@@ -115,10 +132,11 @@ export function App({ token, userId }: { token: string; userId: string }) {
     setChoice('edit_saved');
   }
 
-  /** 이 브라우저에 저장한 내 정보(프로필, 대화별 진행 값)를 모두 지운다 */
-  function forgetAll() {
+  /** 저장한 내 정보(서버의 프로필·식단표, 이 브라우저의 대화별 진행 값)를 모두 지운다. 대화 기록은 남는다(스펙 5장) */
+  async function forgetAll() {
     clearAll();
     setSaved(undefined);
+    await deleteSavedProfile(token);
   }
 
   /** 식단표 만들기 실패 뒤 같은 대화에 같은 메시지(바꾼 분류 포함)를 다시 보낸다 (리뷰 3번) */
@@ -152,7 +170,9 @@ export function App({ token, userId }: { token: string; userId: string }) {
 
   return (
     <main className="page">
-      {interview.kind === 'loading' && <p className="status-line">불러오는 중…</p>}
+      {(interview.kind === 'loading' || (interview.kind === 'form' && !savedLoaded)) && (
+        <p className="status-line">불러오는 중…</p>
+      )}
 
       {offerSaved && saved && (
         <StartChoice
@@ -164,7 +184,7 @@ export function App({ token, userId }: { token: string; userId: string }) {
         />
       )}
 
-      {interview.kind === 'form' && !offerSaved && (
+      {interview.kind === 'form' && savedLoaded && !offerSaved && (
         <InterviewView
           key={conversationId}
           conversationId={conversationId}

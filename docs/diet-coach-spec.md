@@ -461,11 +461,13 @@ interface Storage {
 ```
 
 - 첫 시연 저장소 저장소는 D1(테이블 `profiles`, `plans`)이다. 구현은 이 인터페이스 뒤에 숨기고, 테스트에서는 메모리 구현을 쓴다.
-- **D1 구현 (T6-1):** `storage/d1-storage.ts`, 테이블은 `migrations/0001_init.sql`. 조회에 쓰는 값(`user_id`, `version`, `seq`)만 열로 두고 본문은 JSON으로 둔다. 가장 나중 식단표는 `seq`(저장 순서)로 가린다. 버전 증가는 `INSERT … ON CONFLICT … RETURNING` 한 문장이라 동시에 저장해도 겹치지 않는다. `deleteUser`는 한 트랜잭션(`batch`)이다. 계약 테스트는 wrangler `getPlatformProxy`의 로컬 D1로 돈다. 에이전트·화면 연결은 T6-2(사용자 토큰 T7-1 뒤).
+- **D1 구현 (T6-1):** `storage/d1-storage.ts`, 테이블은 `migrations/0001_init.sql`. 조회에 쓰는 값(`user_id`, `version`, `seq`)만 열로 두고 본문은 JSON으로 둔다. 가장 나중 식단표는 `seq`(저장 순서)로 가린다. 버전 증가는 `INSERT … ON CONFLICT … RETURNING` 한 문장이라 동시에 저장해도 겹치지 않는다. `deleteUser`는 한 트랜잭션(`batch`)이다. 계약 테스트는 wrangler `getPlatformProxy`의 로컬 D1로 돈다. 에이전트·화면 연결은 T6-2(B9).
 - 사용자 구분은 첫 시연에서 추측하기 어려운 고유 링크 토큰으로 한다. 로그인은 이후에 붙인다 (열린 질문 2).
 - `consentedAt` 없이 `saveProfile`을 부르면 에러를 던진다.
-- **서버에 남는 대화 기록 (열린 질문, B5·B6 리뷰):** 동의와 상관없이 에이전트 대화(Durable Object)에 인터뷰 제출 메시지, `interviewResult`, 분류, 식단표가 남는다. 동의는 지금 브라우저 저장에만 쓰인다. 보관 범위와 지우는 방법은 T6-2에서 정한다. B8부터 대화는 토큰의 사용자만 읽을 수 있다(대화 ID 접두어, 11.4-1).
-- **브라우저 저장 (B6, 리뷰 반영):** 동의한 프로필만 `diet-coach:profile`에 둔다. 대화별 진행 값(인터뷰 답, 일정, 고르던 분류)은 그 단계가 끝나거나 새 대화로 넘어가면 지운다. "이 브라우저에 저장한 내 정보 지우기"는 대화 ID를 뺀 `diet-coach:*`를 모두 지운다(`ui/browser-store.ts`).
+- **서버 저장 (T6-2, B9):** 동의한 사용자만 D1에 남긴다(`storage/persist.ts`). 인터뷰 제출이 동의면 `saveProfile`(버전 +1), 동의하지 않으면 `deleteUser`로 그 사용자의 프로필과 식단표를 지운다. 식단표는 만들기·칸 수정이 성공했을 때 동의한 프로필이 있으면 새 행으로 저장한다(`userId`, `profileVersion`은 저장된 프로필 기준, 같은 `planId`도 새 행). 사용자 ID는 대화 ID `<userId>-…`에서 얻는다(에이전트 `props.id`). 저장 실패는 도구 결과를 깨지 않고 경고 로그만 남긴다.
+- **불러오기·지우기:** `GET /api/profile`(토큰 필요)이 저장한 프로필을 인터뷰 결과 모양 `{ result }`나 `null`로 돌려주고, 첫 화면 분기가 쓴다. `DELETE /api/profile`은 `deleteUser`다("저장한 내 정보 지우기").
+- **서버에 남는 대화 기록 (결정, B9):** 동의와 상관없이 에이전트 대화(Durable Object)에 인터뷰 제출 메시지, `interviewResult`, 분류, 식단표가 남는다. 첫 배포는 프로필 확인 화면의 저장 동의 설명에 "입력한 내용과 만든 식단표는 대화 기록으로 서버에 남는다"고 안내만 한다. 대화는 토큰의 사용자만 읽을 수 있다(11.4-1). 대화 기록 지우기는 tasks.md "나중에".
+- **브라우저 저장 (B6, 리뷰 반영, B9):** 프로필은 더 이상 브라우저에 두지 않는다(B8까지의 `diet-coach:profile`은 처음 열 때 지운다). 브라우저에는 대화 ID, 토큰, 대화별 진행 값(인터뷰 답, 일정, 고르던 분류)만 있고, 진행 값은 그 단계가 끝나거나 새 대화로 넘어가면 지운다. "저장한 내 정보 지우기"는 서버의 프로필·식단표와 대화 ID·토큰을 뺀 `diet-coach:*`를 지운다(`ui/browser-store.ts`).
 
 ## 6. 점검 요약 포맷터 (코드)
 
@@ -503,7 +505,7 @@ formatCheckSummary(stats: CheckStats, profile: Pick<Profile, 'avoid'>): string[]
 **구현 (B6):**
 
 - 프로필 확인은 인터뷰 단계가 끝난 뒤, 제출 전에 화면에서 한다. 항목별 "고치기"는 그 항목만 초안에서 비우고(`core/profile-edit.ts`의 `reopenSection`) 그 단계를 다시 묻는다. 다 답하면 확인 화면으로 돌아온다. 식단 기준은 `buildCriteria` 결과를 `criteriaText`로 보여 준다.
-- 저장 동의는 선택이다. 제출 메시지의 `consent: true`면 도구가 서버 시각으로 `consentedAt`을 채운다. 저장(T6)과 사용자 토큰(T7-1) 전이라 동의한 프로필은 이 브라우저 `localStorage`(`diet-coach:profile`)에 둔다. 동의하지 않고 진행하면 지운다(`ui/saved-profile.ts`).
+- 저장 동의는 선택이다. 제출 메시지의 `consent: true`면 도구가 서버 시각으로 `consentedAt`을 채운다. 동의한 프로필은 서버 D1에 저장하고, 동의하지 않고 진행하면 서버에서 지운다(5장, B9).
 - 첫 화면 분기: 새 대화이고 저장한 프로필이 있으면 "지난 프로필로 시작"(바로 제출) / "바뀐 항목 고치기"(확인 화면부터) / "인터뷰 처음부터" / "저장한 프로필 지우기".
 - 기간 선택: "다음 주 월~일" 한 가지와 정해진 일정(요일 + 안 먹는 끼니가 아닌 끼니 + 메모). 일정 칸은 식단표에 "일정"으로 보인다.
 - 저장 동의 기본값은 "바뀐 항목 고치기"를 고른 직후에만 체크한다. "지난 프로필로 시작"은 계속 동의한 것으로 보고 보낸다(첫 화면에 그렇다고 적음).
@@ -805,5 +807,7 @@ A는 요일별로 대화 7개를 동시에 시작해 하루 2칸씩, B는 대화
 
 - 그 전에 llama-4-scout 분류가 세 번 멈췄다. 매 턴 출력 256토큰에서 `stopReason: "length"`로 잘렸다. Flue는 `max_completion_tokens`를 보내지 않아 모델 기본값이 쓰이고, `finish`가 없으면 최대 33턴까지 다시 요청한다. 세 번에 약 3,100 Neuron을 썼다.
 - 대응: 분류 모델을 gemma로 바꿨다. LLM 호출마다 시간 제한을 둔다(목표 메모 60초, 분류 3분, 식단 8분, 칸 수정 4분; `core/llm-timeout.ts`). 분류 스키마는 문자열 하나도 배열로 받는다(gemma가 첫 `finish`에서 그렇게 냈다). [실험 기록](experiments/2026-11-06-b6-end-to-end.md)
+
+**배포본 확인 (2026-11-06, B9):** 배포한 Worker에서 평가 세트 1회가 통과했다. 식단 237초, 다시 추천 1회 포함 403 Neuron(다시 추천만 약 155). D1 한도 카운터 전체 약 508 Neuron(바깥 턴·메모 확인·분류 포함). 다시 추천이 있으면 식단표 1회 예산은 약 400 Neuron이다. [실험 기록](experiments/2026-11-06-b9-first-deploy.md)
 
 - 개발 메모: Windows의 Git Bash에서 `curl -d '한글'`로 보내면 본문이 깨진다. 요청 본문은 UTF-8 파일로 만들어 `--data-binary @파일`로 보낸다.

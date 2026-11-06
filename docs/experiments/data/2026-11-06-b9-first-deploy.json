@@ -1,0 +1,359 @@
+{
+  "date": "2026-11-06",
+  "target": "https://diet-coach.jjangyeesoo1.workers.dev",
+  "persona": "페르소나A",
+  "result": "pass",
+  "seconds": 243,
+  "d1UsageDaily": {
+    "userMessages": 3,
+    "allNeurons": 507.7
+  },
+  "violations": [],
+  "output": {
+    "status": "ok",
+    "summary": [
+      "유제품 0회",
+      "주 1회 이하 메뉴: 국밥 1회",
+      "같은 메뉴 연속 없음"
+    ],
+    "stats": {
+      "seconds": 237,
+      "regenerations": 1,
+      "usages": [
+        {
+          "model": "cloudflare/@cf/google/gemma-4-26b-a4b-it",
+          "input": 2198,
+          "output": 8378
+        },
+        {
+          "model": "cloudflare/@cf/google/gemma-4-26b-a4b-it",
+          "input": 5274,
+          "output": 3895
+        }
+      ],
+      "neurons": 403
+    },
+    "plan": {
+      "planId": "5828a6c8-71df-47f7-b740-34b9ba2f8af4",
+      "userId": "<원격 사용자>",
+      "profileVersion": 0,
+      "weekStart": "2026-11-09",
+      "events": [],
+      "cells": [
+        {
+          "day": "mon",
+          "meal": "lunch",
+          "place": "eat_out",
+          "menuId": "백반",
+          "title": "백반 (밥 양은 적게)",
+          "ingredients": [
+            "밥",
+            "나물",
+            "생선구이"
+          ],
+          "tags": [
+            "fish",
+            "refined_carb_main"
+          ],
+          "orderTip": "밥 양을 줄이고 채소 반찬 위주로 드세요.",
+          "cookMinutes": 0,
+          "reason": "채소 위주의 식단으로 식이섬유를 늘리고 탄수화물 섭취를 조절합니다.",
+          "criterionIds": [
+            "increase_fiber",
+            "reduce_portion_calories"
+          ]
+        },
+        {
+          "day": "mon",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "두부 채소 볶음",
+          "title": "두부 채소 볶음",
+          "ingredients": [
+            "두부",
+            "브로콜리",
+            "버섯"
+          ],
+          "tags": [
+            "soy"
+          ],
+          "orderTip": "",
+          "cookMinutes": 15,
+          "reason": "두부와 채소로 식이섬유를 보충하고 포만감을 줍니다.",
+          "criterionIds": [
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "tue",
+          "meal": "lunch",
+          "place": "eat_out",
+          "menuId": "회덮밥",
+          "title": "회덮밥 (초장 조절)",
+          "ingredients": [
+            "회",
+            "채소",
+            "밥",
+            "초고추장"
+          ],
+          "tags": [
+            "fish",
+            "refined_carb_main"
+          ],
+          "orderTip": "초고추장 양을 조절하고 밥 양을 줄여 드세요.",
+          "cookMinutes": 0,
+          "reason": "채소를 통해 식이섬유를 늘리고, 양념과 밥 양을 조절하여 칼로리를 낮춥니다.",
+          "criterionIds": [
+            "increase_fiber",
+            "reduce_portion_calories"
+          ]
+        },
+        {
+          "day": "tue",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "닭가슴살 샐러드",
+          "title": "닭가슴살 샐러드",
+          "ingredients": [
+            "닭가슴살",
+            "양상추",
+            "오이"
+          ],
+          "tags": [
+            "chicken",
+            "meat"
+          ],
+          "orderTip": "",
+          "cookMinutes": 10,
+          "reason": "저지방 단백질을 섭취하며 칼로리를 낮춥니다.",
+          "criterionIds": [
+            "reduce_portion_calories"
+          ]
+        },
+        {
+          "day": "wed",
+          "meal": "lunch",
+          "place": "eat_out",
+          "menuId": "쌀국수",
+          "title": "쌀국수 (숙주 많이)",
+          "ingredients": [
+            "쌀국수 면",
+            "숙주",
+            "소고기"
+          ],
+          "tags": [
+            "beef",
+            "meat",
+            "refined_carb_main"
+          ],
+          "orderTip": "면 양을 줄이고 숙주를 많이 넣어 드세요.",
+          "cookMinutes": 0,
+          "reason": "숙주를 듬뿍 넣어 식이섬유를 보충하고, 면의 양을 줄여 열량을 조절합니다.",
+          "criterionIds": [
+            "increase_fiber",
+            "reduce_portion_calories"
+          ]
+        },
+        {
+          "day": "wed",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "꿀 토마토",
+          "title": "꿀 토마토 (달콤하게)",
+          "ingredients": [
+            "토마토",
+            "꿀"
+          ],
+          "tags": [
+            "sugary"
+          ],
+          "orderTip": "",
+          "cookMinutes": 5,
+          "reason": "적당한 단맛으로 기분을 전환하면서 칼로리 조절을 합니다.",
+          "criterionIds": [
+            "reduce_portion_calories"
+          ]
+        },
+        {
+          "day": "thu",
+          "meal": "lunch",
+          "place": "eat_out",
+          "menuId": "국밥",
+          "title": "국밥 (국물 남기기)",
+          "ingredients": [
+            "밥",
+            "돼지고기",
+            "국물"
+          ],
+          "tags": [
+            "pork",
+            "meat",
+            "refined_carb_main"
+          ],
+          "orderTip": "국물을 다 마시지 말고 건더기와 밥 위주로 드세요.",
+          "cookMinutes": 0,
+          "reason": "국물을 남김으로써 나트륨과 지방 섭취를 줄입니다.",
+          "criterionIds": [
+            "reduce_saturated_fat",
+            "reduce_portion_calories"
+          ]
+        },
+        {
+          "day": "thu",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "달걀 채소 볶음",
+          "title": "달걀 채소 볶음",
+          "ingredients": [
+            "달걀",
+            "파프리카",
+            "시금치"
+          ],
+          "tags": [
+            "egg"
+          ],
+          "orderTip": "",
+          "cookMinutes": 10,
+          "reason": "가볍고 식이섬유가 풍부한 저녁 식사입니다.",
+          "criterionIds": [
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "fri",
+          "meal": "lunch",
+          "place": "eat_out",
+          "menuId": "백반",
+          "title": "백반 (채소 위주)",
+          "ingredients": [
+            "밥",
+            "채소 반찬",
+            "생선"
+          ],
+          "tags": [
+            "fish",
+            "refined_carb_main"
+          ],
+          "orderTip": "밥 양을 줄이고 채소 반찬 위주로 드세요.",
+          "cookMinutes": 0,
+          "reason": "채소 위주로 섭취하여 식이섬유를 늘리고, 밥 양을 조절하여 칼로리를 줄입니다.",
+          "criterionIds": [
+            "increase_fiber",
+            "reduce_portion_calories"
+          ]
+        },
+        {
+          "day": "fri",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "연어 구이",
+          "title": "연어 구이",
+          "ingredients": [
+            "연어",
+            "아스파라거스"
+          ],
+          "tags": [
+            "fish"
+          ],
+          "orderTip": "",
+          "cookMinutes": 15,
+          "reason": "오메가-3가 풍부한 생선을 통해 건강한 지방을 섭취합니다.",
+          "criterionIds": [
+            "reduce_saturated_fat"
+          ]
+        },
+        {
+          "day": "sat",
+          "meal": "lunch",
+          "place": "home",
+          "menuId": "돈가스",
+          "title": "집에서 만든 돈가스",
+          "ingredients": [
+            "돼지고기",
+            "빵가루",
+            "기름"
+          ],
+          "tags": [
+            "pork",
+            "meat",
+            "fried",
+            "refined_carb_main",
+            "wheat"
+          ],
+          "orderTip": "",
+          "cookMinutes": 30,
+          "reason": "일주일 중 한 번은 좋아하는 튀김 메뉴를 즐깁니다.",
+          "criterionIds": [
+            "reduce_portion_calories"
+          ]
+        },
+        {
+          "day": "sat",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "삼겹살 구이",
+          "title": "삼겹살 구이 (쌈 채소와 함께)",
+          "ingredients": [
+            "삼겹살",
+            "상추",
+            "마늘"
+          ],
+          "tags": [
+            "pork",
+            "meat",
+            "fatty_meat"
+          ],
+          "orderTip": "",
+          "cookMinutes": 20,
+          "reason": "고기를 즐기되 쌈 채소를 듬뿍 먹어 식이섬유를 보충합니다.",
+          "criterionIds": [
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "sun",
+          "meal": "lunch",
+          "place": "home",
+          "menuId": "나물 비빔밥",
+          "title": "나물 비빔밥",
+          "ingredients": [
+            "밥",
+            "각종 나물",
+            "고추장"
+          ],
+          "tags": [
+            "refined_carb_main"
+          ],
+          "orderTip": "",
+          "cookMinutes": 15,
+          "reason": "다양한 나물을 통해 식이섬유를 풍부하게 섭취합니다.",
+          "criterionIds": [
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "sun",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "두부 채소 볶음",
+          "title": "두부 채소 볶음",
+          "ingredients": [
+            "두부",
+            "양파",
+            "버섯"
+          ],
+          "tags": [
+            "soy"
+          ],
+          "orderTip": "",
+          "cookMinutes": 15,
+          "reason": "일주일을 가볍게 마무리하며 칼로리를 조절합니다.",
+          "criterionIds": [
+            "reduce_portion_calories"
+          ]
+        }
+      ],
+      "createdAt": "2026-11-06T13:52:53.279Z"
+    }
+  }
+}

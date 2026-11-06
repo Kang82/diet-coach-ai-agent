@@ -39,12 +39,15 @@ npm run dev                                # vite dev (workerd). AI 호출은 �
 npm run evals -- -t 페르소나A              # 평가 세트 (스펙 8.5). 개발 서버(5199)와 DIET_COACH_TOKEN이 필요하다. 1회 약 5~6분, 약 450 Neuron(분류 gemma 포함)
 npm run db:migrate:local                   # 로컬 D1(.wrangler/state)에 migrations/ 적용. 개발 서버 전에 한 번
 npm run issue-token -- --local             # 로컬 사용자 토큰 발급. 링크와 토큰을 한 번만 출력한다
+# 로컬 D1은 wrangler.jsonc의 database_id별로 따로 생긴다. id가 바뀌면(B9) 마이그레이션과 토큰 발급을 다시 한다
 ```
 
 - `vitest.config.ts`는 단위 테스트 전용이다. `vite.config.ts`의 Cloudflare 플러그인을 테스트에서 불러오지 않으려고 분리했다. LLM 평가 세트는 `vitest.evals.config.ts`(`src/evals/**/*.eval.ts`)로 따로 돈다. 기본 2회이고 `EVAL_RUNS=1`로 줄일 수 있다 (스펙 8.5).
 - 화면 개발 중에는 `.dev.vars`에 `PLAN_GENERATOR=demo`를 넣으면 식단 생성이 실제 모델 대신 페르소나 A 칸을 5초 뒤 돌려준다(바깥 턴만 실제 호출, 약 2 Neuron). `MENU_CLASSIFIER=demo`면 메뉴 분류가 페르소나 A 분류(`classesA`, 모르는 메뉴는 often)를 2초 뒤 돌려준다. 가짜 식단은 페르소나 A 칸이라 인터뷰도 페르소나 A 답으로 해야 점검을 통과한다. `.dev.vars`를 바꾸면 개발 서버를 다시 띄운다. 평가 세트와 실제 확인은 이 줄을 지우거나 주석 처리한다.
 - 에이전트 경로(`/agents/diet-coach/*`)와 `/api/me`에는 사용자 링크 토큰이 필요하다(스펙 11.4, `server/guard.ts`). 개발 서버도 같다. 브라우저는 `issue-token`이 출력한 링크(`/?t=…`)로 열고, curl은 `-H "authorization: Bearer <토큰>"`을 붙이며 대화 ID는 `<userId>-…`로 시작해야 한다(`GET /api/me`로 확인). 메시지 POST는 사용자당 하루 30회이고 Worker 전체 Neuron이 8,000이면 막힌다. 로컬에서 막히면 `npx wrangler d1 execute diet-coach --local --command "DELETE FROM usage_daily"`.
-- `npm run deploy`는 B9(T6-2 실제 D1 database_id, T7-4)에서 확인받고 쓴다. 지금 `wrangler.jsonc`의 D1 `database_id`는 자리표시 값이다.
+- 배포 주소는 https://diet-coach.jjangyeesoo1.workers.dev (B9). `npm run deploy`는 외부 공개라 사용자에게 확인받고 쓴다. 배포 직후 몇 초는 404나 에러 1042가 날 수 있다.
+- 원격 사용자 토큰: `npm run issue-token -- --remote --origin https://diet-coach.jjangyeesoo1.workers.dev`. 테이블을 바꾸면 `npx wrangler d1 migrations apply diet-coach --remote`도 한다.
+- 평가 세트를 배포본에 돌리려면 `DIET_COACH_URL=https://diet-coach.jjangyeesoo1.workers.dev/agents/diet-coach`와 원격 토큰을 준다. 배포본의 하루 한도도 같은 계정 10,000 Neuron이다.
 
 ## 구조
 

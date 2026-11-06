@@ -127,8 +127,11 @@ export function ProfileConfirmView({
       <label className="option consent" htmlFor={consentId}>
         <input id={consentId} type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
         <span>
-          다음에 다시 묻지 않도록 이 브라우저에 프로필을 저장할게요 (선택)
-          <small>건강 목표와 피할 음식이 들어 있어요. 저장하지 않아도 식단표를 만들 수 있어요.</small>
+          다음에 다시 묻지 않도록 프로필을 저장할게요 (선택)
+          <small>
+            건강 목표와 피할 음식이 들어 있어요. 저장하면 같은 링크로 다른 기기에서도 불러올 수 있고, 만든 식단표도 함께 저장해요.
+            저장하지 않아도 식단표를 만들 수 있어요. 어느 쪽이든 입력한 내용과 만든 식단표는 대화 기록으로 서버에 남아요.
+          </small>
         </span>
       </label>
 

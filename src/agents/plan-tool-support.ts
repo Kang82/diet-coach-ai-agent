@@ -15,6 +15,7 @@ import { createDemoPlanGenerator } from './demo-plan-generator.ts';
 import { createFluePlanGenerator, type PromptHarness } from './flue-plan-generator.ts';
 import { meteredHarness, type NeuronMeter } from './metered-harness.ts';
 import { NEURON_PRICES } from './models.ts';
+import type { Storage } from '../storage/storage.ts';
 
 /** 에이전트가 들고 있는 지금 식단표 (usePersistentState 'plan'). 칸 수정이 이것을 고친다. */
 export type SavePlan = (plan: Plan) => void;
@@ -31,6 +32,22 @@ export function planContext(result: InterviewResult, classes: readonly MenuClass
  */
 export function pickGenerator(harness: PromptHarness): PlanGenerator {
   return process.env.PLAN_GENERATOR === 'demo' ? createDemoPlanGenerator() : createFluePlanGenerator(harness);
+}
+
+/** 서버 저장(T6-2)에 쓰는 저장소와 사용자. 사용자를 모르는 대화(flue run 등)면 없다 */
+export interface UserStore {
+  storage: Storage;
+  userId: string;
+}
+
+/** 서버 저장은 실패해도 도구 결과를 깨지 않는다. 결과는 대화에 남아 있다 (storage/persist.ts) */
+export async function persistQuietly(log: Pick<FlueLogger, 'warn' | 'info'>, label: string, work: () => Promise<unknown>) {
+  try {
+    const saved = await work();
+    log.info(`${label} 저장`, { saved: saved !== false });
+  } catch (error) {
+    log.warn(`${label} 저장 실패`, { message: error instanceof Error ? error.message : String(error) });
+  }
 }
 
 /** 도구 안 LLM 호출의 사용량을 전체 안전선 카운터에 더하는 harness (스펙 11.4-3). 기록 실패는 경고만 남긴다 */

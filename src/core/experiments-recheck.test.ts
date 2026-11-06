@@ -60,6 +60,7 @@ describe('2026-11-06 실제 루프', () => {
     '2026-11-06-t1-6-eval-persona-a.json',
     '2026-11-06-b1-ui-real-run.json',
     '2026-11-06-b2-edit-real-run.json', // 칸 수정 뒤 식단표
+    '2026-11-06-b9-first-deploy.json', // 배포본 평가 세트
   ])('%s는 통과', (file) => {
     const { output } = load<{ output: { plan: Plan } }>(file);
     expect(rulesOf(output.plan)).toEqual([]);

@@ -2,7 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import { profileA } from '../core/__fixtures__/persona-a.ts';
 import { memoryStore } from './__fixtures__/memory-store.ts';
-import { loadSavedProfile, parseSavedProfile, rememberResult, SAVED_PROFILE_KEY } from './saved-profile.ts';
+import { PROFILE_KEY } from './browser-store.ts';
+import { clearLegacyProfile, deleteSavedProfile, fetchSavedProfile, parseSavedProfile } from './saved-profile.ts';
 
 const { goals, goalNote, medication, avoid, avoidNote, meals } = profileA;
 const result = { goals, goalNote, medication, avoid, avoidNote, meals, consentedAt: '2026-11-06T01:00:00.000Z' };
@@ -25,17 +26,43 @@ describe('parseSavedProfile', () => {
   });
 });
 
-describe('rememberResult', () => {
-  it('동의한 결과는 저장하고 다시 읽을 수 있다', () => {
-    const store = memoryStore();
-    rememberResult(result, store);
-    expect(loadSavedProfile(store)).toEqual({ result });
+function fakeFetch(respond: () => Response | Promise<Response>) {
+  const calls: { input: string; init?: RequestInit }[] = [];
+  const fn = async (input: string, init?: RequestInit) => {
+    calls.push({ input, init });
+    return respond();
+  };
+  return { fn, calls };
+}
+
+describe('fetchSavedProfile', () => {
+  it('토큰을 붙여 불러오고 검증한다', async () => {
+    const { fn, calls } = fakeFetch(() => new Response(JSON.stringify({ result })));
+    expect(await fetchSavedProfile('tok', fn)).toEqual({ result });
+    expect(calls[0]).toEqual({ input: '/api/profile', init: { headers: { authorization: 'Bearer tok' } } });
   });
 
-  it('동의하지 않은 결과면 전에 저장한 프로필을 지운다', () => {
-    const store = memoryStore({ [SAVED_PROFILE_KEY]: JSON.stringify({ result }) });
-    const { consentedAt: _, ...declined } = result;
-    rememberResult(declined, store);
-    expect(store.dump()).toEqual({});
+  it('없으면(null), 실패하면, 연결이 안 되면 undefined', async () => {
+    expect(await fetchSavedProfile('tok', fakeFetch(() => new Response('null')).fn)).toBeUndefined();
+    expect(await fetchSavedProfile('tok', fakeFetch(() => new Response('', { status: 401 })).fn)).toBeUndefined();
+    const offline = fakeFetch(() => Promise.reject(new TypeError('Failed to fetch')));
+    expect(await fetchSavedProfile('tok', offline.fn)).toBeUndefined();
+  });
+});
+
+describe('deleteSavedProfile', () => {
+  it('DELETE를 보내고 성공 여부를 돌려준다', async () => {
+    const ok = fakeFetch(() => new Response(null, { status: 204 }));
+    expect(await deleteSavedProfile('tok', ok.fn)).toBe(true);
+    expect(ok.calls[0]?.init?.method).toBe('DELETE');
+    expect(await deleteSavedProfile('tok', fakeFetch(() => new Response('', { status: 500 })).fn)).toBe(false);
+  });
+});
+
+describe('clearLegacyProfile', () => {
+  it('B8까지 쓰던 이 브라우저의 프로필만 지운다', () => {
+    const store = memoryStore({ [PROFILE_KEY]: JSON.stringify({ result }), other: 'x' });
+    clearLegacyProfile(store);
+    expect(store.dump()).toEqual({ other: 'x' });
   });
 });

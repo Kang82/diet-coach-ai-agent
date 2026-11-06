@@ -6,13 +6,13 @@
   // Workers AI. Flue의 cloudflare/... 모델이 이 바인딩을 쓴다. 로컬 개발에서도 원격 호출이라 무료 한도에서 차감된다.
   "ai": { "binding": "AI" },
   // D1: 한도 보호 카운터·사용자 토큰 해시(B8), 프로필·식단표(T6-2). 테이블은 migrations/.
-  // database_id는 자리표시 값이다. 로컬(vite dev)은 이 값으로 .wrangler/state에 만든다.
-  // 배포 전(B9) `wrangler d1 create diet-coach`로 받은 실제 ID로 바꾸고 `wrangler d1 migrations apply diet-coach --remote`.
+  // 원격 DB는 B9에서 `wrangler d1 create diet-coach`로 만들었다(APAC). 로컬(vite dev)은 .wrangler/state의 로컬 DB를 쓴다.
+  // 테이블을 바꾸면 migrations/에 파일을 덧붙이고 `wrangler d1 migrations apply diet-coach --local`과 `--remote`를 둘 다 한다.
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "diet-coach",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "9205116d-8837-4fa8-a3c8-0277509bd41e",
       "migrations_dir": "migrations"
     }
   ],
