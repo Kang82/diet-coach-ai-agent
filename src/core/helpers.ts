@@ -35,3 +35,14 @@ export function expandAvoid(avoid: readonly AvoidTag[]): AvoidTag[] {
   if (set.has('meat')) for (const tag of MEAT_FAMILY) set.add(tag);
   return AVOID_TAGS.filter((tag) => set.has(tag));
 }
+
+/**
+ * 다음 주 월요일(YYYY-MM-DD, 한국 시각 기준). 오늘이 월요일이어도 다음 주 월요일이다.
+ * 기간 선택 화면(T5-3)이 생기기 전까지 식단표 기본 주로 쓴다.
+ */
+export function nextMondayKst(now: Date): string {
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const daysUntil = ((8 - kst.getUTCDay()) % 7) || 7; // getUTCDay: 일 0, 월 1
+  kst.setUTCDate(kst.getUTCDate() + daysUntil);
+  return kst.toISOString().slice(0, 10);
+}
