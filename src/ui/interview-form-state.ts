@@ -6,6 +6,7 @@ import { formatTurnReply, type InterviewMessage } from '../core/interview-text.t
 import { applyTurn, type TurnNext } from '../core/interview-turn.ts';
 import type { InterviewToolOutput } from '../core/interview-tool-output.ts';
 import type { InterviewResult } from '../core/interview.ts';
+import { draftKey } from './browser-store.ts';
 import { draftFromResult, reopenSection, type ProfileSection } from '../core/profile-edit.ts';
 import type { InterviewState, InterviewUpdate } from '../core/types.ts';
 
@@ -21,7 +22,7 @@ export interface FormProgress {
 export type ServerAsk = { id: string; output: Extract<InterviewToolOutput, { status: 'ask' }> };
 
 export function progressKey(conversationId: string): string {
-  return `diet-coach:interview:${conversationId}`;
+  return draftKey('interview', conversationId);
 }
 
 export function startProgress(): FormProgress {

@@ -16,6 +16,8 @@ export type ClassifyToolOutput =
   | { status: 'quota'; message: string; stats: ClassifyToolStats }
   /** 시간 제한을 넘겨 멈춤 (B6). 다시 요청하면 된다 */
   | { status: 'timeout'; message: string; stats: ClassifyToolStats }
+  /** 그 밖의 실패 (리뷰 1번). 다시 요청하면 된다 */
+  | { status: 'error'; message: string; stats: ClassifyToolStats }
   /** 인터뷰가 끝나지 않았음 */
   | { status: 'no_interview'; message: string; stats: ClassifyToolStats }
   /** 요청 형식이 틀렸거나 일정이 맞지 않음. LLM을 부르지 않는다 */

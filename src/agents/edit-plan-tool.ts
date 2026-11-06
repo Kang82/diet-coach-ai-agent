@@ -5,13 +5,13 @@ import { defineTool, type DeliveredMessage } from '@flue/runtime';
 import * as v from 'valibot';
 import { parseEditRequest } from '../core/edit-request.ts';
 import { formatCheckSummary } from '../core/format-summary.ts';
-import { editPlanCells, PlanLoopError } from '../core/plan-loop.ts';
+import { editPlanCells } from '../core/plan-loop.ts';
 import { buildPlanNotices } from '../core/plan-notices.ts';
 import type { EditToolOutput } from '../core/plan-tool-output.ts';
 import { QUOTA_EXCEEDED_MESSAGE } from '../core/quota.ts';
 import type { InterviewResult } from '../core/interview.ts';
 import type { MenuClassification, Plan } from '../core/types.ts';
-import { countNeurons, pickGenerator, planContext, toJson, toolStats, type SavePlan } from './plan-tool-support.ts';
+import { pickGenerator, planContext, planFailure, toJson, toolStats, type SavePlan } from './plan-tool-support.ts';
 
 export const EDIT_PLAN_TOOL = 'edit_plan_cells';
 
@@ -85,10 +85,8 @@ export function editPlanCellsTool({
             });
         }
       } catch (error) {
-        if (error instanceof PlanLoopError) {
-          log.error('칸 다시 추천 중 LLM 호출 실패', { message: error.message, neurons: countNeurons(error.usages, log) });
-        }
-        throw error;
+        // 던지면 바깥 모델이 이 도구를 다시 부를 수 있다 (리뷰 1번). 결과로 답하고 턴을 끝낸다
+        return done({ ...planFailure(startedAt, error, log), targets });
       }
     },
   });

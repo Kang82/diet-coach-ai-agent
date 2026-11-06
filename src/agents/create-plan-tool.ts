@@ -12,10 +12,10 @@ import type { PlanPeriod } from '../core/period.ts';
 import { parsePlanRequest } from '../core/plan-request.ts';
 import type { PlanToolOutput } from '../core/plan-tool-output.ts';
 import type { MenuClassification } from '../core/types.ts';
-import { createPlan, PlanLoopError } from '../core/plan-loop.ts';
+import { createPlan } from '../core/plan-loop.ts';
 import { buildPlanNotices } from '../core/plan-notices.ts';
 import { QUOTA_EXCEEDED_MESSAGE } from '../core/quota.ts';
-import { countNeurons, pickGenerator, planContext, toJson, toolStats, type SavePlan } from './plan-tool-support.ts';
+import { pickGenerator, planContext, planFailure, toJson, toolStats, type SavePlan } from './plan-tool-support.ts';
 
 export const CREATE_PLAN_TOOL = 'create_week_plan';
 
@@ -95,10 +95,8 @@ export function createWeekPlanTool({
           terminate: true,
         };
       } catch (error) {
-        if (error instanceof PlanLoopError) {
-          log.error('식단표 생성 중 LLM 호출 실패', { message: error.message, neurons: countNeurons(error.usages, log) });
-        }
-        throw error;
+        // 던지면 바깥 모델이 이 도구를 다시 부를 수 있다 (리뷰 1번). 결과로 답하고 턴을 끝낸다
+        return { output: toJson(planFailure(startedAt, error, log)), terminate: true };
       }
     },
   });

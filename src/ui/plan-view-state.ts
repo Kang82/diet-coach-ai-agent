@@ -5,6 +5,7 @@
 import type { AgentStatus } from '@flue/react';
 import type { FlueConversationMessage, FlueConversationSettlement } from '@flue/sdk';
 import { isEditRequest, parseEditRequest } from '../core/edit-request.ts';
+import { isPlanRequest } from '../core/plan-request.ts';
 import { sameSlot } from '../core/helpers.ts';
 import { DAY_LABELS, MEAL_LABELS } from '../core/labels.ts';
 import type { EditToolOutput, PlanToolOutput } from '../core/plan-tool-output.ts';
@@ -47,9 +48,10 @@ export type PlanViewState =
       /** 마지막 칸 다시 추천의 결과 */
       editNotice?: EditNotice;
     }
-  | { kind: 'violations'; message: string }
-  | { kind: 'quota'; message: string }
-  | { kind: 'error'; message: string };
+  /** 만들기 실패. retry: 같은 대화에 다시 보낼 만들기 메시지 본문(바꾼 분류 포함). 정해진 형식의 메시지였을 때만 */
+  | { kind: 'violations'; message: string; retry?: string }
+  | { kind: 'quota'; message: string; retry?: string }
+  | { kind: 'error'; message: string; retry?: string };
 
 export const GENERIC_ERROR = '식단표를 만들지 못했어요. 잠시 뒤 다시 시도해 주세요.';
 export const EDIT_FAILED = '바꾸지 못했어요. 원래 식단표는 그대로예요.';
@@ -72,15 +74,18 @@ export function toPlanViewState({ historyReady, status, messages, settlements }:
     return { kind: 'done', view, ...editState(user, call, settled, status) };
   }
 
+  // 실패하면 같은 만들기 메시지를 다시 보낼 수 있게 한다 (리뷰 3번). 분류가 없어서 실패한 경우는 다시 보내도 같다
+  const retry = user && isPlanRequest(textOf(user)) ? { retry: textOf(user) } : {};
   if (call?.state === 'output-available') {
     const output = parse<PlanToolOutput>(call.output);
     if (output?.status === 'ok') return { kind: 'done', view: toView(output) };
-    if (output?.status === 'violations') return { kind: 'violations', message: output.message };
-    if (output?.status === 'quota') return { kind: 'quota', message: output.message };
+    if (output?.status === 'violations') return { kind: 'violations', message: output.message, ...retry };
+    if (output?.status === 'quota') return { kind: 'quota', message: output.message, ...retry };
+    if (output?.status === 'timeout' || output?.status === 'error') return { kind: 'error', message: output.message, ...retry };
     if (output?.status === 'no_classes') return { kind: 'error', message: output.message };
-    return { kind: 'error', message: GENERIC_ERROR };
+    return { kind: 'error', message: GENERIC_ERROR, ...retry };
   }
-  if (call?.state === 'output-error' || status === 'error' || settled) return { kind: 'error', message: GENERIC_ERROR };
+  if (call?.state === 'output-error' || status === 'error' || settled) return { kind: 'error', message: GENERIC_ERROR, ...retry };
   // 도구 실행 중이거나, 보낸 뒤 모델이 아직 도구를 부르기 전
   return { kind: 'creating', startedAt: user?.timestamp };
 }

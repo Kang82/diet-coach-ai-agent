@@ -7,6 +7,7 @@ import type { InterviewResult } from '../core/interview.ts';
 import { DAY_LABELS, MEAL_LABELS } from '../core/labels.ts';
 import { EVENT_NOTE_MAX, eventSlotOptions, validateEvents } from '../core/period.ts';
 import type { PlanEvent, Slot } from '../core/types.ts';
+import { draftKey } from './browser-store.ts';
 import { layoutPlan } from './plan-layout.ts';
 
 const slotKey = (s: Slot) => `${s.day}-${s.meal}`;
@@ -25,7 +26,7 @@ export function PeriodView({
   alert: string | undefined;
   onNext: (events: PlanEvent[]) => void;
 }) {
-  const key = `diet-coach:period:${conversationId}`;
+  const key = draftKey('period', conversationId);
   const [events, setEvents] = useState<PlanEvent[]>(() => load(key));
   useEffect(() => save(key, events), [key, events]);
 

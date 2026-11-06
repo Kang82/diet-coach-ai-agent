@@ -3,6 +3,7 @@ import type { FlueConversationMessage, FlueConversationSettlement } from '@flue/
 import { describe, expect, it } from 'vitest';
 import { planA } from '../core/__fixtures__/persona-a.ts';
 import { formatEditRequest } from '../core/edit-request.ts';
+import { formatPlanRequest } from '../core/plan-request.ts';
 import type { EditToolOutput, PlanToolOutput } from '../core/plan-tool-output.ts';
 import type { Plan } from '../core/types.ts';
 import { EDIT_FAILED, GENERIC_ERROR, toPlanViewState, type PlanViewInput } from './plan-view-state.ts';
@@ -151,6 +152,30 @@ describe('toPlanViewState: 만들기', () => {
       input({ status: 'error', messages: [userMsg(CREATE, 's1')] }),
     ];
     for (const c of cases) expect(toPlanViewState(c)).toEqual({ kind: 'error', message: GENERIC_ERROR });
+  });
+
+  it('시간 초과나 실패 결과는 도구 안내로 error, 만들기 메시지면 다시 보낼 본문을 준다 (리뷰 1, 3번)', () => {
+    const body = formatPlanRequest({ overrides: [{ menu: '돈가스', class: 'often' }] });
+    const timeout: PlanToolOutput = { status: 'timeout', message: '오래 걸려 멈췄어요', stats };
+    expect(toPlanViewState(input({ messages: [userMsg(body, 's1'), assistantMsg('s1', done(timeout))] }))).toEqual({
+      kind: 'error',
+      message: '오래 걸려 멈췄어요',
+      retry: body,
+    });
+    expect(toPlanViewState(input({ messages: [userMsg(body, 's1'), assistantMsg('s1', done(quota))] }))).toEqual({
+      kind: 'quota',
+      message: '내일 다시',
+      retry: body,
+    });
+  });
+
+  it('분류가 없어서 실패했으면 다시 보낼 본문을 주지 않는다', () => {
+    const body = formatPlanRequest({ overrides: [] });
+    const noClasses: PlanToolOutput = { status: 'no_classes', message: '분류 먼저' };
+    expect(toPlanViewState(input({ messages: [userMsg(body, 's1'), assistantMsg('s1', done(noClasses))] }))).toEqual({
+      kind: 'error',
+      message: '분류 먼저',
+    });
   });
 
   it('한 답에 도구 호출이 여러 번이면 마지막 것을 본다', () => {

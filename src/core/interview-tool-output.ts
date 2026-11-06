@@ -23,5 +23,7 @@ export type InterviewToolOutput =
   | { status: 'quota'; message: InterviewMessage; stats: InterviewToolStats }
   /** 메모 확인 시간 초과 (B6). 같은 제출을 다시 보내면 된다 */
   | { status: 'timeout'; message: InterviewMessage; stats: InterviewToolStats }
+  /** 그 밖의 실패 (리뷰 1번). 같은 제출을 다시 보내면 된다 */
+  | { status: 'error'; message: InterviewMessage; stats: InterviewToolStats }
   /** 제출 메시지 형식이 틀렸거나 끝나지 않은 초안 */
   | { status: 'bad_request'; message: InterviewMessage; stats: InterviewToolStats };

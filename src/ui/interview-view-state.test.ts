@@ -50,6 +50,11 @@ describe('toInterviewViewState', () => {
     });
   });
 
+  it('도구 에러 뒤 모델이 다시 부른 호출이 실행 중이면 submitting (리뷰 2번)', () => {
+    const messages = [userMsg(SUBMIT, 's1'), assistantMsg('s1', erroredTool(INTERVIEW_TOOL), pendingTool(INTERVIEW_TOOL))];
+    expect(toInterviewViewState(viewInput({ status: 'streaming', messages }))).toEqual({ kind: 'submitting' });
+  });
+
   it('서버가 목표를 다시 물으면 form과 serverAsk(도구 호출 ID)', () => {
     const part = out(ask);
     const state = toInterviewViewState(viewInput({ messages: [userMsg(SUBMIT, 's1'), assistantMsg('s1', part)], settlements: [settledSub('s1')] }));

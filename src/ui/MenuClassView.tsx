@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { CRITERION_LABELS, MENU_CLASS_LABELS } from '../core/labels.ts';
 import type { MenuClassOverride } from '../core/menu-classification.ts';
 import { MENU_CLASSES, type MenuClass, type MenuClassification } from '../core/types.ts';
+import { draftKey } from './browser-store.ts';
 
 const MENU_CLASS_HINTS: Record<MenuClass, string> = {
   often: '여러 번 넣어요',
@@ -21,7 +22,7 @@ export function MenuClassView({
   classes: MenuClassification[];
   onCreate: (overrides: MenuClassOverride[]) => void;
 }) {
-  const key = `diet-coach:menu-classes:${conversationId}`;
+  const key = draftKey('menuClasses', conversationId);
   const [chosen, setChosen] = useState<Record<string, MenuClass>>(() => load(key));
   useEffect(() => save(key, chosen), [key, chosen]);
 

@@ -1,6 +1,7 @@
 // (첫 화면 분기) → 인터뷰 → 프로필 확인 → 기간 선택 → 메뉴 분류 확인 → 식단표 (스펙 7장, tasks.md B4~B6).
 // 단계마다 앞 단계가 끝난 뒤의 메시지를 다음 화면 상태에 넘긴다. 식단표는 끝난 인터뷰와 확인한 메뉴 분류, 기간으로 만든다.
 // 프로필은 저장에 동의했을 때만 이 브라우저(localStorage)에 둔다 (saved-profile.ts).
+// 대화별 진행 값(인터뷰 답, 일정, 고르던 분류)은 그 단계가 끝나면 지운다 (browser-store.ts, 리뷰 4번).
 // 대화 ID를 localStorage에 두어 새로고침하거나 창을 닫았다 열어도 같은 대화(진행 상태나 결과)를 다시 읽는다.
 import { useFlueAgent } from '@flue/react';
 import { useEffect, useState } from 'react';
@@ -10,9 +11,11 @@ import type { MenuClassOverride } from '../core/menu-classification.ts';
 import { formatClassifyRequest, formatPlanRequest } from '../core/plan-request.ts';
 import { draftFromResult } from '../core/profile-edit.ts';
 import type { PlanEvent } from '../core/types.ts';
-import { progressFromResult, progressKey } from './interview-form-state.ts';
+import { clearAll, clearDrafts, CONVERSATION_KEY, defaultStore, draftKey } from './browser-store.ts';
+import { progressFromResult } from './interview-form-state.ts';
 import { PeriodView } from './PeriodView.tsx';
-import { clearSavedProfile, loadSavedProfile, rememberResult } from './saved-profile.ts';
+import { loadSavedProfile, rememberResult } from './saved-profile.ts';
+import { defaultConsentFor, shouldOfferSaved, type StartChoice as StartChoiceKind } from './start-choice-state.ts';
 import { StartChoice } from './StartChoice.tsx';
 import { InterviewView } from './InterviewView.tsx';
 import { toInterviewViewState } from './interview-view-state.ts';
@@ -24,8 +27,6 @@ import { PlanBoard } from './PlanBoard.tsx';
 import { toPlanViewState } from './plan-view-state.ts';
 import { WaitingView } from './WaitingView.tsx';
 
-const CONVERSATION_KEY = 'diet-coach:conversation';
-
 export function App() {
   const [conversationId, setConversationId] = useState(loadConversationId);
   const [sentAt, setSentAt] = useState<number>();
@@ -36,22 +37,30 @@ export function App() {
 
   // 첫 화면 분기 (T5-5): 저장한 프로필이 있고 이 대화의 인터뷰를 아직 시작하지 않았으면 고르게 한다
   const [saved, setSaved] = useState(loadSavedProfile);
-  const [startDecided, setStartDecided] = useState(false);
-  const offerSaved =
-    !!saved &&
-    !startDecided &&
-    interview.kind === 'form' &&
-    !interview.serverAsk &&
-    !interview.alert &&
-    !hasProgress(conversationId);
+  const [choice, setChoice] = useState<StartChoiceKind>();
+  const offerSaved = shouldOfferSaved({
+    hasSaved: !!saved,
+    decided: choice !== undefined,
+    interview,
+    hasProgress: hasProgress(conversationId),
+  });
 
-  // 인터뷰가 끝나면 저장 동의에 따라 프로필을 저장하거나 지운다
+  // 인터뷰가 끝나면 저장 동의에 따라 프로필을 저장하거나 지우고, 이 대화의 인터뷰 진행 값을 지운다
   const doneResult = interview.kind === 'done' ? JSON.stringify(interview.result) : undefined;
   useEffect(() => {
     if (!doneResult) return;
     rememberResult(JSON.parse(doneResult));
+    clearDrafts(conversationId, ['interview']);
     setSaved(loadSavedProfile());
-  }, [doneResult]);
+  }, [doneResult, conversationId]);
+
+  // 분류가 끝나면 일정, 식단표가 나오면 고르던 분류를 지운다 (서버에 저장돼 있다)
+  const classified = menu?.kind === 'classified';
+  const planDone = view?.kind === 'done';
+  useEffect(() => {
+    if (classified) clearDrafts(conversationId, ['period']);
+    if (planDone) clearDrafts(conversationId, ['menuClasses']);
+  }, [classified, planDone, conversationId]);
 
   /** 인터뷰 제출. 도구가 이 메시지를 직접 해석하므로 형식은 formatInterviewSubmission으로만 만든다. */
   async function submitInterview(submission: InterviewSubmission) {
@@ -68,7 +77,7 @@ export function App() {
   async function startWithSaved() {
     if (!saved) return;
     saveProgress(conversationId, progressFromResult(saved.result));
-    setStartDecided(true);
+    setChoice('use_saved');
     await submitInterview({ draft: draftFromResult(saved.result), stopFlags: [], consent: true });
   }
 
@@ -76,12 +85,19 @@ export function App() {
   function editSaved() {
     if (!saved) return;
     saveProgress(conversationId, progressFromResult(saved.result));
-    setStartDecided(true);
+    setChoice('edit_saved');
   }
 
-  function forgetSaved() {
-    clearSavedProfile();
+  /** 이 브라우저에 저장한 내 정보(프로필, 대화별 진행 값)를 모두 지운다 */
+  function forgetAll() {
+    clearAll();
     setSaved(undefined);
+  }
+
+  /** 식단표 만들기 실패 뒤 같은 대화에 같은 메시지(바꾼 분류 포함)를 다시 보낸다 (리뷰 3번) */
+  async function retryCreate(body: string) {
+    setSentAt(Date.now());
+    await agent.sendMessage(body);
   }
 
   /** 식단표 만들기. 사용자가 바꾼 분류를 메시지에 싣는다. 형식은 formatPlanRequest로만 만든다 */
@@ -96,11 +112,13 @@ export function App() {
     await agent.sendMessage(formatEditRequest({ target, request }));
   }
 
+  /** 새 대화로 시작한다. 두고 가는 대화의 진행 값(건강 정보)은 지운다 (리뷰 4번) */
   function startOver() {
+    clearDrafts(conversationId, ['interview', 'period', 'menuClasses']);
     const id = newConversationId();
     saveConversationId(id);
     setSentAt(undefined);
-    setStartDecided(false);
+    setChoice(undefined);
     setConversationId(id);
   }
 
@@ -108,13 +126,13 @@ export function App() {
     <main className="page">
       {interview.kind === 'loading' && <p className="status-line">불러오는 중…</p>}
 
-      {offerSaved && (
+      {offerSaved && saved && (
         <StartChoice
           saved={saved}
           onUseSaved={startWithSaved}
           onEditSaved={editSaved}
-          onFresh={() => setStartDecided(true)}
-          onForget={forgetSaved}
+          onFresh={() => setChoice('fresh')}
+          onForget={forgetAll}
         />
       )}
 
@@ -123,7 +141,7 @@ export function App() {
           key={conversationId}
           conversationId={conversationId}
           view={interview}
-          defaultConsent={!!saved}
+          defaultConsent={defaultConsentFor(choice)}
           onSubmit={submitInterview}
           onStartOver={startOver}
         />
@@ -188,9 +206,16 @@ export function App() {
         <section className="intro" role="alert">
           <h1 className="display">식단표를 만들지 못했어요</h1>
           <p className="lede">{view.message}</p>
-          <button type="button" className="primary" onClick={startOver}>
-            처음부터 다시 만들기
-          </button>
+          <div className="choices">
+            {view.retry && (
+              <button type="button" className="primary" onClick={() => retryCreate(view.retry!)}>
+                다시 시도
+              </button>
+            )}
+            <button type="button" className={view.retry ? 'secondary' : 'primary'} onClick={startOver}>
+              처음부터 다시
+            </button>
+          </div>
         </section>
       )}
     </main>
@@ -205,7 +230,7 @@ function toTime(serverTime: string | undefined, sentAt: number | undefined): num
 /** 이 대화의 인터뷰 진행이 저장돼 있는지 (있으면 첫 화면 분기를 보여 주지 않는다) */
 function hasProgress(conversationId: string): boolean {
   try {
-    return localStorage.getItem(progressKey(conversationId)) !== null;
+    return (defaultStore()?.getItem(draftKey('interview', conversationId)) ?? null) !== null;
   } catch {
     return false;
   }
@@ -213,7 +238,7 @@ function hasProgress(conversationId: string): boolean {
 
 function saveProgress(conversationId: string, progress: unknown) {
   try {
-    localStorage.setItem(progressKey(conversationId), JSON.stringify(progress));
+    defaultStore()?.setItem(draftKey('interview', conversationId), JSON.stringify(progress));
   } catch {
     // 저장소를 못 쓰면 이번 창에서는 처음 단계부터 보인다
   }

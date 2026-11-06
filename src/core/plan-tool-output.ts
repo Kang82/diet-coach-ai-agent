@@ -29,6 +29,8 @@ export type PlanToolOutput =
       stats: PlanToolStats;
     }
   | { status: 'quota'; message: string; stats: PlanToolStats }
+  /** 시간 초과나 그 밖의 실패 (리뷰 1번). 도구는 던지지 않고 이 결과로 턴을 끝낸다 */
+  | { status: 'timeout' | 'error'; message: string; stats: PlanToolStats }
   /** 인터뷰나 메뉴 분류가 끝나지 않았음. LLM을 부르지 않는다 */
   | { status: 'no_classes'; message: string };
 
@@ -51,7 +53,7 @@ export type EditToolOutput =
       stats: PlanToolStats;
     }
   | {
-      status: 'violations' | 'quota' | 'invalid_targets' | 'stale_plan' | 'no_plan' | 'bad_request';
+      status: 'violations' | 'quota' | 'timeout' | 'error' | 'invalid_targets' | 'stale_plan' | 'no_plan' | 'bad_request';
       message: string;
       targets?: Slot[];
       stats?: PlanToolStats;

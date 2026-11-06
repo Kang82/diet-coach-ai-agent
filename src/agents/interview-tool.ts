@@ -11,6 +11,7 @@ import type { InterviewToolOutput } from '../core/interview-tool-output.ts';
 import { createFlueGoalNoteChecker } from './flue-goal-note-checker.ts';
 import { parseInterviewSubmission } from './interview-schema.ts';
 import { goalNoteModel } from './models.ts';
+import { failureKind, failureMessage } from '../core/tool-failure.ts';
 import { countNeurons, toJson } from './plan-tool-support.ts';
 
 export const INTERVIEW_TOOL = 'submit_interview';
@@ -39,7 +40,17 @@ export function submitInterviewTool({
 
       // nodejs_compat에서는 Worker의 vars가 process.env로도 들어온다 (plan-tool-support.ts의 pickGenerator와 같음)
       const checker = createFlueGoalNoteChecker(harness, goalNoteModel(process.env.INTERVIEW_MODEL));
-      const out = await submitInterview(checker, submission);
+      let out: Awaited<ReturnType<typeof submitInterview>>;
+      try {
+        out = await submitInterview(checker, submission);
+      } catch (error) {
+        // 던지면 바깥 모델이 이 도구를 다시 부를 수 있다 (리뷰 1번). 결과로 답하고 턴을 끝낸다
+        const kind = failureKind(error);
+        const seconds = Math.round((Date.now() - startedAt) / 1000);
+        log.error('인터뷰 제출 실패', { kind, message: error instanceof Error ? error.message : String(error), seconds });
+        const status = kind === 'quota' ? 'quota' : kind === 'timeout' ? 'timeout' : 'error';
+        return done({ status, message: { text: failureMessage(kind) }, stats: { seconds, usages: [], neurons: 0 } });
+      }
       const stats = {
         seconds: Math.round((Date.now() - startedAt) / 1000),
         usages: out.usages,

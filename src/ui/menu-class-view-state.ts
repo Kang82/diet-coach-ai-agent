@@ -38,6 +38,8 @@ export function toMenuClassViewState({ historyReady, status, messages, settlemen
     for (const part of message.parts) {
       if (!isClassifyTool(part)) continue;
       if (part.state === 'output-error') alert = CLASSIFY_ERROR;
+      // 에러 뒤 모델이 다시 부른 호출이 실행 중이면 아직 실패가 아니다 (리뷰 2번)
+      else if (part.state !== 'output-available') alert = undefined;
       if (part.state !== 'output-available') continue;
       const output = parse<ClassifyToolOutput>(part.output);
       open = undefined;

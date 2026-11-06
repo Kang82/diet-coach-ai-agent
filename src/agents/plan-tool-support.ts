@@ -3,6 +3,8 @@ import type { FlueLogger, JsonValue } from '@flue/runtime';
 import { buildCriteria } from '../core/criteria.ts';
 import { profileFromInterview, type InterviewResult } from '../core/interview.ts';
 import { totalNeurons } from '../core/neurons.ts';
+import { PlanLoopError } from '../core/plan-loop.ts';
+import { failureKind, failureMessage } from '../core/tool-failure.ts';
 import type { PlanGenerator, TokenUsage } from '../core/plan-generator.ts';
 import type { PlanContext } from '../core/plan-loop.ts';
 import type { InterviewToolOutput } from '../core/interview-tool-output.ts';
@@ -51,6 +53,22 @@ export function toolStats(
     usages: loop.usages,
     neurons: countNeurons(loop.usages, log),
   };
+}
+
+/**
+ * 식단 도구가 실패했을 때의 결과 (리뷰 1번). 던지지 않고 이 결과로 턴을 끝낸다.
+ * 실패 전까지 쓴 사용량(PlanLoopError.usages)은 통계에 넣는다. 시간 초과로 멈춘 호출의 사용량은 알 수 없다
+ */
+export function planFailure(
+  startedAt: number,
+  error: unknown,
+  log: Pick<FlueLogger, 'warn' | 'error'>,
+): { status: 'quota' | 'timeout' | 'error'; message: string; stats: PlanToolStats } {
+  const kind = failureKind(error);
+  const loop = error instanceof PlanLoopError ? error : { usages: [], regenerations: 0 };
+  const stats = toolStats(startedAt, loop, log);
+  log.error('식단 도구 실패', { kind, message: error instanceof Error ? error.message : String(error), ...stats });
+  return { status: kind, message: failureMessage(kind), stats };
 }
 
 /** 도구 출력은 JSON 값이어야 한다. 인터페이스(Plan 등)를 JsonValue로 넘기려고 한 번 직렬화한다. 모양은 타입으로 검사한다. */

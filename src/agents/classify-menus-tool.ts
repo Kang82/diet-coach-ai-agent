@@ -11,6 +11,7 @@ import { parseClassifyRequest } from '../core/plan-request.ts';
 import type { InterviewResult } from '../core/interview.ts';
 import { runClassification, type MenuClassifier } from '../core/menu-classifier.ts';
 import { LLM_TIMEOUT_MESSAGE } from '../core/llm-timeout.ts';
+import { failureKind, failureMessage } from '../core/tool-failure.ts';
 import { QUOTA_EXCEEDED_MESSAGE } from '../core/quota.ts';
 import type { MenuClassification } from '../core/types.ts';
 import { createDemoMenuClassifier } from './demo-menu-classifier.ts';
@@ -62,7 +63,17 @@ export function classifyMenusTool({
       }
       const period: PlanPeriod = { weekStart: nextMondayKst(new Date()), events: checked.events };
 
-      const out = await runClassification(pickClassifier(harness), interviewResult);
+      let out: Awaited<ReturnType<typeof runClassification>>;
+      try {
+        out = await runClassification(pickClassifier(harness), interviewResult);
+      } catch (error) {
+        // 던지면 바깥 모델이 이 도구를 다시 부를 수 있다 (리뷰 1번). 결과로 답하고 턴을 끝낸다
+        const kind = failureKind(error);
+        const seconds = Math.round((Date.now() - startedAt) / 1000);
+        log.error('메뉴 분류 실패', { kind, message: error instanceof Error ? error.message : String(error), seconds });
+        const status = kind === 'quota' ? 'quota' : kind === 'timeout' ? 'timeout' : 'error';
+        return done({ status, message: failureMessage(kind), stats: { seconds, usages: [], neurons: 0 } });
+      }
       const stats = {
         seconds: Math.round((Date.now() - startedAt) / 1000),
         usages: out.usages,

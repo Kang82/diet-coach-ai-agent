@@ -64,6 +64,17 @@ describe('toMenuClassViewState', () => {
     expect(toMenuClassViewState(viewInput({ messages, settlements }))).toEqual({ kind: 'idle', alert: CLASSIFY_ERROR });
   });
 
+  it('도구 에러 뒤 모델이 다시 부른 호출이 실행 중이면 classifying (리뷰 2번)', () => {
+    const messages = [
+      userMsg(CLASSIFY_REQUEST, 's1', '2026-11-06T08:00:00Z'),
+      assistantMsg('s1', erroredTool(CLASSIFY_TOOL), pendingTool(CLASSIFY_TOOL)),
+    ];
+    expect(toMenuClassViewState(viewInput({ status: 'streaming', messages }))).toEqual({
+      kind: 'classifying',
+      startedAt: '2026-11-06T08:00:00Z',
+    });
+  });
+
   it('실패 뒤 다시 요청하면 classifying', () => {
     const messages = [
       userMsg(CLASSIFY_REQUEST, 's1'),

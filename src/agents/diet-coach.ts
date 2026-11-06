@@ -60,7 +60,12 @@ export function DietCoach() {
     return { usage: { model: DEFAULT_MODEL, input, output, neurons } };
   });
 
-  const intro = ['당신은 바쁜 직장인의 식단 코치입니다.', '일반적인 식단 지침을 따르며, 의료 조언은 하지 않습니다.'];
+  const intro = [
+    '당신은 바쁜 직장인의 식단 코치입니다.',
+    '일반적인 식단 지침을 따르며, 의료 조언은 하지 않습니다.',
+    // 도구는 실패도 결과로 답하고 턴을 끝내지만(리뷰 1번), 모델이 같은 도구를 다시 부르지 않게 한 번 더 적는다
+    '도구 결과가 실패여도 같은 도구를 다시 부르지 마세요. 사용자가 화면에서 다시 시도합니다.',
+  ];
   if (interviewing) {
     return [
       ...intro,
