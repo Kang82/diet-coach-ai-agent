@@ -1,5 +1,5 @@
 // 스펙 6장 한글 라벨표
-import type { AvoidTag, Day, GoalId, MealType } from './types.ts';
+import type { AvoidTag, Day, DayType, GoalId, MealPlace, MealSetting, MealType, Medication } from './types.ts';
 
 export const DAY_LABELS: Record<Day, string> = {
   mon: '월요일',
@@ -32,4 +32,21 @@ export const GOAL_LABELS: Record<GoalId, string> = {
   weight_loss: '체중 감량',
   blood_glucose: '혈당 관리',
   cholesterol: '콜레스테롤 관리',
+};
+
+export const DAY_TYPE_LABELS: Record<DayType, string> = { weekday: '평일', weekend: '주말' };
+
+export const MEDICATION_LABELS: Record<Medication, string> = {
+  none: '없음',
+  glucose: '혈당약',
+  cholesterol: '콜레스테롤약',
+  other: '그 밖의 약',
+};
+
+export const PLACE_LABELS: Record<MealPlace, string> = { skip: '안 먹음', eat_out: '외식', home: '집밥' };
+
+export const COMPANION_LABELS: Record<MealSetting['companions'], string> = {
+  alone: '혼자',
+  family: '가족과',
+  others: '다른 사람과',
 };

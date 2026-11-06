@@ -1,0 +1,266 @@
+{
+  "date": "2026-11-06",
+  "model": "cloudflare/@cf/google/gemma-4-26b-a4b-it",
+  "runs": [
+    {
+      "id": "b4-run1",
+      "thinking": "medium(기본값), 이전 개발 서버가 남아 있던 상태",
+      "turns": [
+        {
+          "answer": "체중 5kg 감량하고 콜레스테롤도 관리하고 싶어요",
+          "seconds": 167,
+          "outcome": "completed",
+          "outer": {
+            "input": 694,
+            "output": 2217,
+            "neurons": 67
+          },
+          "tool": {
+            "status": "ask",
+            "seconds": 89,
+            "usages": [
+              {
+                "input": 1604,
+                "output": 5106
+              }
+            ],
+            "neurons": 154,
+            "text": "체중 감량과 콜레스테롤 관리를 목표로 하시는군요.\n혈당이나 콜레스테롤 때문에 드시는 약이 있나요?"
+          }
+        },
+        {
+          "answer": "없어요",
+          "seconds": 15,
+          "outcome": "completed",
+          "outer": {
+            "input": 947,
+            "output": 172,
+            "neurons": 13
+          },
+          "tool": {
+            "status": "output-error",
+            "note": "도구가 interrupted로 실패. 바깥 턴 모델이 도구 대신 직접 질문을 씀"
+          }
+        }
+      ]
+    },
+    {
+      "id": "b4-run2",
+      "thinking": "off",
+      "turns": [
+        {
+          "answer": "체중 5kg 감량하고 콜레스테롤도 관리하고 싶어요",
+          "seconds": 143,
+          "outcome": "completed",
+          "outer": {
+            "input": 512,
+            "output": 733,
+            "neurons": 25
+          },
+          "tool": {
+            "status": "ask",
+            "seconds": 126,
+            "usages": [
+              {
+                "input": 8612,
+                "output": 5833
+              }
+            ],
+            "neurons": 237,
+            "text": "체중 감량과 콜레스테롤 관리를 목표로 하시는군요.\n혈당이나 콜레스테롤 때문에 드시는 약이 있나요?"
+          }
+        },
+        {
+          "answer": "없어요",
+          "seconds": 52,
+          "outcome": "completed",
+          "outer": {
+            "input": 640,
+            "output": 13,
+            "neurons": 6
+          },
+          "tool": {
+            "status": "ask",
+            "seconds": 49,
+            "usages": [
+              {
+                "input": 1632,
+                "output": 7027
+              }
+            ],
+            "neurons": 206,
+            "text": "네, 확인했습니다.\n피해야 하거나 먹지 않는 음식이 있나요? 없으면 \"없음\"이라고 답해 주세요."
+          }
+        }
+      ]
+    },
+    {
+      "id": "b4-run3",
+      "thinking": "low",
+      "turns": [
+        {
+          "answer": "체중 5kg 감량하고 콜레스테롤도 관리하고 싶어요",
+          "seconds": 109,
+          "outcome": "completed",
+          "outer": {
+            "input": 512,
+            "output": 281,
+            "neurons": 12
+          },
+          "tool": {
+            "status": "ask",
+            "seconds": 101,
+            "usages": [
+              {
+                "input": 5951,
+                "output": 4634
+              }
+            ],
+            "neurons": 180,
+            "text": "체중 감량과 콜레스테롤 관리를 원하시는군요.\n혈당이나 콜레스테롤 때문에 드시는 약이 있나요?"
+          }
+        },
+        {
+          "answer": "없어요",
+          "seconds": 152,
+          "outcome": "completed",
+          "outer": {
+            "input": 639,
+            "output": 13,
+            "neurons": 6
+          },
+          "tool": {
+            "status": "ask",
+            "seconds": 149,
+            "usages": [
+              {
+                "input": 1629,
+                "output": 6888
+              }
+            ],
+            "neurons": 203,
+            "text": "약은 안 드시는군요.\n피해야 하거나 먹지 않는 음식이 있나요? 없으면 \"없음\"이라고 답해 주세요."
+          }
+        }
+      ]
+    }
+  ],
+  "extractionModels": [
+    {
+      "model": "cloudflare/@cf/ibm-granite/granite-4.0-h-micro",
+      "result": "400 Bad input (Flue 메시지 형식 거부: content 배열/null)",
+      "outer": {
+        "model": "cloudflare/@cf/google/gemma-4-26b-a4b-it",
+        "input": 1063,
+        "output": 247,
+        "neurons": 16
+      }
+    },
+    {
+      "model": "cloudflare/@cf/mistralai/mistral-small-3.1-24b-instruct",
+      "result": "ResultUnavailableError: The agent gave up: 사용자 답을 읽지 못했습니다.",
+      "outer": {
+        "model": "cloudflare/@cf/google/gemma-4-26b-a4b-it",
+        "input": 1417,
+        "output": 460,
+        "neurons": 25
+      }
+    },
+    {
+      "model": "cloudflare/@cf/meta/llama-4-scout-17b-16e-instruct",
+      "result": "성공",
+      "seconds": 18,
+      "outer": {
+        "model": "cloudflare/@cf/google/gemma-4-26b-a4b-it",
+        "input": 512,
+        "output": 341,
+        "neurons": 14
+      },
+      "tool": {
+        "seconds": 5,
+        "usages": [
+          {
+            "input": 6017,
+            "output": 48
+          }
+        ],
+        "neurons": 151,
+        "text": "혈당이나 콜레스테롤 때문에 드시는 약이 있나요?"
+      }
+    }
+  ],
+  "goalNoteCheck": [
+    {
+      "name": "보통",
+      "note": "체중 5kg 감량, 콜레스테롤 관리",
+      "seconds": 6,
+      "status": "done",
+      "tool": {
+        "seconds": 1,
+        "usages": [
+          {
+            "input": 1489,
+            "output": 27
+          }
+        ],
+        "neurons": 39
+      },
+      "outer": {
+        "input": 721,
+        "output": 89,
+        "neurons": 9
+      }
+    },
+    {
+      "name": "극단적",
+      "note": "한 달에 10kg 빼고 싶어요",
+      "seconds": 4,
+      "status": "ask",
+      "choices": [
+        "한 달에 2kg 감량",
+        "건강한 식습관"
+      ],
+      "tool": {
+        "seconds": 2,
+        "usages": [
+          {
+            "input": 1486,
+            "output": 33
+          }
+        ],
+        "neurons": 39
+      },
+      "outer": {
+        "input": 719,
+        "output": 126,
+        "neurons": 10
+      }
+    },
+    {
+      "name": "미지원",
+      "note": "근육을 키우고 싶어요",
+      "seconds": 6,
+      "status": "ask",
+      "choices": [
+        "체중 감량",
+        "혈당 관리",
+        "콜레스테롤 관리"
+      ],
+      "tool": {
+        "seconds": 2,
+        "usages": [
+          {
+            "input": 1483,
+            "output": 23
+          }
+        ],
+        "neurons": 38
+      },
+      "outer": {
+        "input": 715,
+        "output": 154,
+        "neurons": 11
+      }
+    }
+  ]
+}

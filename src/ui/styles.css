@@ -429,3 +429,182 @@ button.small {
   color: var(--home);
   font-variant-numeric: tabular-nums;
 }
+
+/* 화면 낭독기에만 읽히는 글자 */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 인터뷰 화면 (tasks.md B4). 단계별 입력 */
+.interview {
+  display: grid;
+  gap: 20px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.step {
+  display: grid;
+  gap: 16px;
+}
+
+.step-title {
+  font-family: var(--serif);
+  font-size: 1.25rem;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.step-message {
+  padding: 12px 16px;
+  border-left: 4px solid var(--out);
+  background: var(--surface);
+  white-space: pre-line;
+  line-height: 1.6;
+}
+
+.step-message-text {
+  white-space: pre-line;
+}
+
+.step-form {
+  display: grid;
+  gap: 16px;
+  justify-items: start;
+}
+
+.step-form fieldset {
+  justify-self: stretch;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.step-form legend,
+.field-label {
+  margin-bottom: 4px;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.option {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 32px;
+  cursor: pointer;
+}
+
+.option input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--home);
+}
+
+.option-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 4px 16px;
+}
+
+.step-form textarea {
+  width: 100%;
+  min-height: 3.2em;
+  padding: 10px 12px;
+  border: 1px solid var(--tray);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  resize: vertical;
+}
+
+.step-form textarea:focus-visible,
+.option input:focus-visible,
+.companions select:focus-visible {
+  outline: 3px solid var(--out);
+  outline-offset: 1px;
+}
+
+.meal-rows {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
+.meal-row {
+  grid-template-columns: 7em 1fr auto;
+  align-items: center;
+  padding: 8px 12px !important;
+  border: 1px solid var(--tray-light) !important;
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.meal-row legend {
+  float: left;
+  margin: 0;
+  padding: 0;
+  color: var(--ink);
+}
+
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.companions select {
+  padding: 6px 8px;
+  border: 1px solid var(--tray);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chat-alert {
+  color: var(--alert);
+}
+
+.interview-foot {
+  padding-top: 8px;
+  border-top: 1px solid var(--tray-light);
+}
+
+.interview-summary {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 16px 20px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--tray-light);
+  border-radius: 8px;
+}
+
+@media (max-width: 640px) {
+  .meal-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}

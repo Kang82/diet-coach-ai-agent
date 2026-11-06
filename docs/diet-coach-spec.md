@@ -295,6 +295,13 @@ checkPlan(
 
 ### 4.1 인터뷰
 
+**입력 방식 (2026-11-06, B4):** 정해진 답(목표, 약, 피할 음식, 끼니별 장소·같이 먹는 사람, 외식 메뉴, 조리 시간)은 화면 입력(체크박스, 라디오, 끼니 표, 입력칸, 버튼)으로 받는다. 화면이 입력값으로 `InterviewUpdate`를 만들고(`core/interview-form.ts`) 단계마다 브라우저에서 `applyTurn`을 돌린다. 진행 상태는 화면의 `localStorage`(대화 ID별)에 둔다. 단계가 끝나면 `인터뷰 제출:` + JSON 메시지를 한 번 보내고, `submit_interview` 도구가 `useDelivery()`로 읽어 검증한 뒤 결과를 `usePersistentState('interviewResult')`에 저장한다.
+
+- LLM은 목표 메모(`goalNote`)가 있을 때만 제출 시 1회 부른다(`core/interview-note.ts`, llama-4-scout). 메모에서 `stopFlags`, `turnFlags`, 무리한 목표일 때의 선택지를 찾는다. 피할 음식 메모는 해석하지 않고 저장만 한다.
+- 중단 사유(임신, 신장 질환)는 목표 단계의 체크박스로 받는다. 당뇨약은 약 단계 답으로 분기 1이 처리한다.
+- 서버가 목표를 다시 물으면(분기 2, 3) 도구 결과의 `state`와 `next`로 화면이 목표 단계부터 이어 간다.
+- 매 턴 LLM이 답을 옮기는 방식은 재 보니 턴당 약 150~240 Neuron, 1~2.5분이라 쓰지 않는다 (11.5).
+
 인터뷰 상태는 지금까지 채운 프로필 초안과 중단 플래그만 가진다. 다음에 물을 질문은 상태에 저장하지 않고 순수 함수로 계산한다.
 
 ```ts
@@ -321,12 +328,11 @@ type TurnFlag =                // 그 턴에만 처리하고 버림
   | "extreme_restriction" | "unsupported_goal"
   | "asks_lab_interpretation" | "asks_medication_advice";
 
-interface InterviewUpdate {   // LLM이 한 턴마다 내는 값
+interface InterviewUpdate {   // 한 단계의 답. 화면 입력이나 목표 메모 확인 결과로 만든다
   filled: InterviewDraft;
   ambiguous?: { field: InterviewField; choices: string[] };
   stopFlags: StopFlag[];
   turnFlags: TurnFlag[];
-  reply: string;              // 사용자에게 보여 줄 문장
 }
 
 nextField(draft: Partial<Profile>): InterviewField | null   // null이면 인터뷰 끝
@@ -366,6 +372,8 @@ nextField(draft: Partial<Profile>): InterviewField | null   // null이면 인터
   - 분기 3: `filled.goals`만 버린다. 선택지는 코드가 지원 목표 3개("체중 감량", "혈당 관리", "콜레스테롤 관리")로 고정한다.
   - 분기 5: 모호한 필드(끼니 필드면 그 끼니의 `menus`나 `cookMinutes`)만 빼고 반영한다.
   - 분기 6: 이번 턴에 메뉴를 받은 외식 끼니의 메뉴가 1~2개이고 `menuFollowUps`에 없으면 그 끼니를 기록하고 다시 묻는다.
+- 문장은 코드 템플릿이다(`core/interview-text.ts`): 단계 제목(`questionText`), 다시 묻는 이유·중단·범위 밖 안내(`formatTurnReply`), 끝 요약(`summarizeInterviewResult`).
+- 제출(`core/interview-runner.ts`의 `submitInterview`): 끝난 초안이 아니면 에러. 메모가 있으면 확인하고, 무리한 목표일 때만 선택지를 `ambiguous`로 넘겨 `applyTurn`을 돌린다. 결과는 `done | stop | ask | quota`.
 
 ### 4.2 외식 메뉴 분류 (LLM)
 
@@ -470,7 +478,7 @@ formatCheckSummary(stats: CheckStats, profile: Pick<Profile, 'avoid'>): string[]
 
 | 화면 | 내용 | 다음 |
 | --- | --- | --- |
-| 인터뷰 | 대화형 질문, 모호할 때 선택지 버튼 | 프로필 확인 |
+| 인터뷰 | 단계별 입력(목표·약·피할 음식·끼니 표·메뉴·조리 시간). 메모가 무리한 목표면 목표 단계로 돌아가 선택지를 보여 줌. 새로고침해도 이어짐 | 프로필 확인 |
 | 프로필 확인 | 프로필 표, 식단 기준, 항목별 수정, 저장 동의 | 기간 선택 |
 | 기간 선택 | 1주일(첫 시연은 이것만), 정해진 일정 입력 | 메뉴 분류 확인 |
 | 메뉴 분류 확인 | 분류 표, 분류 바꾸기 | 식단표 |
@@ -635,7 +643,7 @@ LLM 단계는 결과가 매번 다르므로 페르소나별로 여러 번 돌려
 1. **태그 제한 값:** 기준 테이블의 숫자(주당 최대 횟수)를 어떤 영양 지침으로 확정할지
 2. **사용자 구분:** ~~첫 시연에서 고유 링크 토큰으로 충분한지~~ → 고유 링크 토큰을 필수로 확정 (11.4). 로그인이 필요한지는 첫 시연 이후에 정한다.
 3. **태그를 누가 붙이나:** LLM이 칸마다 붙이는 태그를 믿을 수 있는지. 자주 나오는 메뉴는 코드에 메뉴 → 태그 사전을 두고 LLM 태그와 합치는 방식도 검토
-4. **Flue 연동:** 구조화된 출력 검증과 재요청, 인터뷰 상태를 Flue 안에서 어떻게 표현할지 (포럼 기능 질문과 연결)
+4. ~~**Flue 연동:** 인터뷰 상태를 Flue 안에서 어떻게 표현할지~~ → 해결 (B4). 진행 중 상태는 화면이 들고, 끝나면 제출 메시지 한 번을 `submit_interview` 도구가 `useDelivery()`로 읽는다. 끝난 결과만 `usePersistentState('interviewResult')`에 둔다. 인터뷰가 끝나기 전에는 제출 도구만, 끝난 뒤에는 식단표 도구만 마운트한다 (4.1).
 5. ~~**JSON 출력 강제**~~ → 해결 (11.5). Flue는 `harness.prompt(text, { result: valibot 스키마 })`로 구조화된 출력을 받는다. 모델이 스키마가 붙은 `finish` 도구를 호출하고, 검증에 실패하면 Flue가 다시 요청한다. 1장의 "스키마 검증과 재요청(최대 2회)"은 직접 구현하지 않고 이 기능을 쓴다. 스키마는 zod 대신 valibot으로 쓴다.
 6. **한도 초과 에러 형태:** Workers AI가 무료 한도를 넘었을 때 돌려주는 에러를 어떻게 구분할지 (11.3). 실제 에러를 보고 판별 함수를 확정한다.
 7. ~~**1주일 식단표 생성 방식**~~ → **B(한 번에 14칸)로 확정** (11.5 측정). A(요일별 7회 동시)보다 약 2배 느리지만(2분 44초~3분 54초) Neuron은 약 4분의 1이고 메뉴 다양성이 좋다. 화면에서는 "식단표를 만드는 중이에요(약 3분)"처럼 진행 상태를 보여 주고, 창을 닫았다 와도 결과를 볼 수 있게 한다.
@@ -762,5 +770,7 @@ A는 요일별로 대화 7개를 동시에 시작해 하루 2칸씩, B는 대화
 
 - 칸 수정 1회 예산은 바깥 턴 포함 약 120~140 Neuron, 약 1분.
 - 바깥 턴 입력은 대화가 길어질수록 커진다(칸 수정 턴 2,234토큰, 약 21 Neuron). 앞 도구 결과의 식단표 JSON이 모델 문맥에 다시 들어가기 때문이다.
+
+**인터뷰 턴 실제 측정 (2026-11-06, B4):** 추출 1회(`harness.prompt` + InterviewUpdate 스키마) 출력 4,600~7,000토큰, 1~2.5분, 약 180~240 Neuron. "없어요" 한 마디도 약 200 Neuron이었다. `thinkingLevel`을 `off`·`low`로 바꿔도 추출은 줄지 않았다. `off`는 Workers AI에 전달되지 않는다(Flue 공급자가 low~high일 때만 `reasoning_effort`를 보냄). 인터뷰 중 바깥 턴은 `low`로 6~12 Neuron이 됐다. 이대로면 인터뷰 7~9턴에 약 1,500~2,000 Neuron이라 방식을 다시 정한다. 추론 없는 모델로 추출만 바꿔 보니 granite-micro는 Flue 메시지 형식을 거부, mistral-small은 포기, llama-4-scout는 5초·입력 6,017토큰·약 151 Neuron이었다(입력 단가가 높음). 그래서 정해진 답은 화면 입력으로 받고 목표 메모만 llama-4-scout로 확인한다(4.1). 제출 1회 약 48~50 Neuron(바깥 턴 포함), 4~6초, 보통·무리한 목표·지원하지 않는 목표 메모 3개를 모두 맞게 분류했다. [실험 기록](experiments/2026-11-06-b4-interview-real-run.md)
 
 - 개발 메모: Windows의 Git Bash에서 `curl -d '한글'`로 보내면 본문이 깨진다. 요청 본문은 UTF-8 파일로 만들어 `--data-binary @파일`로 보낸다.

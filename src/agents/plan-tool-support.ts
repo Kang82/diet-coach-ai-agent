@@ -5,6 +5,7 @@ import { buildCriteria } from '../core/criteria.ts';
 import { totalNeurons } from '../core/neurons.ts';
 import type { PlanGenerator, TokenUsage } from '../core/plan-generator.ts';
 import type { PlanContext } from '../core/plan-loop.ts';
+import type { InterviewToolOutput } from '../core/interview-tool-output.ts';
 import type { EditToolOutput, PlanToolOutput, PlanToolStats } from '../core/plan-tool-output.ts';
 import type { Plan } from '../core/types.ts';
 import { createDemoPlanGenerator } from './demo-plan-generator.ts';
@@ -52,6 +53,6 @@ export function toolStats(
 }
 
 /** 도구 출력은 JSON 값이어야 한다. 인터페이스(Plan 등)를 JsonValue로 넘기려고 한 번 직렬화한다. 모양은 타입으로 검사한다. */
-export function toJson(value: PlanToolOutput | EditToolOutput): JsonValue {
+export function toJson(value: PlanToolOutput | EditToolOutput | InterviewToolOutput): JsonValue {
   return JSON.parse(JSON.stringify(value)) as JsonValue;
 }

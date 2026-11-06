@@ -218,5 +218,4 @@ export interface InterviewUpdate {
   ambiguous?: { field: InterviewField; choices: string[] };
   stopFlags: StopFlag[];
   turnFlags: TurnFlag[];
-  reply: string;
 }

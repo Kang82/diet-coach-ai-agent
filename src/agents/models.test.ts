@@ -1,7 +1,15 @@
 // 스펙 11.4. 실제 단가로 계산한 값이 11.5 측정 기록과 맞는지 확인한다.
 import { describe, expect, it } from 'vitest';
 import { estimateNeurons } from '../core/neurons.ts';
-import { MODEL_CANDIDATES, NEURON_PRICES } from './models.ts';
+import { goalNoteModel, MODEL_CANDIDATES, NEURON_PRICES } from './models.ts';
+
+describe('goalNoteModel', () => {
+  it('키가 후보에 있으면 그 모델, 아니면 llama-4-scout', () => {
+    expect(goalNoteModel('gemma')).toBe(MODEL_CANDIDATES.gemma);
+    expect(goalNoteModel(undefined)).toBe(MODEL_CANDIDATES.llamaScout);
+    expect(goalNoteModel('toString')).toBe(MODEL_CANDIDATES.llamaScout);
+  });
+});
 
 describe('NEURON_PRICES', () => {
   it('모든 후보 모델의 단가가 있다', () => {

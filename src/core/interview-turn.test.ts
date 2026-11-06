@@ -15,7 +15,6 @@ const update = (more: Partial<InterviewUpdate> = {}): InterviewUpdate => ({
   filled: {},
   stopFlags: [],
   turnFlags: [],
-  reply: '',
   ...more,
 });
 
