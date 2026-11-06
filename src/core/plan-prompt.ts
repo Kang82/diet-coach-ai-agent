@@ -6,6 +6,7 @@ import { dayType, expandAvoid, menuKey, slotOrder } from './helpers.ts';
 import { AVOID_TAG_LABELS } from './labels.ts';
 import type { GeneratePlanInput, RegenerateCellsInput } from './plan-generator.ts';
 import { AVOID_TAGS, NUTRITION_TAGS } from './types.ts';
+import { DAY_LABELS, MEAL_LABELS } from './labels.ts';
 import type {
   CriteriaRules,
   CriterionId,
@@ -21,18 +22,6 @@ import type {
   Slot,
   Violation,
 } from './types.ts';
-
-const DAY_LABELS: Record<Day, string> = {
-  mon: '월요일',
-  tue: '화요일',
-  wed: '수요일',
-  thu: '목요일',
-  fri: '금요일',
-  sat: '토요일',
-  sun: '일요일',
-};
-
-const MEAL_LABELS: Record<MealType, string> = { breakfast: '아침', lunch: '점심', dinner: '저녁' };
 
 const DAY_TYPE_LABELS: Record<DayType, string> = { weekday: '평일', weekend: '주말' };
 

@@ -63,6 +63,11 @@ export type EditPlanResult =
   | ({ ok: false; reason: 'violations'; plan: Plan; check: CheckResult } & LoopStats)
   /** 하루 한도 초과. plan은 수정 전 식단표 그대로다. */
   | ({ ok: false; reason: 'quota'; plan: Plan } & LoopStats)
+  /**
+   * 수정 전 식단표가 지금 조건(프로필, 메뉴 분류, 기준)으로 이미 위반이다. LLM을 부르지 않는다.
+   * 조건이 바뀐 뒤의 식단표는 칸 수정 대신 새로 만들게 한다 (tasks.md 열린 질문, 2026-11-06 결정).
+   */
+  | ({ ok: false; reason: 'stale_plan'; plan: Plan; check: CheckResult } & LoopStats)
   /** 고를 수 없는 칸(채우지 않는 끼니, 일정이 있는 끼니) 또는 빈 요청. LLM을 부르지 않는다. */
   | ({ ok: false; reason: 'invalid_targets'; plan: Plan; invalidTargets: Slot[] } & LoopStats);
 
@@ -132,6 +137,9 @@ export async function editPlanCells(
   if (targets.length === 0 || invalidTargets.length > 0) {
     return { ok: false, reason: 'invalid_targets', plan: original, invalidTargets, ...stats };
   }
+
+  const before = checkPlan(plan, ctx.profile, ctx.classes, ctx.rules);
+  if (!before.passed) return { ok: false, reason: 'stale_plan', plan: original, check: before, ...stats };
 
   const request = { slots: targets, text: input.userRequest };
   try {

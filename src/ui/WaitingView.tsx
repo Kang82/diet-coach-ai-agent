@@ -1,16 +1,10 @@
 // 식단표를 만드는 동안 보여 주는 화면 (스펙 7장). 생성에 4분쯤 걸린다 (스펙 11.5).
-import { useEffect, useState } from 'react';
+import { formatClock, useElapsedSeconds } from './use-elapsed.ts';
 
 const EXPECTED_SECONDS = 4 * 60;
 
 export function WaitingView({ startedAt }: { startedAt: number }) {
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const elapsed = Math.max(0, Math.floor((now - startedAt) / 1000));
+  const elapsed = useElapsedSeconds(startedAt);
   const over = elapsed > EXPECTED_SECONDS;
   const ratio = Math.min(elapsed / EXPECTED_SECONDS, 1);
 
@@ -33,6 +27,3 @@ export function WaitingView({ startedAt }: { startedAt: number }) {
   );
 }
 
-function formatClock(seconds: number): string {
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-}

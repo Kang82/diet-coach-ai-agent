@@ -71,6 +71,7 @@ src/app.ts    Hono 라우트 맵. 에이전트를 마운트한다.
 
 - 설치된 Flue 문서가 `node_modules/@flue/runtime/docs/`에 있다. 웹 검색보다 이쪽이 설치 버전과 맞다.
 - 에이전트를 추가하려면 세 가지가 필요하다: `'use agent'` 파일, `app.ts`의 `app.route(...)`, `wrangler.jsonc`의 Durable Object 마이그레이션(뒤에 덧붙이기만, 배포한 항목은 고치지 않음). 함수 이름이 곧 저장 식별자라서 이름을 바꾸면 마이그레이션이 필요하다.
+- 결과를 보장해야 하는 값(시작일, 고칠 칸 등)은 모델이 채우는 도구 입력으로 받지 않는다. 코드가 정하거나, 화면이 정해진 형식으로 보낸 메시지를 도구가 `useDelivery()`로 직접 읽는다(`core/edit-request.ts`). 도구 사이에 넘길 상태는 `usePersistentState`에 둔다.
 - 구조화된 출력은 `harness.prompt(text, { result: valibot 스키마 })`로 받는다. 모델이 프레임워크의 `finish` 도구를 호출하고, 검증 실패 시 Flue가 다시 요청한다. 스키마는 zod가 아니라 valibot이다.
 - Workers AI 모델에서는 `usage.cost`가 항상 0이다. Neuron은 토큰 수 × 모델별 단가로 직접 계산한다 (스펙 11.4).
 - `package.json`의 `overrides`로 `@earendil-works/pi-ai`와 `pi-agent-core`를 1.4.0에 고정했다. 1.5.0은 Flue 2.3.0과 호환되지 않아 빌드가 깨진다. Flue를 올릴 때 이 고정을 풀 수 있는지 확인한다.

@@ -1,5 +1,17 @@
 // 스펙 6장 한글 라벨표
-import type { AvoidTag } from './types.ts';
+import type { AvoidTag, Day, MealType } from './types.ts';
+
+export const DAY_LABELS: Record<Day, string> = {
+  mon: '월요일',
+  tue: '화요일',
+  wed: '수요일',
+  thu: '목요일',
+  fri: '금요일',
+  sat: '토요일',
+  sun: '일요일',
+};
+
+export const MEAL_LABELS: Record<MealType, string> = { breakfast: '아침', lunch: '점심', dinner: '저녁' };
 
 export const AVOID_TAG_LABELS: Record<AvoidTag, string> = {
   dairy: '유제품',

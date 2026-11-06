@@ -463,6 +463,36 @@ describe('한도 초과', () => {
     expect(plan).toEqual(planA);
   });
 
+  it('수정 전 식단표가 이미 위반이면(조건이 바뀜) LLM을 부르지 않고 stale_plan을 돌려준다', async () => {
+    const fake = new FakePlanGenerator({});
+    const stale = planWith(dairyLunch()); // 화요일 점심에 피할 음식(유제품)
+    const before = structuredClone(stale);
+
+    const result = await editPlanCells(fake, ctx(), stale, {
+      targets: [s('wed', 'dinner')],
+      userRequest: '다른 걸로',
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'stale_plan',
+      plan: before,
+      check: checkPlan(before, profileA, classesA, rulesA),
+      usages: [],
+      regenerations: 0,
+    });
+    expect(fake.calls).toEqual([]);
+    expect(stale).toEqual(before);
+  });
+
+  it('고를 수 없는 칸이면 stale_plan보다 invalid_targets를 먼저 돌려준다', async () => {
+    const fake = new FakePlanGenerator({});
+
+    const result = await editPlanCells(fake, ctx(), planWith(dairyLunch()), { targets: [], userRequest: '다른 걸로' });
+
+    expect(result).toMatchObject({ ok: false, reason: 'invalid_targets' });
+  });
+
   it('칸 수정의 첫 호출에서 한도 초과여도 수정 전 식단표를 돌려준다', async () => {
     const fake = new FakePlanGenerator({ regenerations: [new QuotaExceededError()] });
 

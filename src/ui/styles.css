@@ -8,6 +8,7 @@
   --out: #d9a21b;
   --home: #3c8a55;
   --surface: #ffffff;
+  --alert: #b3412e;
 
   --serif: 'Gowun Batang', 'Noto Serif KR', serif;
   --sans: 'IBM Plex Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
@@ -327,4 +328,104 @@ button:focus-visible {
   .plan-foot {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* 칸 다시 추천 (스펙 4.4-4) */
+.edit-status:empty {
+  display: none;
+}
+
+.edit-status {
+  margin-bottom: 20px;
+}
+
+.notice {
+  display: grid;
+  gap: 2px;
+  max-width: 48em;
+  padding: 12px 16px;
+  border-radius: 4px;
+  border-left: 4px solid var(--home);
+  background: var(--surface);
+  font-size: 0.9375rem;
+}
+
+.notice.warn {
+  border-left-color: var(--out);
+}
+
+.notice.error {
+  border-left-color: var(--alert);
+}
+
+.slot.changed {
+  box-shadow: 0 0 0 2px var(--home);
+}
+
+button.link {
+  margin-top: 10px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+button.link:hover {
+  color: var(--ink);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.edit-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.edit-label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+
+.edit-label input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--tray);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.edit-label input:focus-visible {
+  outline: 2px solid var(--out);
+  outline-offset: 1px;
+}
+
+.edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+button.small {
+  padding: 6px 10px;
+  font-size: 0.8125rem;
+}
+
+.editing-badge {
+  margin-top: 10px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--home);
+  font-variant-numeric: tabular-nums;
 }

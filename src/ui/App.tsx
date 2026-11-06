@@ -2,6 +2,8 @@
 // 대화 ID를 localStorage에 두어 새로고침하거나 창을 닫았다 열어도 같은 대화(진행 상태나 결과)를 다시 읽는다.
 import { useFlueAgent } from '@flue/react';
 import { useState } from 'react';
+import { formatEditRequest } from '../core/edit-request.ts';
+import type { Slot } from '../core/types.ts';
 import { newConversationId } from './conversation-id.ts';
 import { PlanBoard } from './PlanBoard.tsx';
 import { toPlanViewState } from './plan-view-state.ts';
@@ -19,6 +21,12 @@ export function App() {
   async function create() {
     setSentAt(Date.now());
     await agent.sendMessage(REQUEST);
+  }
+
+  /** 칸 다시 추천 (스펙 4.4-4). 도구가 이 메시지를 직접 해석하므로 형식은 formatEditRequest로만 만든다. */
+  async function edit(target: Slot, request: string) {
+    setSentAt(Date.now());
+    await agent.sendMessage(formatEditRequest({ target, request }));
   }
 
   function startOver() {
@@ -45,10 +53,18 @@ export function App() {
       )}
 
       {view.kind === 'creating' && (
-        <WaitingView startedAt={view.startedAt ? Date.parse(view.startedAt) : (sentAt ?? Date.now())} />
+        <WaitingView startedAt={toTime(view.startedAt, sentAt)} />
       )}
 
-      {view.kind === 'done' && <PlanBoard output={view.output} onStartOver={startOver} />}
+      {view.kind === 'done' && (
+        <PlanBoard
+          view={view.view}
+          editing={view.editing && { ...view.editing, startedAt: toTime(view.editing.startedAt, sentAt) }}
+          editNotice={view.editNotice}
+          onEdit={edit}
+          onStartOver={startOver}
+        />
+      )}
 
       {(view.kind === 'violations' || view.kind === 'quota' || view.kind === 'error') && (
         <section className="intro" role="alert">
@@ -61,6 +77,11 @@ export function App() {
       )}
     </main>
   );
+}
+
+/** 서버 시각이 아직 없으면(보낸 직후) 이 창에서 보낸 시각을 쓴다 */
+function toTime(serverTime: string | undefined, sentAt: number | undefined): number {
+  return serverTime ? Date.parse(serverTime) : (sentAt ?? Date.now());
 }
 
 function loadConversationId(): string {
