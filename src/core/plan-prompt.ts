@@ -3,13 +3,12 @@
 // 지켰는지는 checkPlan이 판정한다.
 import { MENU_WEEKLY_MAX, requiredSlots } from './check-plan.ts';
 import { dayType, expandAvoid, menuKey, slotOrder } from './helpers.ts';
-import { AVOID_TAG_LABELS } from './labels.ts';
+import { AVOID_TAG_LABELS, CRITERION_LABELS } from './labels.ts';
 import type { GeneratePlanInput, RegenerateCellsInput } from './plan-generator.ts';
 import { AVOID_TAGS, NUTRITION_TAGS } from './types.ts';
 import { DAY_LABELS, MEAL_LABELS } from './labels.ts';
 import type {
   CriteriaRules,
-  CriterionId,
   Day,
   DayType,
   MealType,
@@ -24,13 +23,6 @@ import type {
 } from './types.ts';
 
 const DAY_TYPE_LABELS: Record<DayType, string> = { weekday: '평일', weekend: '주말' };
-
-const CRITERION_LABELS: Record<CriterionId, string> = {
-  reduce_portion_calories: '양과 열량 줄이기',
-  reduce_refined_carbs: '정제 탄수화물 줄이기',
-  reduce_saturated_fat: '포화지방 줄이기',
-  increase_fiber: '식이섬유 늘리기',
-};
 
 const NUTRITION_TAG_LABELS: Record<NutritionTag, string> = {
   fried: '튀김',

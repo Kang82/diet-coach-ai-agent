@@ -5,19 +5,22 @@
 //   npm run evals -- -t 페르소나A          (페르소나 하나)
 //   EVAL_RUNS=1 npm run evals -- -t 페르소나A
 //
-// 1회에 약 4분, 약 250 Neuron (스펙 11.5). 기본은 페르소나별 2회다.
+// 1회에 약 4분, 약 300 Neuron (식단표 약 250 + 메뉴 분류 약 50, 스펙 11.5). 기본은 페르소나별 2회다.
 // 한도 초과가 나면 그 실행을 "건너뜀"으로 기록하고 남은 실행도 모두 건너뛴다 (스펙 11.3-5).
 //
-// 페르소나 2~4는 도구가 프로필을 입력받게 되면 추가한다 (지금 create_week_plan은 페르소나 A로 고정).
+// 회차마다 새 대화에 인터뷰 제출(메모 없음, LLM 없음) → 메뉴 분류 → 식단표 만들기를 보낸다 (support/prepare.ts).
+// 분류는 픽스처 값으로 바꿔 보내므로 점검 기준은 회차마다 같다. 페르소나 2~4는 프로필과 분류 픽스처를 더하면 된다 (T1-7).
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { classesA, profileA } from '../core/__fixtures__/persona-a.ts';
 import { checkPlan } from '../core/check-plan.ts';
 import { buildCriteria } from '../core/criteria.ts';
 import { isQuotaExceeded } from '../core/quota.ts';
+import { formatPlanRequest } from '../core/plan-request.ts';
 import type { PlanToolOutput } from '../core/plan-tool-output.ts';
 import type { MenuClassification, Profile } from '../core/types.ts';
 import { recordRun, writeReport, type RunRecord } from './support/report.ts';
 import { assertServerUp, parseToolOutput, sendAndWait, toolParts } from './support/agent-http.ts';
+import { prepareConversation } from './support/prepare.ts';
 
 const RUNS = Number(process.env.EVAL_RUNS ?? 2);
 /** 스펙 8.5: 점검 루프 3회 안에 checkPlan 통과 8회 중 7회 이상 */
@@ -48,7 +51,21 @@ for (const persona of personas) {
           ctx.skip('앞에서 한도 초과가 나서 건너뜀');
         }
 
-        const res = await sendAndWait('식단표 만들어 줘');
+        const prepared = await prepareConversation(persona.profile, persona.classes);
+        if (prepared.failed) {
+          const { step, res, quota } = prepared.failed;
+          if (quota) {
+            quotaHit = true;
+            results.push('skip');
+            recordRun(records, { persona: persona.name, run, result: 'skip', note: `한도 초과 (${step})`, res });
+            ctx.skip('한도 초과로 건너뜀');
+          }
+          throw new Error(`${step} 단계에서 실패: ${prepared.conversationId}`);
+        }
+
+        const res = await sendAndWait(formatPlanRequest({ overrides: prepared.overrides }), {
+          conversationId: prepared.conversationId,
+        });
         const call = toolParts(res.snapshot, 'create_week_plan');
         const output = parseToolOutput<PlanToolOutput>(call.at(-1));
 
@@ -68,7 +85,7 @@ for (const persona of personas) {
         const rules = buildCriteria(persona.profile.goals);
         const plan = output!.status === 'ok' ? output!.plan : output!.status === 'violations' ? output!.lastPlan : undefined;
         expect(plan).toBeDefined();
-        const check = checkPlan(plan!, persona.profile, persona.classes, rules);
+        const check = checkPlan(plan!, persona.profile, prepared.classes, rules);
         expect(check.passed).toBe(output!.status === 'ok');
 
         const result = check.passed ? 'pass' : 'fail';

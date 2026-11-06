@@ -133,6 +133,14 @@ describe('toPlanViewState: 만들기', () => {
     });
   });
 
+  it('분류가 없으면 도구가 준 안내로 error', () => {
+    const noClasses: PlanToolOutput = { status: 'no_classes', message: '메뉴 분류를 먼저' };
+    expect(toPlanViewState(input({ messages: [userMsg(CREATE, 's1'), assistantMsg('s1', done(noClasses))] }))).toEqual({
+      kind: 'error',
+      message: '메뉴 분류를 먼저',
+    });
+  });
+
   it('도구 에러, 알 수 없는 결과, 도구 없이 끝난 답, 실패한 제출, 연결 오류는 error', () => {
     const text: Part = { type: 'text', text: '무엇을 도와드릴까요?', state: 'done' };
     const cases: PlanViewInput[] = [

@@ -608,3 +608,119 @@ button:disabled {
     gap: 6px;
   }
 }
+
+/* 메뉴 분류 확인 화면 (tasks.md B5). 넓은 화면은 메뉴 | 분류 | 이유의 표 모양, 휴대폰 폭은 카드 */
+.menu-classes {
+  display: grid;
+  gap: 24px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.class-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.class-row fieldset {
+  display: grid;
+  grid-template-columns: 8em minmax(0, 22em) minmax(0, 1fr);
+  gap: 8px 20px;
+  align-items: start;
+  margin: 0;
+  padding: 14px 16px;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--tray-light);
+  border-left: 4px solid var(--out);
+  border-radius: 4px;
+}
+
+.class-row.changed fieldset {
+  box-shadow: 0 0 0 2px var(--home);
+}
+
+.class-menu {
+  float: left;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.changed-badge {
+  padding: 0 6px;
+  border-radius: 3px;
+  background: var(--home);
+  color: var(--surface);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.class-options {
+  display: grid;
+  gap: 2px;
+}
+
+.class-option {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-height: 32px;
+  cursor: pointer;
+}
+
+.class-option input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--home);
+  transform: translateY(3px);
+}
+
+.class-option input:focus-visible {
+  outline: 3px solid var(--out);
+  outline-offset: 1px;
+}
+
+.class-option small {
+  margin-left: 6px;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+
+.class-detail {
+  display: grid;
+  gap: 4px;
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.class-criteria {
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+
+.class-detail .tip {
+  margin-top: 0;
+}
+
+.class-foot {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+
+@media (max-width: 760px) {
+  /* legend는 float로 두어야 테두리 위가 아닌 칸 안의 첫 줄에 놓인다 */
+  .class-row fieldset {
+    grid-template-columns: 1fr;
+  }
+}

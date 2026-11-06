@@ -77,6 +77,7 @@ export function toPlanViewState({ historyReady, status, messages, settlements }:
     if (output?.status === 'ok') return { kind: 'done', view: toView(output) };
     if (output?.status === 'violations') return { kind: 'violations', message: output.message };
     if (output?.status === 'quota') return { kind: 'quota', message: output.message };
+    if (output?.status === 'no_classes') return { kind: 'error', message: output.message };
     return { kind: 'error', message: GENERIC_ERROR };
   }
   if (call?.state === 'output-error' || status === 'error' || settled) return { kind: 'error', message: GENERIC_ERROR };

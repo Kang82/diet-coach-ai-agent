@@ -384,6 +384,16 @@ classifyMenus(profile: Profile, rules: CriteriaRules): MenuClassification[]
 - 출력의 `menu`는 분류 대상 목록(1.3)과 1:1로 대응해야 한다. 빠지거나 추가되면 형식 오류로 보고 다시 요청한다.
 - 사용자가 분류를 고치면 그 값을 그대로 쓴다.
 
+**구현 세부 (B5):**
+
+- 분류 대상(`classificationTargets`): 외식 끼니의 `menus`를 끼니 순서(평일 아침 → 주말 저녁)로 합치고, 앞뒤 공백을 지워 같은 문자열을 한 번만 남긴다. 외식 끼니가 없으면 LLM을 부르지 않고 빈 분류로 끝난다.
+- 1:1 검사는 결과 스키마의 `v.check`로 한다(`agents/menu-schema.ts`). 맞지 않으면 Flue가 빠진·추가된·두 번 나온 메뉴를 적은 메시지로 다시 요청한다. 받은 뒤 코드가 한 번 더 확인하고(`normalizeClassifications`), 대상 순서로 정렬한다. 이번 기준에 없는 `criterionIds`는 다시 요청하지 않고 지운다.
+- 모델은 llama-4-scout, `thinkingLevel: 'low'`(`models.ts`의 `menuClassModel`, `.dev.vars`의 `MENU_MODEL`로 바꿔 시험).
+- 흐름: 인터뷰가 끝나면 화면이 `메뉴 분류 요청`을 보내고 `classify_menus` 도구가 끝난 인터뷰로 분류해 `usePersistentState('menuClasses')`에 저장한다. 분류 확인 화면에서 `식단표 만들기:` + `{"overrides":[{menu, class}]}` 메시지를 보내면 `create_week_plan`이 `useDelivery()`로 읽어 저장된 분류에 반영하고(`classesForPlan`), 반영한 분류를 다시 저장한 뒤 식단을 만든다. 칸 수정도 이 분류로 점검한다. 저장된 분류에 없는 메뉴로 온 수정은 무시한다.
+- 사용자가 바꾼 메뉴는 `class`만 바꾸고 `reason`은 "직접 정한 분류"로 바꾼다. `orderTips`는 그대로 둔다.
+- 분류가 없거나 지금 메뉴와 1:1이 아니면 `create_week_plan`은 LLM을 부르지 않고 `no_classes`를 돌려준다.
+- 식단표의 프로필은 `profileFromInterview`로 만든다. 저장(T6)과 동의(T5-2) 전이라 `userId: 'demo'`, `version: 0`, `consentedAt: ''`이다.
+
 ### 4.3 식단표 만들기 (LLM)
 
 1주일 칸 전체를 **한 번의 호출**로 만든다(10장 7번). Flue `harness.prompt(text, { result: 스키마 })`로 받고, 프롬프트에는 3.2의 다양성 규칙(같은 끼니 연속 요일 금지, 같은 메뉴 주 2회 이하)도 함께 적는다.
@@ -772,5 +782,7 @@ A는 요일별로 대화 7개를 동시에 시작해 하루 2칸씩, B는 대화
 - 바깥 턴 입력은 대화가 길어질수록 커진다(칸 수정 턴 2,234토큰, 약 21 Neuron). 앞 도구 결과의 식단표 JSON이 모델 문맥에 다시 들어가기 때문이다.
 
 **인터뷰 턴 실제 측정 (2026-11-06, B4):** 추출 1회(`harness.prompt` + InterviewUpdate 스키마) 출력 4,600~7,000토큰, 1~2.5분, 약 180~240 Neuron. "없어요" 한 마디도 약 200 Neuron이었다. `thinkingLevel`을 `off`·`low`로 바꿔도 추출은 줄지 않았다. `off`는 Workers AI에 전달되지 않는다(Flue 공급자가 low~high일 때만 `reasoning_effort`를 보냄). 인터뷰 중 바깥 턴은 `low`로 6~12 Neuron이 됐다. 이대로면 인터뷰 7~9턴에 약 1,500~2,000 Neuron이라 방식을 다시 정한다. 추론 없는 모델로 추출만 바꿔 보니 granite-micro는 Flue 메시지 형식을 거부, mistral-small은 포기, llama-4-scout는 5초·입력 6,017토큰·약 151 Neuron이었다(입력 단가가 높음). 그래서 정해진 답은 화면 입력으로 받고 목표 메모만 llama-4-scout로 확인한다(4.1). 제출 1회 약 48~50 Neuron(바깥 턴 포함), 4~6초, 보통·무리한 목표·지원하지 않는 목표 메모 3개를 모두 맞게 분류했다. [실험 기록](experiments/2026-11-06-b4-interview-real-run.md)
+
+**외식 메뉴 분류 실제 1회 (2026-11-06, B5):** 페르소나 A 메뉴 5개를 llama-4-scout로 한 번에 1:1로 분류했다. 분류 7초, 입력 1,826 / 출력 256 약 65 Neuron, 바깥 턴 14. 돈가스는 주 1회, 국밥은 often(픽스처는 주 1회)으로 나눴고, 백반·회덮밥은 이유가 "일반적인 식사라 식단 기준에 부합함"으로 성의가 없었다. 분류는 사용자가 확인 화면에서 바꿀 수 있어 그대로 쓴다. [실험 기록](experiments/2026-11-06-b5-menu-classify.md)
 
 - 개발 메모: Windows의 Git Bash에서 `curl -d '한글'`로 보내면 본문이 깨진다. 요청 본문은 UTF-8 파일로 만들어 `--data-binary @파일`로 보낸다.

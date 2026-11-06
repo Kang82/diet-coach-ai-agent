@@ -28,7 +28,9 @@ export type PlanToolOutput =
       lastPlan: Plan;
       stats: PlanToolStats;
     }
-  | { status: 'quota'; message: string; stats: PlanToolStats };
+  | { status: 'quota'; message: string; stats: PlanToolStats }
+  /** 인터뷰나 메뉴 분류가 끝나지 않았음. LLM을 부르지 않는다 */
+  | { status: 'no_classes'; message: string };
 
 /**
  * 칸 다시 추천 도구(edit_plan_cells)의 결과 (스펙 4.4-4).

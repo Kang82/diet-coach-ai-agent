@@ -55,6 +55,20 @@ export function finishDraft(draft: InterviewDraft): InterviewResult {
   };
 }
 
+/**
+ * 식단표를 만들 때 쓰는 프로필 (tasks.md B5). 저장(T6)과 동의(T5-2) 전이라 사용자 ID는 'demo', 버전은 0,
+ * 동의 시각은 빈 문자열로 둔다. 식단표의 userId, profileVersion이 이 값이 된다.
+ */
+export function profileFromInterview(result: InterviewResult, now: Date): Profile {
+  return {
+    userId: 'demo',
+    version: 0,
+    ...structuredClone(result),
+    consentedAt: '',
+    updatedAt: now.toISOString(),
+  };
+}
+
 function toMealSetting(m: DraftMealSetting): MealSetting {
   const setting: MealSetting = {
     dayType: m.dayType,

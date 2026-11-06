@@ -9,16 +9,22 @@ import { editPlanCells, PlanLoopError } from '../core/plan-loop.ts';
 import { buildPlanNotices } from '../core/plan-notices.ts';
 import type { EditToolOutput } from '../core/plan-tool-output.ts';
 import { QUOTA_EXCEEDED_MESSAGE } from '../core/quota.ts';
-import type { Plan } from '../core/types.ts';
+import type { InterviewResult } from '../core/interview.ts';
+import type { MenuClassification, Plan } from '../core/types.ts';
 import { countNeurons, pickGenerator, planContext, toJson, toolStats, type SavePlan } from './plan-tool-support.ts';
 
 export const EDIT_PLAN_TOOL = 'edit_plan_cells';
 
 export function editPlanCellsTool({
+  interviewResult,
+  menuClasses,
   plan,
   savePlan,
   delivery,
 }: {
+  interviewResult: InterviewResult | undefined;
+  /** 식단표를 만들 때 저장한 분류 (사용자 수정 반영) */
+  menuClasses: MenuClassification[] | undefined;
   plan: Plan | undefined;
   savePlan: SavePlan;
   delivery: DeliveredMessage;
@@ -34,9 +40,11 @@ export function editPlanCellsTool({
       const parsed = delivery.kind === 'user' ? parseEditRequest(delivery.body) : undefined;
       if (!parsed) return done({ status: 'bad_request', message: '어떤 칸을 바꿀지 알 수 없어요. 칸의 "다시 추천" 버튼을 눌러 주세요.' });
       const targets = [parsed.target];
-      if (!plan) return done({ status: 'no_plan', message: '바꿀 식단표가 없어요. 먼저 식단표를 만들어 주세요.', targets });
+      if (!plan || !interviewResult || !menuClasses) {
+        return done({ status: 'no_plan', message: '바꿀 식단표가 없어요. 먼저 식단표를 만들어 주세요.', targets });
+      }
 
-      const ctx = planContext();
+      const ctx = planContext(interviewResult, menuClasses);
       const startedAt = Date.now();
       try {
         const result = await editPlanCells(pickGenerator(harness), ctx, plan, { targets, userRequest: parsed.request });

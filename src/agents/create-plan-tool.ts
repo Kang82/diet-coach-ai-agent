@@ -1,10 +1,16 @@
 // 스펙 4.3, 4.4. 1주일 식단표를 만드는 도구.
 // 도구 안에서 점검·다시 추천 루프(createPlan)를 돌리고, 결과를 도구 출력으로 남긴다.
 // 성공하면 칸 수정(edit_plan_cells)이 고칠 수 있게 에이전트 상태에도 저장한다.
-import { defineTool } from '@flue/runtime';
+// 프로필은 끝난 인터뷰, 분류는 classify_menus가 저장한 분류에 화면에서 바꾼 분류(식단표 만들기 메시지)를 반영한 것이다 (tasks.md B5).
+import { defineTool, type DeliveredMessage } from '@flue/runtime';
 import * as v from 'valibot';
 import { formatCheckSummary } from '../core/format-summary.ts';
 import { nextMondayKst } from '../core/helpers.ts';
+import type { InterviewResult } from '../core/interview.ts';
+import { classesForPlan } from '../core/menu-classification.ts';
+import { parsePlanRequest } from '../core/plan-request.ts';
+import type { PlanToolOutput } from '../core/plan-tool-output.ts';
+import type { MenuClassification } from '../core/types.ts';
 import { createPlan, PlanLoopError } from '../core/plan-loop.ts';
 import { buildPlanNotices } from '../core/plan-notices.ts';
 import { QUOTA_EXCEEDED_MESSAGE } from '../core/quota.ts';
@@ -12,7 +18,21 @@ import { countNeurons, pickGenerator, planContext, toJson, toolStats, type SaveP
 
 export const CREATE_PLAN_TOOL = 'create_week_plan';
 
-export function createWeekPlanTool({ savePlan }: { savePlan: SavePlan }) {
+export const NO_CLASSES_MESSAGE = '메뉴 분류를 먼저 확인해 주세요.';
+
+export function createWeekPlanTool({
+  interviewResult,
+  menuClasses,
+  saveClasses,
+  savePlan,
+  delivery,
+}: {
+  interviewResult: InterviewResult | undefined;
+  menuClasses: MenuClassification[] | undefined;
+  saveClasses: (classes: MenuClassification[]) => void;
+  savePlan: SavePlan;
+  delivery: DeliveredMessage;
+}) {
   return defineTool({
     name: CREATE_PLAN_TOOL,
     description: '사용자의 프로필로 1주일 식단표를 만들고 규칙을 점검한다. 몇 분 걸린다.',
@@ -21,7 +41,16 @@ export function createWeekPlanTool({ savePlan }: { savePlan: SavePlan }) {
     input: v.object({}),
     harness: true,
     async run({ harness, log }) {
-      const ctx = planContext();
+      // 정해진 형식이 아닌 메시지("식단표 만들어 줘" 등)면 바꾼 분류 없이 저장된 분류를 그대로 쓴다
+      const request = delivery.kind === 'user' ? parsePlanRequest(delivery.body) : undefined;
+      const classes = interviewResult && classesForPlan(interviewResult.meals, menuClasses, request?.overrides);
+      if (!interviewResult || !classes) {
+        const output: PlanToolOutput = { status: 'no_classes', message: NO_CLASSES_MESSAGE };
+        return { output: toJson(output), terminate: true };
+      }
+      // 칸 수정이 같은 분류로 점검하도록 사용자가 바꾼 분류를 저장한다
+      saveClasses(classes);
+      const ctx = planContext(interviewResult, classes);
       const startedAt = Date.now();
 
       try {

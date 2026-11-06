@@ -1,13 +1,14 @@
 // 식단표 도구(create_week_plan, edit_plan_cells)가 함께 쓰는 것.
 import type { FlueLogger, JsonValue } from '@flue/runtime';
-import { classesA, profileA } from '../core/__fixtures__/persona-a.ts';
 import { buildCriteria } from '../core/criteria.ts';
+import { profileFromInterview, type InterviewResult } from '../core/interview.ts';
 import { totalNeurons } from '../core/neurons.ts';
 import type { PlanGenerator, TokenUsage } from '../core/plan-generator.ts';
 import type { PlanContext } from '../core/plan-loop.ts';
 import type { InterviewToolOutput } from '../core/interview-tool-output.ts';
+import type { ClassifyToolOutput } from '../core/classify-tool-output.ts';
 import type { EditToolOutput, PlanToolOutput, PlanToolStats } from '../core/plan-tool-output.ts';
-import type { Plan } from '../core/types.ts';
+import type { MenuClassification, Plan } from '../core/types.ts';
 import { createDemoPlanGenerator } from './demo-plan-generator.ts';
 import { createFluePlanGenerator, type PromptHarness } from './flue-plan-generator.ts';
 import { NEURON_PRICES } from './models.ts';
@@ -15,10 +16,10 @@ import { NEURON_PRICES } from './models.ts';
 /** 에이전트가 들고 있는 지금 식단표 (usePersistentState 'plan'). 칸 수정이 이것을 고친다. */
 export type SavePlan = (plan: Plan) => void;
 
-/** 프로필은 인터뷰(T4)가 생기기 전까지 페르소나 A로 고정한다 (tasks.md T2). */
-export function planContext(): PlanContext {
-  const profile = structuredClone(profileA);
-  return { profile, rules: buildCriteria(profile.goals), classes: structuredClone(classesA) };
+/** 식단표를 만들고 고칠 때 쓰는 프로필과 분류: 끝난 인터뷰 + 확인된 메뉴 분류 (tasks.md B5) */
+export function planContext(result: InterviewResult, classes: readonly MenuClassification[]): PlanContext {
+  const profile = profileFromInterview(result, new Date());
+  return { profile, rules: buildCriteria(profile.goals), classes: structuredClone([...classes]) };
 }
 
 /**
@@ -53,6 +54,6 @@ export function toolStats(
 }
 
 /** 도구 출력은 JSON 값이어야 한다. 인터페이스(Plan 등)를 JsonValue로 넘기려고 한 번 직렬화한다. 모양은 타입으로 검사한다. */
-export function toJson(value: PlanToolOutput | EditToolOutput | InterviewToolOutput): JsonValue {
+export function toJson(value: PlanToolOutput | EditToolOutput | InterviewToolOutput | ClassifyToolOutput): JsonValue {
   return JSON.parse(JSON.stringify(value)) as JsonValue;
 }

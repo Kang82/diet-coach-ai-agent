@@ -27,9 +27,19 @@ export const INTERVIEW_THINKING = 'low' as const;
  * 개발 중 `.dev.vars`의 INTERVIEW_MODEL(MODEL_CANDIDATES의 키)로 바꿔 시험할 수 있다.
  */
 export function goalNoteModel(key: string | undefined): ModelId {
-  return key && Object.hasOwn(MODEL_CANDIDATES, key)
-    ? MODEL_CANDIDATES[key as keyof typeof MODEL_CANDIDATES]
-    : MODEL_CANDIDATES.llamaScout;
+  return candidateOr(key, MODEL_CANDIDATES.llamaScout);
+}
+
+/**
+ * 외식 메뉴 분류 모델 (tasks.md B5). 메모 확인처럼 짧은 구조화 출력이라 llama-4-scout를 기본으로 쓴다.
+ * 개발 중 `.dev.vars`의 MENU_MODEL(MODEL_CANDIDATES의 키)로 바꿔 시험할 수 있다.
+ */
+export function menuClassModel(key: string | undefined): ModelId {
+  return candidateOr(key, MODEL_CANDIDATES.llamaScout);
+}
+
+function candidateOr(key: string | undefined, fallback: ModelId): ModelId {
+  return key && Object.hasOwn(MODEL_CANDIDATES, key) ? MODEL_CANDIDATES[key as keyof typeof MODEL_CANDIDATES] : fallback;
 }
 
 type ModelId = (typeof MODEL_CANDIDATES)[keyof typeof MODEL_CANDIDATES];

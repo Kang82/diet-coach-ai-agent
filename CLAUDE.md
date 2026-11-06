@@ -35,11 +35,11 @@ npx vitest run -t "18. 같은 끼니"           # 이름으로 테스트 하나
 npm run typecheck                          # tsc --noEmit
 npm run build                              # vite build → Cloudflare Worker (dist/)
 npm run dev                                # vite dev (workerd). AI 호출은 원격이라 `npx wrangler login` 필요
-npm run evals -- -t 페르소나A              # 평가 세트 (스펙 8.5). 개발 서버(5199)를 먼저 띄운다. 1회 약 4분, 약 270 Neuron
+npm run evals -- -t 페르소나A              # 평가 세트 (스펙 8.5). 개발 서버(5199)를 먼저 띄운다. 1회 약 4분, 약 300 Neuron(분류 포함)
 ```
 
 - `vitest.config.ts`는 단위 테스트 전용이다. `vite.config.ts`의 Cloudflare 플러그인을 테스트에서 불러오지 않으려고 분리했다. LLM 평가 세트는 `vitest.evals.config.ts`(`src/evals/**/*.eval.ts`)로 따로 돈다. 기본 2회이고 `EVAL_RUNS=1`로 줄일 수 있다 (스펙 8.5).
-- 화면 개발 중에는 `.dev.vars`에 `PLAN_GENERATOR=demo`를 넣으면 식단 생성이 실제 모델 대신 페르소나 A 칸을 5초 뒤 돌려준다(바깥 턴만 실제 호출, 약 2 Neuron). `.dev.vars`를 바꾸면 개발 서버를 다시 띄운다. 평가 세트와 실제 확인은 이 줄을 지우거나 주석 처리한다.
+- 화면 개발 중에는 `.dev.vars`에 `PLAN_GENERATOR=demo`를 넣으면 식단 생성이 실제 모델 대신 페르소나 A 칸을 5초 뒤 돌려준다(바깥 턴만 실제 호출, 약 2 Neuron). `MENU_CLASSIFIER=demo`면 메뉴 분류가 페르소나 A 분류(`classesA`, 모르는 메뉴는 often)를 2초 뒤 돌려준다. 가짜 식단은 페르소나 A 칸이라 인터뷰도 페르소나 A 답으로 해야 점검을 통과한다. `.dev.vars`를 바꾸면 개발 서버를 다시 띄운다. 평가 세트와 실제 확인은 이 줄을 지우거나 주석 처리한다.
 - `npm run deploy`는 스펙 11.4(토큰 확인, 사용자별 호출 제한, 전체 Neuron 안전선)가 구현되기 전에는 쓰지 않는다. Flue 에이전트 경로에는 인증이 없어서, 열어 두면 누구나 하루 무료 한도를 소진시킬 수 있다.
 
 ## 구조
@@ -86,4 +86,4 @@ src/app.ts    Hono 라우트 맵. 에이전트를 마운트한다.
 
 - Git Bash에서 `curl -d '한글'`은 본문이 깨진다. UTF-8 파일로 만들어 `--data-binary @파일`로 보낸다.
 - `vite dev`를 끝낼 때 node와 `workerd.exe` 프로세스가 남는다. 포트(예: 5199)를 쓰는 프로세스까지 종료한다. vite의 node 프로세스가 살아 있으면 `workerd`를 꺼도 다시 띄우므로 node(vite) → `workerd` 순서로 끈다.
-- 개발 서버에서 식단표 만들기: `POST /agents/diet-coach/<id>`에 `{"kind":"user","body":"식단표 만들어 줘"}`를 보내고 `GET` 같은 주소로 대화를 읽는다. `create_week_plan` 도구 결과에 식단표가 남는다. 1회에 약 4분, 약 250 Neuron.
+- 개발 서버에서 식단표 만들기: 새 대화(`POST /agents/diet-coach/<id>`)에 차례로 인터뷰 제출(`인터뷰 제출:` + JSON, `core/interview-form.ts`) → `메뉴 분류 요청` → `식단표 만들기:` + `{"overrides":[]}`(`core/plan-request.ts`)를 보내고, 각각 끝날 때까지 `GET` 같은 주소로 대화를 읽는다. 순서는 `src/evals/support/prepare.ts`가 그대로 한다. `create_week_plan` 도구 결과에 식단표가 남는다. 만들기 1회에 약 4분, 약 250 Neuron.

@@ -1,0 +1,76 @@
+{
+  "conversationId": "b5-real-1793952497005",
+  "interviewSeconds": 3.469,
+  "classify": {
+    "outcome": "completed",
+    "seconds": 9.545,
+    "outerTurnUsage": {
+      "model": "cloudflare/@cf/google/gemma-4-26b-a4b-it",
+      "input": 1287,
+      "output": 94,
+      "neurons": 14
+    },
+    "output": {
+      "status": "ok",
+      "classes": [
+        {
+          "menu": "국밥",
+          "class": "often",
+          "reason": "국물 남기면 열량과 나트륨 줄일 수 있음",
+          "criterionIds": [
+            "reduce_portion_calories"
+          ],
+          "orderTips": [
+            "국물 남기기"
+          ]
+        },
+        {
+          "menu": "백반",
+          "class": "often",
+          "reason": "일반적인 식사라 식단 기준에 부합함",
+          "criterionIds": [],
+          "orderTips": []
+        },
+        {
+          "menu": "돈가스",
+          "class": "weekly_max_1",
+          "reason": "튀긴 음식이라 포화지방이 많음",
+          "criterionIds": [
+            "reduce_saturated_fat"
+          ],
+          "orderTips": [
+            "소스 따로"
+          ]
+        },
+        {
+          "menu": "쌀국수",
+          "class": "often",
+          "reason": "열량이 낮고 식이섬유를 늘릴 수 있음",
+          "criterionIds": [
+            "reduce_portion_calories",
+            "increase_fiber"
+          ],
+          "orderTips": []
+        },
+        {
+          "menu": "회덮밥",
+          "class": "often",
+          "reason": "일반적인 식사라 식단 기준에 부합함",
+          "criterionIds": [],
+          "orderTips": []
+        }
+      ],
+      "stats": {
+        "seconds": 7,
+        "usages": [
+          {
+            "model": "cloudflare/@cf/meta/llama-4-scout-17b-16e-instruct",
+            "input": 1826,
+            "output": 256
+          }
+        ],
+        "neurons": 65
+      }
+    }
+  }
+}

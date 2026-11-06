@@ -1,5 +1,16 @@
 // 스펙 6장 한글 라벨표
-import type { AvoidTag, Day, DayType, GoalId, MealPlace, MealSetting, MealType, Medication } from './types.ts';
+import type {
+  AvoidTag,
+  CriterionId,
+  Day,
+  DayType,
+  GoalId,
+  MealPlace,
+  MealSetting,
+  MealType,
+  Medication,
+  MenuClass,
+} from './types.ts';
 
 export const DAY_LABELS: Record<Day, string> = {
   mon: '월요일',
@@ -49,4 +60,17 @@ export const COMPANION_LABELS: Record<MealSetting['companions'], string> = {
   alone: '혼자',
   family: '가족과',
   others: '다른 사람과',
+};
+
+export const CRITERION_LABELS: Record<CriterionId, string> = {
+  reduce_portion_calories: '양과 열량 줄이기',
+  reduce_refined_carbs: '정제 탄수화물 줄이기',
+  reduce_saturated_fat: '포화지방 줄이기',
+  increase_fiber: '식이섬유 늘리기',
+};
+
+export const MENU_CLASS_LABELS: Record<MenuClass, string> = {
+  often: '자주 먹어도 됨',
+  weekly_max_1: '주 1회까지',
+  avoid: '피하기',
 };

@@ -81,7 +81,8 @@ export interface Profile {
 
 // 1.3 외식 메뉴 분류
 
-export type MenuClass = 'often' | 'weekly_max_1' | 'avoid';
+export const MENU_CLASSES = ['often', 'weekly_max_1', 'avoid'] as const;
+export type MenuClass = (typeof MENU_CLASSES)[number];
 
 export interface MenuClassification {
   menu: string;

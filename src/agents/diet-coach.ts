@@ -4,15 +4,18 @@ import { EDIT_REQUEST_PREFIX } from '../core/edit-request.ts';
 import type { InterviewResult } from '../core/interview.ts';
 import { INTERVIEW_SUBMIT_PREFIX } from '../core/interview-form.ts';
 import { estimateNeurons } from '../core/neurons.ts';
-import type { Plan } from '../core/types.ts';
+import { CLASSIFY_REQUEST, PLAN_REQUEST_PREFIX } from '../core/plan-request.ts';
+import type { MenuClassification, Plan } from '../core/types.ts';
+import { CLASSIFY_TOOL, classifyMenusTool } from './classify-menus-tool.ts';
 import { CREATE_PLAN_TOOL, createWeekPlanTool } from './create-plan-tool.ts';
 import { EDIT_PLAN_TOOL, editPlanCellsTool } from './edit-plan-tool.ts';
 import { INTERVIEW_TOOL, submitInterviewTool } from './interview-tool.ts';
 import { DEFAULT_MODEL, INTERVIEW_THINKING, NEURON_PRICES } from './models.ts';
 
 // 인터뷰는 화면에서 진행하고 끝나면 제출 메시지를 한 번 보낸다 (tasks.md B4).
-// 인터뷰가 끝나기 전에는 submit_interview만, 끝난 뒤에는 식단표 도구만 마운트한다. 모델이 도구를 고를 일이 없게 하려는 것이다.
-// 식단표는 메뉴 분류(B5) 전까지 페르소나 A로 만든다.
+// 인터뷰가 끝나기 전에는 submit_interview만, 끝난 뒤에는 메뉴 분류·식단표 도구를 마운트한다.
+// 어느 도구를 부를지는 화면이 보낸 메시지의 접두어로 정해 모델이 판단할 일이 거의 없게 한다.
+// 식단표는 끝난 인터뷰와 확인된 메뉴 분류로 만든다 (tasks.md B5).
 export function DietCoach() {
   const delivery = useDelivery();
 
@@ -22,14 +25,20 @@ export function DietCoach() {
   // 지금 식단표. 만들기가 저장하고 칸 수정이 고친다. 도구는 이전 도구 결과를 읽을 수 없어서 상태로 들고 있는다.
   const [plan, setPlan] = usePersistentState<Plan>('plan');
 
+  // 메뉴 분류 (스펙 4.2). classify_menus가 저장하고, 식단표를 만들 때 사용자가 바꾼 분류로 다시 저장한다. 칸 수정도 이 값으로 점검한다
+  const [menuClasses, setMenuClasses] = usePersistentState<MenuClassification[]>('menuClasses');
+
   const interviewing = interviewResult === undefined;
   // 인터뷰 중 바깥 턴은 도구를 부르기만 하면 되므로 추론을 줄인다. 식단표 단계는 Flue 기본값('medium') 그대로
   useModel(DEFAULT_MODEL, interviewing ? { thinkingLevel: INTERVIEW_THINKING } : undefined);
   if (interviewing) {
     useTool(submitInterviewTool({ saveResult: setInterviewResult, delivery }));
   } else {
-    useTool(createWeekPlanTool({ savePlan: setPlan }));
-    useTool(editPlanCellsTool({ plan, savePlan: setPlan, delivery }));
+    useTool(classifyMenusTool({ interviewResult, saveClasses: setMenuClasses }));
+    useTool(
+      createWeekPlanTool({ interviewResult, menuClasses, saveClasses: setMenuClasses, savePlan: setPlan, delivery }),
+    );
+    useTool(editPlanCellsTool({ interviewResult, menuClasses, plan, savePlan: setPlan, delivery }));
   }
 
   // 응답 하나의 사용량을 응답 metadata와 로그로 남긴다. 도구 안 harness.prompt 사용량은 들어가지 않는다 (스펙 11.5, B1).
@@ -51,6 +60,7 @@ export function DietCoach() {
   return [
     ...intro,
     `사용자 메시지가 "${EDIT_REQUEST_PREFIX}"로 시작하면 ${EDIT_PLAN_TOOL} 도구를 한 번 부르세요. 칸과 요청은 도구가 메시지에서 직접 읽으므로 입력은 비워 두세요.`,
-    `그 밖에 사용자가 식단표를 만들어 달라고 하면 ${CREATE_PLAN_TOOL} 도구를 한 번 부르세요.`,
+    `사용자 메시지가 "${CLASSIFY_REQUEST}"이면 ${CLASSIFY_TOOL} 도구를 한 번 부르세요. 메뉴는 도구가 직접 읽으므로 입력은 비워 두세요.`,
+    `사용자 메시지가 "${PLAN_REQUEST_PREFIX}"로 시작하거나 식단표를 만들어 달라고 하면 ${CREATE_PLAN_TOOL} 도구를 한 번 부르세요. 바꾼 분류는 도구가 메시지에서 직접 읽으므로 입력은 비워 두세요.`,
   ].join('\n');
 }

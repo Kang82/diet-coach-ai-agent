@@ -1,7 +1,7 @@
 // 스펙 4.1 nextField, 초안 병합과 마무리. 8.4
 import { describe, expect, it } from 'vitest';
 import { profileA } from './__fixtures__/persona-a.ts';
-import { finishDraft, mergeDraft, nextField } from './interview.ts';
+import { finishDraft, mergeDraft, nextField, profileFromInterview } from './interview.ts';
 import type { DraftMealSetting, InterviewDraft } from './types.ts';
 
 /** 페르소나 A의 인터뷰가 끝난 초안. 주말 집밥은 조리 시간 "상관없다" */
@@ -146,5 +146,19 @@ describe('finishDraft', () => {
 
   it('인터뷰가 끝나지 않았으면 에러', () => {
     expect(() => finishDraft({ goals: ['weight_loss'] })).toThrow();
+  });
+});
+
+describe('profileFromInterview', () => {
+  it('인터뷰 결과에 임시 사용자 ID, 버전 0, 빈 동의 시각을 붙인다', () => {
+    const { goals, goalNote, medication, avoid, avoidNote, meals } = profileA;
+    const result = { goals, goalNote, medication, avoid, avoidNote, meals };
+    expect(profileFromInterview(result, new Date('2026-11-06T01:00:00Z'))).toEqual({
+      ...profileA,
+      userId: 'demo',
+      version: 0,
+      consentedAt: '',
+      updatedAt: '2026-11-06T01:00:00.000Z',
+    });
   });
 });
