@@ -8,6 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `docs/diet-coach-agent-screener.md`: 기획서 (무엇을 왜)
 - `docs/diet-coach-spec.md`: 구현 스펙. **데이터 모양, 규칙, 테스트 케이스의 기준은 이 문서다.** 코드 주석의 "스펙 3장", "8.2" 같은 표기는 이 문서의 절을 가리킨다. 9장이 구현 순서, 10장이 열린 질문, 11장이 모델·사용량·배포 전 필수 항목이다.
+- `docs/experiments/`: 실제 모델을 부른 실험 기록(방법, 비용, 원본 결과 `data/`). **실제 모델을 부르는 실험이나 측정을 하면 여기에 문서를 남기고 README 목록에 한 줄 더한다.** 결정으로 이어진 요약은 스펙 11.5에도 적는다. 같은 실험을 다시 돌리기 전에 먼저 확인한다.
 - `docs/tasks.md`: 작업 목록. **"이어서 하자"고 하면 여기서 체크되지 않은 첫 task(선행이 끝난 것)부터 진행한다.** task를 끝내면 체크하고, 새로 생긴 일은 알맞은 자리에 추가한다.
 - 문서, 주석, 커밋 메시지, 사용자 응대는 한국어로 쓴다.
 

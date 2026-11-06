@@ -1,0 +1,1568 @@
+{
+  "note": "gemma, 페르소나 A. B=대화 1개에서 14칸, A=요일별 대화 7개 동시에 2칸씩. probe_plan 도구(코드 없음)의 결과.",
+  "B": [
+    {
+      "conversationId": "b1-week",
+      "message": "week",
+      "tool": "probe_plan",
+      "toolInput": {
+        "mode": "week"
+      },
+      "settlement": "completed",
+      "timestamp": "2026-11-04T13:41:12.459Z",
+      "ms": 197204,
+      "usage": {
+        "input": 1648,
+        "output": 6226
+      },
+      "cells": [
+        {
+          "day": "mon",
+          "meal": "lunch",
+          "place": "eat_out",
+          "menuId": "회덮밥",
+          "title": "싱싱한 회덮밥",
+          "ingredients": [
+            "참치",
+            "채소"
+          ],
+          "tags": [
+            "fish"
+          ],
+          "orderTip": "채소를 많이 넣어 드세요",
+          "cookMinutes": 0,
+          "reason": "신선한 채소로 식이섬유를 섭취합니다.",
+          "criterionIds": [
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "mon",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "닭가슴살 샐러드",
+          "title": "가벼운 닭가슴살 샐러드",
+          "ingredients": [
+            "닭가슴살",
+            "양상추",
+            "방울토마토"
+          ],
+          "tags": [
+            "chicken",
+            "meat"
+          ],
+          "orderTip": "",
+          "cookMinutes": 10,
+          "reason": "단백질과 채소를 듬뿍 넣어 열량을 낮췄습니다.",
+          "criterionIds": [
+            "reduce_portion_calories",
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "tue",
+          "meal": "lunch",
+          "place": "eat_out",
+          "menuId": "백반",
+          "title": "영양 가득한 백반",
+          "ingredients": [
+            "현미밥",
+            "된장찌개",
+            "나물"
+          ],
+          "tags": [
+            "soy"
+          ],
+          "orderTip": "밥 양을 조금 줄여서 드세요",
+          "cookMinutes": 0,
+          "reason": "나물 위주의 식단으로 식이섬유를 늘립니다.",
+          "criterionIds": [
+            "increase_fiber",
+            "reduce_portion_calories"
+          ]
+        },
+        {
+          "day": "tue",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "두부 조림",
+          "title": "고소한 두부 조림",
+          "ingredients": [
+            "두부",
+            "간장",
+            "파"
+          ],
+          "tags": [
+            "soy"
+          ],
+          "orderTip": "",
+          "cookMinutes": 15,
+          "reason": "두부로 단백질을 채우고 포화지방을 줄였습니다.",
+          "criterionIds": [
+            "reduce_saturated_fat"
+          ]
+        },
+        {
+          "day": "wed",
+          "meal": "lunch",
+          "place": "eat_out",
+          "menuId": "쌀국수",
+          "title": "따뜻한 쌀국수",
+          "ingredients": [
+            "쌀국수면",
+            "소고기",
+            "숙주"
+          ],
+          "tags": [
+            "beef",
+            "meat"
+          ],
+          "orderTip": "국물은 적당히 드세요",
+          "cookMinutes": 0,
+          "reason": "소고기 육수와 숙주로 든든하게 먹습니다.",
+          "criterionIds": [
+            "reduce_saturated_fat"
+          ]
+        },
+        {
+          "day": "wed",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "소고기 채소 볶음",
+          "title": "소고기 채소 볶음",
+          "ingredients": [
+            "소고기 우둔살",
+            "피망",
+            "양파"
+          ],
+          "tags": [
+            "beef",
+            "meat"
+          ],
+          "orderTip": "",
+          "cookMinutes": 15,
+          "reason": "지방이 적은 부위를 사용해 포화지방을 조절합니다.",
+          "criterionIds": [
+            "reduce_saturated_fat"
+          ]
+        },
+        {
+          "day": "thu",
+          "meal": "lunch",
+          "place": "eat_out",
+          "menuId": "돈가스",
+          "title": "바삭한 돈가스",
+          "ingredients": [
+            "돈가스",
+            "양배추"
+          ],
+          "tags": [
+            "pork",
+            "meat",
+            "fried"
+          ],
+          "orderTip": "양배추 샐러드를 많이 드세요",
+          "cookMinutes": 0,
+          "reason": "튀김류는 주 1회로 제한합니다.",
+          "criterionIds": [
+            "reduce_saturated_fat"
+          ]
+        },
+        {
+          "day": "thu",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "계란찜과 나물",
+          "title": "부드러운 계란찜과 나물",
+          "ingredients": [
+            "계란",
+            "시금치나물"
+          ],
+          "tags": [
+            "egg"
+          ],
+          "orderTip": "",
+          "cookMinutes": 10,
+          "reason": "부드러운 계란과 식이섬유가 풍부한 나물을 먹습니다.",
+          "criterionIds": [
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "fri",
+          "meal": "lunch",
+          "place": "eat_out",
+          "menuId": "회덮밥",
+          "title": "싱싱한 회덮밥",
+          "ingredients": [
+            "회",
+            "채소"
+          ],
+          "tags": [
+            "fish"
+          ],
+          "orderTip": "초고추장을 조금만 넣어 드세요",
+          "cookMinutes": 0,
+          "reason": "채소를 많이 넣어 포만감을 높입니다.",
+          "criterionIds": [
+            "reduce_portion_calories",
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "fri",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "훈제오리 채소볶음",
+          "title": "담백한 훈제오리 채소볶음",
+          "ingredients": [
+            "훈제오리",
+            "부추",
+            "양파"
+          ],
+          "tags": [
+            "meat"
+          ],
+          "orderTip": "",
+          "cookMinutes": 15,
+          "reason": "채소와 함께 볶아 식이섬유를 보충합니다.",
+          "criterionIds": [
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "sat",
+          "meal": "lunch",
+          "place": "home",
+          "menuId": "소불고기 전골",
+          "title": "소불고기 전골",
+          "ingredients": [
+            "소불고기",
+            "버섯",
+            "당근"
+          ],
+          "tags": [
+            "beef",
+            "meat"
+          ],
+          "orderTip": "",
+          "cookMinutes": 30,
+          "reason": "버섯을 듬뿍 넣어 식이섬유를 높였습니다.",
+          "criterionIds": [
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "sat",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "생선구이와 된장찌개",
+          "title": "생선구이와 된장찌개",
+          "ingredients": [
+            "고등어",
+            "된장찌개"
+          ],
+          "tags": [
+            "fish",
+            "soy"
+          ],
+          "orderTip": "",
+          "cookMinutes": 30,
+          "reason": "생선과 된장찌개로 건강한 식단을 구성합니다.",
+          "criterionIds": [
+            "reduce_saturated_fat"
+          ]
+        },
+        {
+          "day": "sun",
+          "meal": "lunch",
+          "place": "home",
+          "menuId": "닭볶음탕",
+          "title": "매콤한 닭볶음탕",
+          "ingredients": [
+            "닭고기",
+            "감자",
+            "양파"
+          ],
+          "tags": [
+            "chicken",
+            "meat"
+          ],
+          "orderTip": "",
+          "cookMinutes": 40,
+          "reason": "닭고기로 단백질을 보충합니다.",
+          "criterionIds": [
+            "reduce_portion_calories"
+          ]
+        },
+        {
+          "day": "sun",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "비빔밥",
+          "title": "채소 가득 비빔밥",
+          "ingredients": [
+            "콩나물",
+            "고사리",
+            "계란"
+          ],
+          "tags": [
+            "soy",
+            "egg"
+          ],
+          "orderTip": "",
+          "cookMinutes": 20,
+          "reason": "다양한 나물로 식이섬유를 충분히 섭취합니다.",
+          "criterionIds": [
+            "increase_fiber"
+          ]
+        }
+      ]
+    },
+    {
+      "conversationId": "b2-week",
+      "message": "week",
+      "tool": "probe_plan",
+      "toolInput": {
+        "mode": "week"
+      },
+      "settlement": "completed",
+      "timestamp": "2026-11-04T13:45:37.912Z",
+      "ms": 158346,
+      "usage": {
+        "input": 1648,
+        "output": 6974
+      },
+      "cells": [
+        {
+          "day": "mon",
+          "meal": "lunch",
+          "place": "eat_out",
+          "menuId": "회덮밥",
+          "title": "신선한 회덮밥",
+          "ingredients": [
+            "회",
+            "채소",
+            "초고추장",
+            "밥"
+          ],
+          "tags": [
+            "fish"
+          ],
+          "orderTip": "초고추장을 조금만 넣어주세요.",
+          "cookMinutes": 0,
+          "reason": "초고추장을 적게 넣어 칼로리를 조절합니다.",
+          "criterionIds": [
+            "reduce_portion_calories"
+          ]
+        },
+        {
+          "day": "mon",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "두부 채소 볶음",
+          "title": "고소한 두부 채소 볶음",
+          "ingredients": [
+            "두부",
+            "버섯",
+            "청경채"
+          ],
+          "tags": [
+            "soy"
+          ],
+          "cookMinutes": 15,
+          "reason": "두부와 채소로 식이섬유를 보충합니다.",
+          "criterionIds": [
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "tue",
+          "meal": "lunch",
+          "place": "eat_out",
+          "menuId": "쌀국수",
+          "title": "따끈한 쌀국수",
+          "ingredients": [
+            "쌀국수면",
+            "소고기",
+            "숙주",
+            "양파"
+          ],
+          "tags": [
+            "meat",
+            "beef"
+          ],
+          "orderTip": "면 양을 조금 줄여주세요.",
+          "cookMinutes": 0,
+          "reason": "면 양을 조절하여 칼로리를 낮춥니다.",
+          "criterionIds": [
+            "reduce_portion_calories"
+          ]
+        },
+        {
+          "day": "tue",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "닭가슴살 샐러드",
+          "title": "가벼운 닭가슴살 샐러드",
+          "ingredients": [
+            "닭가슴살",
+            "양상추",
+            "토마토",
+            "드레싱"
+          ],
+          "tags": [
+            "meat",
+            "chicken"
+          ],
+          "cookMinutes": 10,
+          "reason": "포화지방이 적은 닭가슴살을 사용합니다.",
+          "criterionIds": [
+            "reduce_saturated_fat"
+          ]
+        },
+        {
+          "day": "wed",
+          "meal": "lunch",
+          "place": "eat_out",
+          "menuId": "백반",
+          "title": "건강한 백반",
+          "ingredients": [
+            "밥",
+            "미역국",
+            "나물반찬",
+            "두부"
+          ],
+          "tags": [
+            "soy"
+          ],
+          "orderTip": "나물 반찬을 넉넉히 주세요.",
+          "cookMinutes": 0,
+          "reason": "나물 위주의 반찬으로 식이섬유를 늘립니다.",
+          "criterionIds": [
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "wed",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "고등어 구이와 채소",
+          "title": "담백한 고등어 구이와 채소",
+          "ingredients": [
+            "고등어",
+            "무",
+            "양파",
+            "채소"
+          ],
+          "tags": [
+            "fish"
+          ],
+          "cookMinutes": 15,
+          "reason": "불포화지방이 풍부한 생선을 선택합니다.",
+          "criterionIds": [
+            "reduce_saturated_fat"
+          ]
+        },
+        {
+          "day": "thu",
+          "meal": "lunch",
+          "place": "eat_out",
+          "menuId": "돈가스",
+          "title": "바삭한 돈가스",
+          "ingredients": [
+            "돼지고기",
+            "빵",
+            "양배추"
+          ],
+          "tags": [
+            "meat",
+            "pork",
+            "fried"
+          ],
+          "orderTip": "소스를 따로 주세요.",
+          "cookMinutes": 0,
+          "reason": "소스 양을 조절해 열량을 줄입니다.",
+          "criterionIds": [
+            "reduce_portion_calories"
+          ]
+        },
+        {
+          "day": "thu",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "버섯 달걀 볶음",
+          "title": "부드러운 버섯 달걀 볶음",
+          "ingredients": [
+            "버섯",
+            "달걀",
+            "파"
+          ],
+          "tags": [
+            "egg"
+          ],
+          "cookMinutes": 10,
+          "reason": "버섯을 통해 식이섬유를 섭취합니다.",
+          "criterionIds": [
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "fri",
+          "meal": "lunch",
+          "place": "eat_out",
+          "menuId": "회덮밥",
+          "title": "매콤한 회덮밥",
+          "ingredients": [
+            "회",
+            "채소",
+            "밥"
+          ],
+          "tags": [
+            "fish"
+          ],
+          "orderTip": "채소를 더 많이 넣어주세요.",
+          "cookMinutes": 0,
+          "reason": "밥 양을 조절해 칼로리를 낮춥니다.",
+          "criterionIds": [
+            "reduce_portion_calories"
+          ]
+        },
+        {
+          "day": "fri",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "소고기 야채 볶음",
+          "title": "든든한 소고기 야채 볶음",
+          "ingredients": [
+            "소고기",
+            "피망",
+            "양파",
+            "브로콜리"
+          ],
+          "tags": [
+            "meat",
+            "beef"
+          ],
+          "cookMinutes": 15,
+          "reason": "기름기가 적은 부위를 사용하여 포화지방을 줄입니다.",
+          "criterionIds": [
+            "reduce_saturated_fat"
+          ]
+        },
+        {
+          "day": "sat",
+          "meal": "lunch",
+          "place": "home",
+          "menuId": "소고기 미역국과 잡곡밥",
+          "title": "가족과 즐기는 소고기 미역국과 잡곡밥",
+          "ingredients": [
+            "소고기",
+            "미역",
+            "잡곡밥"
+          ],
+          "tags": [
+            "meat",
+            "beef"
+          ],
+          "cookMinutes": 30,
+          "reason": "잡곡밥을 통해 식이섬유를 섭취합니다.",
+          "criterionIds": [
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "sat",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "찜닭",
+          "title": "달콤 짭짤한 찜닭",
+          "ingredients": [
+            "닭고기",
+            "감자",
+            "당근",
+            "간장양념"
+          ],
+          "tags": [
+            "meat",
+            "chicken"
+          ],
+          "cookMinutes": 40,
+          "reason": "당분을 줄여 칼로리를 관리합니다.",
+          "criterionIds": [
+            "reduce_portion_calories"
+          ]
+        },
+        {
+          "day": "sun",
+          "meal": "lunch",
+          "place": "home",
+          "menuId": "콩나물 비빔밥",
+          "title": "아삭한 콩나물 비빔밥",
+          "ingredients": [
+            "콩나물",
+            "밥",
+            "채소",
+            "간장양념"
+          ],
+          "tags": [
+            "soy"
+          ],
+          "cookMinutes": 20,
+          "reason": "콩나물로 식이섬유를 풍부하게 합니다.",
+          "criterionIds": [
+            "increase_fiber"
+          ]
+        },
+        {
+          "day": "sun",
+          "meal": "dinner",
+          "place": "home",
+          "menuId": "연어 스테이크",
+          "title": "부드러운 연어 스테이크",
+          "ingredients": [
+            "연어",
+            "아스파라거스",
+            "레몬"
+          ],
+          "tags": [
+            "fish"
+          ],
+          "cookMinutes": 25,
+          "reason": "건강한 지방을 섭취하여 콜레스테롤을 관리합니다.",
+          "criterionIds": [
+            "reduce_saturated_fat"
+          ]
+        }
+      ]
+    }
+  ],
+  "A": [
+    {
+      "run": 1,
+      "days": [
+        {
+          "conversationId": "a1-mon",
+          "message": "day:mon",
+          "tool": "probe_plan",
+          "toolInput": {
+            "day": "mon",
+            "mode": "day"
+          },
+          "settlement": "completed",
+          "timestamp": "2026-11-04T13:42:15.872Z",
+          "ms": 53553,
+          "usage": {
+            "input": 1626,
+            "output": 2506
+          },
+          "cells": [
+            {
+              "day": "mon",
+              "meal": "lunch",
+              "place": "eat_out",
+              "menuId": "회덮밥",
+              "title": "신선한 채소가 가득한 회덮밥",
+              "ingredients": [
+                "회",
+                "채소",
+                "초고추장",
+                "밥"
+              ],
+              "tags": [
+                "fish"
+              ],
+              "orderTip": "초고추장을 적게 넣어 드세요.",
+              "cookMinutes": 0,
+              "reason": "채소를 많이 섭취하여 식이섬유를 늘리고 칼로리를 조절할 수 있습니다.",
+              "criterionIds": [
+                "increase_fiber",
+                "reduce_portion_calories"
+              ]
+            },
+            {
+              "day": "mon",
+              "meal": "dinner",
+              "place": "home",
+              "menuId": "닭가슴살 샐러드",
+              "title": "간편한 닭가슴살 샐러드",
+              "ingredients": [
+                "닭가슴살",
+                "양상추",
+                "방울토마토",
+                "오이"
+              ],
+              "tags": [
+                "meat",
+                "chicken"
+              ],
+              "orderTip": "올리브유 드레싱을 추천합니다.",
+              "cookMinutes": 10,
+              "reason": "포화지방이 적은 닭가슴살을 사용하여 콜레스테롤 관리에 도움을 줍니다.",
+              "criterionIds": [
+                "reduce_saturated_fat"
+              ]
+            }
+          ]
+        },
+        {
+          "conversationId": "a1-tue",
+          "message": "day:tue",
+          "tool": "probe_plan",
+          "toolInput": {
+            "day": "tue",
+            "mode": "day"
+          },
+          "settlement": "completed",
+          "timestamp": "2026-11-04T13:42:33.405Z",
+          "ms": 71219,
+          "usage": {
+            "input": 3286,
+            "output": 3144
+          },
+          "cells": [
+            {
+              "day": "tue",
+              "meal": "lunch",
+              "place": "eat_out",
+              "menuId": "쌀국수",
+              "title": "숙주를 듬뿍 넣은 소고기 쌀국수",
+              "ingredients": [
+                "쌀국수 면",
+                "소고기 양지",
+                "숙주",
+                "양파",
+                "육수"
+              ],
+              "tags": [
+                "meat",
+                "beef"
+              ],
+              "orderTip": "숙주를 많이 넣어 달라고 요청하세요.",
+              "cookMinutes": 0,
+              "reason": "숙주를 많이 넣어 식이섬유 섭취를 높였습니다.",
+              "criterionIds": [
+                "increase_fiber"
+              ]
+            },
+            {
+              "day": "tue",
+              "meal": "dinner",
+              "place": "home",
+              "menuId": "닭가슴살 채소 볶음",
+              "title": "간편한 닭가슴살 채소 볶음",
+              "ingredients": [
+                "닭가슴살",
+                "브로콜리",
+                "파프리카",
+                "올리브유"
+              ],
+              "tags": [
+                "meat",
+                "chicken"
+              ],
+              "cookMinutes": 15,
+              "reason": "저지방 고단백 식단으로 열량을 관리합니다.",
+              "criterionIds": [
+                "reduce_portion_calories"
+              ]
+            }
+          ]
+        },
+        {
+          "conversationId": "a1-wed",
+          "message": "day:wed",
+          "tool": "probe_plan",
+          "toolInput": {
+            "day": "wed",
+            "mode": "day"
+          },
+          "settlement": "completed",
+          "timestamp": "2026-11-04T13:42:15.702Z",
+          "ms": 52487,
+          "usage": {
+            "input": 1626,
+            "output": 2624
+          },
+          "cells": [
+            {
+              "day": "wed",
+              "meal": "lunch",
+              "place": "eat_out",
+              "menuId": "회덮밥",
+              "title": "신선한 채소가 가득한 회덮밥",
+              "ingredients": [
+                "참치회",
+                "상추",
+                "오이",
+                "밥",
+                "초고추장"
+              ],
+              "tags": [
+                "fish",
+                "refined_carb_main"
+              ],
+              "orderTip": "초고추장을 조금만 넣어 드세요.",
+              "cookMinutes": 0,
+              "reason": "채소를 많이 섭취하여 식이섬유를 늘리고 칼로리를 조절할 수 있습니다.",
+              "criterionIds": [
+                "increase_fiber",
+                "reduce_portion_calories"
+              ]
+            },
+            {
+              "day": "wed",
+              "meal": "dinner",
+              "place": "home",
+              "menuId": "닭가슴살 브로콜리 볶음",
+              "title": "담백하고 맛있는 닭가슴살 브로콜리 볶음",
+              "ingredients": [
+                "닭가슴살",
+                "브로콜리",
+                "마늘",
+                "올리브유"
+              ],
+              "tags": [
+                "meat",
+                "chicken"
+              ],
+              "orderTip": "없음",
+              "cookMinutes": 15,
+              "reason": "포화지방이 적은 닭가슴살을 사용하여 콜레스테롤 관리에 도움을 줍니다.",
+              "criterionIds": [
+                "reduce_saturated_fat"
+              ]
+            }
+          ]
+        },
+        {
+          "conversationId": "a1-thu",
+          "message": "day:thu",
+          "tool": "probe_plan",
+          "toolInput": {
+            "day": "thu",
+            "mode": "day"
+          },
+          "settlement": "completed",
+          "timestamp": "2026-11-04T13:42:28.812Z",
+          "ms": 67410,
+          "usage": {
+            "input": 1626,
+            "output": 3075
+          },
+          "cells": [
+            {
+              "day": "thu",
+              "meal": "lunch",
+              "place": "eat_out",
+              "menuId": "쌀국수",
+              "title": "따뜻하고 깔끔한 쌀국수",
+              "ingredients": [
+                "쌀국수 면",
+                "소고기 양지",
+                "숙주",
+                "양파"
+              ],
+              "tags": [
+                "meat",
+                "beef"
+              ],
+              "orderTip": "숙주를 많이 넣어달라고 하세요.",
+              "cookMinutes": 0,
+              "reason": "채소가 풍부하고 열량이 낮아 체중 관리에 좋습니다.",
+              "criterionIds": [
+                "reduce_portion_calories",
+                "increase_fiber"
+              ]
+            },
+            {
+              "day": "thu",
+              "meal": "dinner",
+              "place": "home",
+              "menuId": "닭가슴살 채소 볶음",
+              "title": "간편하고 건강한 닭가슴살 채소 볶음",
+              "ingredients": [
+                "닭가슴살",
+                "브로콜리",
+                "파프리카",
+                "버섯"
+              ],
+              "tags": [
+                "meat",
+                "chicken"
+              ],
+              "orderTip": "",
+              "cookMinutes": 15,
+              "reason": "저지방 단백질과 식이섬유가 풍부하여 콜레스테롤 관리에 도움을 줍니다.",
+              "criterionIds": [
+                "reduce_saturated_fat",
+                "increase_fiber"
+              ]
+            }
+          ]
+        },
+        {
+          "conversationId": "a1-fri",
+          "message": "day:fri",
+          "tool": "probe_plan",
+          "toolInput": {
+            "day": "fri",
+            "mode": "day"
+          },
+          "settlement": "completed",
+          "timestamp": "2026-11-04T13:42:41.973Z",
+          "ms": 79570,
+          "usage": {
+            "input": 1626,
+            "output": 3703
+          },
+          "cells": [
+            {
+              "day": "fri",
+              "meal": "lunch",
+              "place": "eat_out",
+              "menuId": "회덮밥",
+              "title": "신선한 채소가 듬뿍 들어간 회덮밥",
+              "ingredients": [
+                "회",
+                "채소",
+                "밥",
+                "초고추장"
+              ],
+              "tags": [
+                "fish",
+                "refined_carb_main"
+              ],
+              "orderTip": "초고추장은 조금만 넣어 드시는 것을 추천합니다.",
+              "cookMinutes": 0,
+              "reason": "채소를 통해 식이섬유를 충분히 섭취할 수 있습니다.",
+              "criterionIds": [
+                "increase_fiber"
+              ]
+            },
+            {
+              "day": "fri",
+              "meal": "dinner",
+              "place": "home",
+              "menuId": "닭가슴살 채소볶음",
+              "title": "가볍고 담백한 닭가슴살 채소볶음",
+              "ingredients": [
+                "닭가슴살",
+                "브로콜리",
+                "파프리카",
+                "올리브유"
+              ],
+              "tags": [
+                "meat",
+                "chicken"
+              ],
+              "orderTip": "올리브유를 사용하여 건강하게 조리하세요.",
+              "cookMinutes": 15,
+              "reason": "저칼로리 고단백 식단으로 체중 감량에 효과적입니다.",
+              "criterionIds": [
+                "reduce_portion_calories"
+              ]
+            }
+          ]
+        },
+        {
+          "conversationId": "a1-sat",
+          "message": "day:sat",
+          "tool": "probe_plan",
+          "toolInput": {
+            "day": "sat",
+            "mode": "day"
+          },
+          "settlement": "completed",
+          "timestamp": "2026-11-04T13:42:28.348Z",
+          "ms": 65895,
+          "usage": {
+            "input": 1120,
+            "output": 3380
+          },
+          "cells": [
+            {
+              "day": "sat",
+              "meal": "lunch",
+              "place": "home",
+              "menuId": "소불고기",
+              "title": "가족과 함께하는 건강한 소불고기",
+              "ingredients": [
+                "소고기",
+                "양파",
+                "버섯",
+                "간장",
+                "마늘"
+              ],
+              "tags": [
+                "meat",
+                "beef",
+                "soy"
+              ],
+              "cookMinutes": 30,
+              "reason": "다양한 채소와 함께 섭취하여 식이섬유를 늘릴 수 있습니다.",
+              "criterionIds": [
+                "increase_fiber"
+              ]
+            },
+            {
+              "day": "sat",
+              "meal": "dinner",
+              "place": "home",
+              "menuId": "고등어 구이",
+              "title": "담백한 고등어 구이와 쌈채소",
+              "ingredients": [
+                "고등어",
+                "올리브유",
+                "상추",
+                "깻잎"
+              ],
+              "tags": [
+                "fish"
+              ],
+              "cookMinutes": 20,
+              "reason": "포화지방 섭취를 줄이기 위해 생선 위주의 식단을 구성했습니다.",
+              "criterionIds": [
+                "reduce_saturated_fat"
+              ]
+            }
+          ]
+        },
+        {
+          "conversationId": "a1-sun",
+          "message": "day:sun",
+          "tool": "probe_plan",
+          "toolInput": {
+            "day": "sun",
+            "mode": "day"
+          },
+          "settlement": "completed",
+          "timestamp": "2026-11-04T13:42:41.894Z",
+          "ms": 80172,
+          "usage": {
+            "input": 1632,
+            "output": 3725
+          },
+          "cells": [
+            {
+              "day": "sun",
+              "meal": "lunch",
+              "place": "home",
+              "menuId": "소불고기",
+              "title": "가족과 함께 즐기는 채소 가득 소불고기",
+              "ingredients": [
+                "소고기",
+                "양파",
+                "당근",
+                "버섯",
+                "파",
+                "간장"
+              ],
+              "tags": [
+                "meat",
+                "beef"
+              ],
+              "cookMinutes": 30,
+              "reason": "채소를 듬뿍 넣어 식이섬유를 늘리고 포화지방 섭취를 조절합니다.",
+              "criterionIds": [
+                "increase_fiber",
+                "reduce_saturated_fat"
+              ]
+            },
+            {
+              "day": "sun",
+              "meal": "dinner",
+              "place": "home",
+              "menuId": "고등어 구이와 된장찌개",
+              "title": "건강한 지방이 풍부한 고등어 구이와 된장찌개",
+              "ingredients": [
+                "고등어",
+                "두부",
+                "애호박",
+                "감자",
+                "된장"
+              ],
+              "tags": [
+                "fish",
+                "soy"
+              ],
+              "cookMinutes": 25,
+              "reason": "생선과 채소를 통해 양질의 영양소를 섭취하고 식이섬유를 보충합니다.",
+              "criterionIds": [
+                "increase_fiber",
+                "reduce_saturated_fat"
+              ]
+            }
+          ]
+        }
+      ],
+      "totalUsage": {
+        "input": 12542,
+        "output": 22157
+      },
+      "maxMs": 80172
+    },
+    {
+      "run": 2,
+      "days": [
+        {
+          "conversationId": "a2-mon",
+          "message": "day:mon",
+          "tool": "probe_plan",
+          "toolInput": {
+            "day": "mon",
+            "mode": "day"
+          },
+          "settlement": "completed",
+          "timestamp": "2026-11-04T13:46:52.777Z",
+          "ms": 67912,
+          "usage": {
+            "input": 1114,
+            "output": 2953
+          },
+          "cells": [
+            {
+              "day": "mon",
+              "meal": "lunch",
+              "place": "eat_out",
+              "menuId": "회덮밥",
+              "title": "싱싱한 채소가 듬뿍 들어간 회덮밥",
+              "ingredients": [
+                "회",
+                "채소",
+                "밥",
+                "초고추장"
+              ],
+              "tags": [
+                "fish"
+              ],
+              "orderTip": "초고추장은 양을 조절해서 넣어 드세요.",
+              "cookMinutes": 0,
+              "reason": "채소를 많이 섭취하여 식이섬유를 높이고 칼로리를 조절할 수 있습니다.",
+              "criterionIds": [
+                "increase_fiber",
+                "reduce_portion_calories"
+              ]
+            },
+            {
+              "day": "mon",
+              "meal": "dinner",
+              "place": "home",
+              "menuId": "닭가슴살 야채볶음",
+              "title": "담백한 닭가슴살 야채볶음",
+              "ingredients": [
+                "닭가슴살",
+                "브로콜리",
+                "양파",
+                "파프리카"
+              ],
+              "tags": [
+                "chicken",
+                "meat"
+              ],
+              "cookMinutes": 15,
+              "reason": "포화지방이 적은 닭가슴살을 사용하여 콜레스테롤 관리에 좋습니다.",
+              "criterionIds": [
+                "reduce_saturated_fat"
+              ]
+            }
+          ]
+        },
+        {
+          "conversationId": "a2-tue",
+          "message": "day:tue",
+          "tool": "probe_plan",
+          "toolInput": {
+            "day": "tue",
+            "mode": "day"
+          },
+          "settlement": "completed",
+          "timestamp": "2026-11-04T13:47:02.486Z",
+          "ms": 77164,
+          "usage": {
+            "input": 1628,
+            "output": 3932
+          },
+          "cells": [
+            {
+              "day": "tue",
+              "meal": "lunch",
+              "place": "eat_out",
+              "menuId": "회덮밥",
+              "title": "신선한 채소가 가득한 회덮밥",
+              "ingredients": [
+                "회",
+                "상추",
+                "오이",
+                "밥",
+                "초고추장"
+              ],
+              "tags": [
+                "fish",
+                "refined_carb_main"
+              ],
+              "orderTip": "초고추장은 양을 조금만 넣어 달라고 요청하세요.",
+              "cookMinutes": 0,
+              "reason": "식이섬유가 풍부한 채소를 통해 영양을 보충하고 열량을 조절합니다.",
+              "criterionIds": [
+                "increase_fiber",
+                "reduce_portion_calories"
+              ]
+            },
+            {
+              "day": "tue",
+              "meal": "dinner",
+              "place": "home",
+              "menuId": "닭가슴살 채소 볶음",
+              "title": "담백한 닭가슴살 채소 볶음",
+              "ingredients": [
+                "닭가슴살",
+                "브로콜리",
+                "버섯",
+                "양파"
+              ],
+              "tags": [
+                "meat",
+                "chicken"
+              ],
+              "cookMinutes": 15,
+              "reason": "포화지방이 낮은 닭가슴살을 사용하여 콜레스테롤 관리에 도움을 줍니다.",
+              "criterionIds": [
+                "reduce_saturated_fat"
+              ]
+            }
+          ]
+        },
+        {
+          "conversationId": "a2-wed",
+          "message": "day:wed",
+          "tool": "probe_plan",
+          "toolInput": {
+            "day": "wed",
+            "mode": "day"
+          },
+          "settlement": "completed",
+          "timestamp": "2026-11-04T13:46:51.241Z",
+          "ms": 66865,
+          "usage": {
+            "input": 1626,
+            "output": 3297
+          },
+          "cells": [
+            {
+              "day": "wed",
+              "meal": "lunch",
+              "place": "eat_out",
+              "menuId": "회덮밥",
+              "title": "신선한 야채와 회가 듬뿍 담긴 회덮밥",
+              "ingredients": [
+                "회",
+                "야채",
+                "밥",
+                "초고추장"
+              ],
+              "tags": [
+                "fish",
+                "refined_carb_main"
+              ],
+              "orderTip": "초고추장을 적게 넣어 드세요.",
+              "cookMinutes": 0,
+              "reason": "신선한 채소와 생선으로 식이섬유를 보충하고 칼로리를 관리할 수 있습니다.",
+              "criterionIds": [
+                "increase_fiber",
+                "reduce_portion_calories"
+              ]
+            },
+            {
+              "day": "wed",
+              "meal": "dinner",
+              "place": "home",
+              "menuId": "닭가슴살 샐러드",
+              "title": "가볍고 든든한 닭가슴살 샐러드",
+              "ingredients": [
+                "닭가슴살",
+                "양상추",
+                "방울토마토",
+                "오리엔탈 드레싱"
+              ],
+              "tags": [
+                "meat",
+                "chicken"
+              ],
+              "cookMinutes": 15,
+              "reason": "조리가 간편하며 저지방 고단백 식단으로 포화지방과 칼로리를 낮췄습니다.",
+              "criterionIds": [
+                "reduce_saturated_fat",
+                "reduce_portion_calories"
+              ]
+            }
+          ]
+        },
+        {
+          "conversationId": "a2-thu",
+          "message": "day:thu",
+          "tool": "probe_plan",
+          "toolInput": {
+            "day": "thu",
+            "mode": "day"
+          },
+          "settlement": "completed",
+          "timestamp": "2026-11-04T13:46:58.562Z",
+          "ms": 73558,
+          "usage": {
+            "input": 1114,
+            "output": 3518
+          },
+          "cells": [
+            {
+              "day": "thu",
+              "meal": "lunch",
+              "place": "eat_out",
+              "menuId": "회덮밥",
+              "title": "신선한 채소가 가득한 회덮밥",
+              "ingredients": [
+                "회",
+                "양상추",
+                "오이",
+                "밥",
+                "초고추장"
+              ],
+              "tags": [
+                "fish",
+                "refined_carb_main"
+              ],
+              "orderTip": "초고추장은 따로 요청하거나 조금만 넣어주세요.",
+              "cookMinutes": 0,
+              "reason": "식이섬유가 풍부한 채소를 많이 섭취하고 포화지방이 적은 회를 먹을 수 있습니다.",
+              "criterionIds": [
+                "increase_fiber",
+                "reduce_saturated_fat"
+              ]
+            },
+            {
+              "day": "thu",
+              "meal": "dinner",
+              "place": "home",
+              "menuId": "닭가슴살 샐러드",
+              "title": "가벼운 저녁을 위한 닭가슴살 샐러드",
+              "ingredients": [
+                "닭가슴살",
+                "양상추",
+                "방울토마토",
+                "올리브유"
+              ],
+              "tags": [
+                "meat",
+                "chicken"
+              ],
+              "orderTip": "",
+              "cookMinutes": 15,
+              "reason": "칼로리가 낮고 조리가 간편하여 체중 감량에 도움을 줍니다.",
+              "criterionIds": [
+                "reduce_portion_calories"
+              ]
+            }
+          ]
+        },
+        {
+          "conversationId": "a2-fri",
+          "message": "day:fri",
+          "tool": "probe_plan",
+          "toolInput": {
+            "day": "fri",
+            "mode": "day"
+          },
+          "settlement": "completed",
+          "timestamp": "2026-11-04T13:47:29.509Z",
+          "ms": 105625,
+          "usage": {
+            "input": 3137,
+            "output": 5230
+          },
+          "cells": [
+            {
+              "day": "fri",
+              "meal": "lunch",
+              "place": "eat_out",
+              "menuId": "회덮밥",
+              "title": "신선한 채소가 가득한 회덮밥",
+              "ingredients": [
+                "참치회",
+                "채소",
+                "밥",
+                "초고추장"
+              ],
+              "tags": [
+                "fish",
+                "refined_carb_main"
+              ],
+              "orderTip": "초고추장은 적게 넣어 드세요.",
+              "cookMinutes": 0,
+              "reason": "신선한 생선과 채소를 통해 식이섬유를 보충하고 칼로리를 조절할 수 있습니다.",
+              "criterionIds": [
+                "increase_fiber",
+                "reduce_portion_calories"
+              ]
+            },
+            {
+              "day": "fri",
+              "meal": "dinner",
+              "place": "home",
+              "menuId": "닭가슴살 채소 볶음",
+              "title": "담백하고 건강한 닭가슴살 채소 볶음",
+              "ingredients": [
+                "닭가슴살",
+                "브로콜리",
+                "버섯",
+                "양파"
+              ],
+              "tags": [
+                "meat",
+                "chicken"
+              ],
+              "cookMinutes": 15,
+              "reason": "저지방 단백질인 닭가슴살을 사용하여 포화지방 섭취를 줄입니다.",
+              "criterionIds": [
+                "reduce_saturated_fat"
+              ]
+            }
+          ]
+        },
+        {
+          "conversationId": "a2-sat",
+          "message": "day:sat",
+          "tool": "probe_plan",
+          "toolInput": {
+            "day": "sat",
+            "mode": "day"
+          },
+          "settlement": "completed",
+          "timestamp": "2026-11-04T13:47:32.765Z",
+          "ms": 108452,
+          "usage": {
+            "input": 6615,
+            "output": 4763
+          },
+          "cells": [
+            {
+              "day": "sat",
+              "meal": "lunch",
+              "place": "home",
+              "menuId": "고등어 구이와 채소 쌈",
+              "title": "가족과 함께 먹는 고등어 구이와 신선한 쌈채소",
+              "ingredients": [
+                "고등어",
+                "상추",
+                "깻잎",
+                "오이",
+                "현미밥"
+              ],
+              "tags": [
+                "fish"
+              ],
+              "cookMinutes": 25,
+              "reason": "오메가-3가 풍부한 고등어와 식이섬유가 많은 쌈채소로 콜레스테롤 관리를 돕습니다.",
+              "criterionIds": [
+                "reduce_saturated_fat",
+                "increase_fiber"
+              ]
+            },
+            {
+              "day": "sat",
+              "meal": "dinner",
+              "place": "home",
+              "menuId": "닭고기 채소 찜",
+              "title": "담백하고 건강한 닭고기 채소 찜",
+              "ingredients": [
+                "닭고기",
+                "감자",
+                "당근",
+                "양파",
+                "버섯"
+              ],
+              "tags": [
+                "meat",
+                "chicken"
+              ],
+              "cookMinutes": 40,
+              "reason": "기름기를 뺀 닭고기와 풍부한 채소로 칼로리를 낮추고 식이섬유를 보충합니다.",
+              "criterionIds": [
+                "reduce_portion_calories",
+                "increase_fiber"
+              ]
+            }
+          ]
+        },
+        {
+          "conversationId": "a2-sun",
+          "message": "day:sun",
+          "tool": "probe_plan",
+          "toolInput": {
+            "day": "sun",
+            "mode": "day"
+          },
+          "settlement": "completed",
+          "timestamp": "2026-11-04T13:46:35.026Z",
+          "ms": 51253,
+          "usage": {
+            "input": 1120,
+            "output": 2497
+          },
+          "cells": [
+            {
+              "day": "sun",
+              "meal": "lunch",
+              "place": "home",
+              "menuId": "소불고기",
+              "title": "채소 가득 소불고기",
+              "ingredients": [
+                "소고기",
+                "양파",
+                "느타리버섯",
+                "대파"
+              ],
+              "tags": [
+                "meat",
+                "beef"
+              ],
+              "orderTip": "없음",
+              "cookMinutes": 30,
+              "reason": "채소를 듬뿍 넣어 식이섬유를 높였습니다.",
+              "criterionIds": [
+                "increase_fiber"
+              ]
+            },
+            {
+              "day": "sun",
+              "meal": "dinner",
+              "place": "home",
+              "menuId": "고등어 구이와 된장찌개",
+              "title": "고등어 구이와 된장찌개 정식",
+              "ingredients": [
+                "고등어",
+                "된장",
+                "두부",
+                "애호박"
+              ],
+              "tags": [
+                "fish",
+                "soy"
+              ],
+              "orderTip": "없음",
+              "cookMinutes": 30,
+              "reason": "포화지방 대신 불포화지방이 풍부한 고등어를 사용했습니다.",
+              "criterionIds": [
+                "reduce_saturated_fat"
+              ]
+            }
+          ]
+        }
+      ],
+      "totalUsage": {
+        "input": 16354,
+        "output": 26190
+      },
+      "maxMs": 108452
+    }
+  ]
+}
