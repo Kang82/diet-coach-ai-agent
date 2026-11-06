@@ -163,3 +163,60 @@ export interface CheckResult {
   violations: Violation[];
   stats: CheckStats;
 }
+
+// 4.1 인터뷰
+
+/**
+ * 끼니 설정 초안. 끼니(dayType, meal) 말고는 한 턴에 일부만 채워질 수 있다.
+ * cookMinutes: undefined는 아직 안 물음, null은 "상관없다"(시간 제한 없음). companions가 없으면 "alone"
+ */
+export interface DraftMealSetting extends Partial<Omit<MealSetting, 'cookMinutes'>> {
+  dayType: DayType;
+  meal: MealType;
+  cookMinutes?: number | null;
+}
+
+/** 인터뷰 중 프로필 초안. avoid: undefined는 아직 안 물음, []는 "없음" */
+export interface InterviewDraft extends Omit<Partial<Profile>, 'meals'> {
+  meals?: DraftMealSetting[];
+}
+
+export interface MealKey {
+  dayType: DayType;
+  meal: MealType;
+}
+
+export type InterviewField =
+  | 'goals'
+  | 'medication'
+  | 'avoid'
+  | 'meals'
+  | { menusFor: MealKey }
+  | { cookMinutesFor: MealKey };
+
+export const STOP_FLAGS = ['pregnancy', 'kidney_disease', 'glucose_medication'] as const;
+export type StopFlag = (typeof STOP_FLAGS)[number];
+
+/** 그 턴에만 처리하고 버린다 */
+export type TurnFlag =
+  | 'extreme_restriction'
+  | 'unsupported_goal'
+  | 'asks_lab_interpretation'
+  | 'asks_medication_advice';
+
+export interface InterviewState {
+  draft: InterviewDraft;
+  /** 한 번 생기면 남는다 */
+  stopFlags: StopFlag[];
+  /** 외식 메뉴가 2개 이하라 한 번 더 물어본 끼니 (분기 6). 두 번째에는 그대로 진행한다 */
+  menuFollowUps: MealKey[];
+}
+
+/** LLM이 한 턴마다 내는 값 */
+export interface InterviewUpdate {
+  filled: InterviewDraft;
+  ambiguous?: { field: InterviewField; choices: string[] };
+  stopFlags: StopFlag[];
+  turnFlags: TurnFlag[];
+  reply: string;
+}

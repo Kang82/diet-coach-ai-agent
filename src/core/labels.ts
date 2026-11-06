@@ -1,5 +1,5 @@
 // 스펙 6장 한글 라벨표
-import type { AvoidTag, Day, MealType } from './types.ts';
+import type { AvoidTag, Day, GoalId, MealType } from './types.ts';
 
 export const DAY_LABELS: Record<Day, string> = {
   mon: '월요일',
@@ -26,4 +26,10 @@ export const AVOID_TAG_LABELS: Record<AvoidTag, string> = {
   pork: '돼지고기',
   beef: '소고기',
   chicken: '닭고기',
+};
+
+export const GOAL_LABELS: Record<GoalId, string> = {
+  weight_loss: '체중 감량',
+  blood_glucose: '혈당 관리',
+  cholesterol: '콜레스테롤 관리',
 };

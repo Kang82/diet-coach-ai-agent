@@ -144,14 +144,24 @@
 
 ### T4. 인터뷰 (9장 7단계)
 
-- [ ] **T4-1. 프로필 검증** (스펙 1.2)
+- [x] **T4-1. 프로필 검증** (스펙 1.2) (2026-11-06)
   - 완료 기준: `meals` 6개 조합, 외식 끼니의 `menus`, `goals`, 동의 시각 검증 테스트 통과
+  - 결정: 에러를 던지지 않고 `ProfileIssue[]`(`{ code, meal? }`)를 돌려준다. 비면 통과. 프로필 확인 화면(T5-2)이 항목별로 보여 준다. code 목록과 순서는 스펙 1.2
+  - 결정: 혈당·콜레스테롤 목표가 없는데 `medication`이 `none`이 아니면 `medication_without_goal`
+  - 코드: `core/profile-validation.ts`, 끼니 6개 조합 순서는 `helpers.ts`의 `MEAL_KEYS`
 
-- [ ] **T4-2. `nextField`** (스펙 4.1)
+- [x] **T4-2. `nextField`** (스펙 4.1) (2026-11-06)
   - 완료 기준: 약 복용 질문 건너뛰기, 외식·집밥 끼니별 조건부 질문, 끝나면 `null`을 확인하는 테스트 통과
+  - 결정: 초안은 `InterviewDraft`. 조리 시간 "상관없다"는 `cookMinutes: null`, 피할 음식 "없음"은 `avoid: []`. `undefined`는 아직 묻지 않음
+  - 결정: `medication`은 건너뛰기만 하고, `"none"`은 인터뷰가 끝날 때(`finishDraft`) 채운다. 목표가 바뀌어도 값이 꼬이지 않는다
+  - 코드: `core/interview.ts`(`nextField`, `mergeDraft`: 끼니는 `(dayType, meal)`끼리 필드 단위로 병합, `finishDraft`)
 
-- [ ] **T4-3. 턴 분기 1~7** (스펙 4.1)
+- [x] **T4-3. 턴 분기 1~7** (스펙 4.1) (2026-11-06)
   - 완료 기준: 중단 플래그, 극단적 목표, 미지원 목표, 범위 밖 질문, 모호한 답, 외식 메뉴 부족, 인터뷰 끝 분기 테스트 통과
+  - 결정: `applyTurn(state, update) → { state, next, notices }`. 문구 없이 code만 돌려준다. 문구는 T4-4에서 정한다
+  - 결정: `InterviewState`에 `menuFollowUps`(메뉴를 한 번 더 물어본 끼니)를 더했다. 두 번째에는 그대로 진행한다
+  - 결정: 우선순위는 중단 → 극단적 목표(이번 답 버림, LLM 선택지) → 미지원 목표(코드가 지원 목표 3개 선택지) → 모호함(그 필드만 빼고 반영) → 메뉴 부족 → 다음 질문/끝. 범위 밖 질문은 `notices`로 어느 분기와도 함께 나온다
+  - 코드: `core/interview-turn.ts`, 목표 라벨은 `labels.ts`의 `GOAL_LABELS`
 
 - [ ] **T4-4. LLM 인터뷰 턴**
   - 인터뷰 상태를 Flue에서 어떻게 들고 있을지 먼저 정한다 (열린 질문 4)

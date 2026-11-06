@@ -119,6 +119,18 @@ interface Profile {
 
 **프로필 검증 (코드):** `meals`가 6개 조합을 빠짐없이 한 번씩 가짐, 외식 끼니는 `menus`가 1개 이상, `goals`가 비지 않음, 동의 시각이 있음.
 
+`validateProfile(profile): ProfileIssue[]`(`core/profile-validation.ts`)는 에러를 던지지 않고 문제 목록을 돌려준다. 비어 있으면 통과다. `ProfileIssue`는 `{ code, meal?: { dayType, meal } }`이고, code는 아래 순서로 정렬된다. 같은 code 안에서는 끼니 순서(평일 아침 → 주말 저녁)를 따른다.
+
+| code | 판정 |
+| --- | --- |
+| `goals_empty` | `goals`가 비었음 |
+| `goals_duplicate` | `goals`에 중복이 있음 |
+| `meal_missing` | 6개 조합 중 빠진 끼니마다 |
+| `meal_duplicate` | 두 번 이상 나온 끼니마다 |
+| `menus_required` | 외식 끼니에 `menus`가 없거나, 공백을 뺀 값이 모두 비었음 |
+| `medication_without_goal` | 혈당·콜레스테롤 목표가 없는데 `medication`이 `"none"`이 아님 |
+| `consent_missing` | `consentedAt`이 비었음 |
+
 ### 1.3 외식 메뉴 분류
 
 분류 대상은 모든 외식 끼니의 `menus`를 합친 뒤 중복을 뺀 목록이다.
@@ -287,9 +299,16 @@ checkPlan(
 
 ```ts
 interface InterviewState {
-  draft: Partial<Profile>;
+  draft: InterviewDraft;
   stopFlags: StopFlag[];    // 한 번 생기면 남음
+  menuFollowUps: { dayType: DayType; meal: MealType }[]; // 메뉴가 적어 한 번 더 물어본 끼니 (분기 6)
 }
+
+// 프로필 초안. undefined는 아직 묻지 않음. avoid: []는 "없음"
+// meals는 끼니(dayType, meal) 말고는 일부만 채워질 수 있고, cookMinutes: null은 "상관없다"
+type InterviewDraft = Omit<Partial<Profile>, "meals"> & {
+  meals?: (Partial<MealSetting> & { dayType: DayType; meal: MealType; cookMinutes?: number | null })[];
+};
 
 type InterviewField =
   | "goals" | "medication" | "avoid" | "meals"
@@ -303,7 +322,7 @@ type TurnFlag =                // 그 턴에만 처리하고 버림
   | "asks_lab_interpretation" | "asks_medication_advice";
 
 interface InterviewUpdate {   // LLM이 한 턴마다 내는 값
-  filled: Partial<Profile>;
+  filled: InterviewDraft;
   ambiguous?: { field: InterviewField; choices: string[] };
   stopFlags: StopFlag[];
   turnFlags: TurnFlag[];
@@ -331,6 +350,22 @@ nextField(draft: Partial<Profile>): InterviewField | null   // null이면 인터
 5. `ambiguous`가 있으면 선택지를 보여 주고 같은 필드를 다시 묻는다.
 6. 외식 끼니의 메뉴가 2개 이하면 한 번 더 받아 보고, 사용자가 거절하면 그대로 진행한다(주문 방법을 달리해 배치).
 7. `nextField`가 `null`이면 `buildCriteria`로 기준을 계산하고 프로필 확인 화면으로 넘어간다.
+
+**구현 세부 (`core/interview.ts`, `core/interview-turn.ts`):**
+
+- `mergeDraft(draft, filled)`: `meals`는 `(dayType, meal)`끼리 필드 단위로 합치고 끼니 순서로 정렬한다. 나머지 필드는 덮어쓴다. `undefined` 값은 무시한다.
+- `finishDraft(draft)`: 인터뷰가 끝난 초안을 프로필의 인터뷰 항목(`goals`, `goalNote`, `medication`, `avoid`, `avoidNote`, `meals`)으로 바꾼다. 혈당·콜레스테롤 목표가 없으면 `medication`을 `"none"`으로 두고, `cookMinutes: null`을 지우고, `companions`가 없으면 `"alone"`으로 둔다.
+- `applyTurn(state, update) → { state, next, notices }`. 문구는 만들지 않는다.
+  - `next`:
+    - `{ kind: "stop", flags }`
+    - `{ kind: "ask", field, reason?, choices? }`. reason은 `extreme_restriction`, `unsupported_goal`, `ambiguous`, `few_menus` 중 하나
+    - `{ kind: "done", result, criteria }`
+  - `notices`: `asks_lab_interpretation`, `asks_medication_advice`(분기 4)
+- 분기 우선순위: 1 → 2 → 3 → 5 → 6 → 7. 분기 4는 어느 분기와도 함께 `notices`로 나온다.
+  - 분기 2: 이번 턴의 `filled`는 버리고 지금 필드를 다시 묻는다. 선택지는 LLM의 `ambiguous.choices`를 쓴다.
+  - 분기 3: `filled.goals`만 버린다. 선택지는 코드가 지원 목표 3개("체중 감량", "혈당 관리", "콜레스테롤 관리")로 고정한다.
+  - 분기 5: 모호한 필드(끼니 필드면 그 끼니의 `menus`나 `cookMinutes`)만 빼고 반영한다.
+  - 분기 6: 이번 턴에 메뉴를 받은 외식 끼니의 메뉴가 1~2개이고 `menuFollowUps`에 없으면 그 끼니를 기록하고 다시 묻는다.
 
 ### 4.2 외식 메뉴 분류 (LLM)
 

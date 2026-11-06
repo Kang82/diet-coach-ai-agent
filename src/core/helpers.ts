@@ -1,5 +1,5 @@
 import { AVOID_TAGS, DAYS, MEAL_TYPES } from './types.ts';
-import type { AvoidTag, Day, DayType, Slot } from './types.ts';
+import type { AvoidTag, Day, DayType, MealKey, Slot } from './types.ts';
 
 export function dayType(day: Day): DayType {
   return day === 'sat' || day === 'sun' ? 'weekend' : 'weekday';
@@ -45,4 +45,22 @@ export function nextMondayKst(now: Date): string {
   const daysUntil = ((8 - kst.getUTCDay()) % 7) || 7; // getUTCDay: 일 0, 월 1
   kst.setUTCDate(kst.getUTCDate() + daysUntil);
   return kst.toISOString().slice(0, 10);
+}
+
+/** 프로필의 끼니 설정 6개 조합. 평일 아침 → 평일 점심 → … → 주말 저녁 순서 */
+export const MEAL_KEYS: readonly MealKey[] = (['weekday', 'weekend'] as const).flatMap((dt) =>
+  MEAL_TYPES.map((meal) => ({ dayType: dt, meal })),
+);
+
+export function sameMealKey(a: MealKey, b: MealKey): boolean {
+  return a.dayType === b.dayType && a.meal === b.meal;
+}
+
+export function toMealKey(key: MealKey): MealKey {
+  return { dayType: key.dayType, meal: key.meal };
+}
+
+/** MEAL_KEYS 안의 순서. 0~5 */
+export function mealKeyOrder(key: MealKey): number {
+  return MEAL_KEYS.findIndex((k) => sameMealKey(k, key));
 }
