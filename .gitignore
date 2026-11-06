@@ -4,3 +4,4 @@ dist/
 .dev.vars*
 .env*
 .claude/settings.local.json
+evals-results/

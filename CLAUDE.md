@@ -20,9 +20,10 @@ npx vitest run -t "18. 같은 끼니"           # 이름으로 테스트 하나
 npm run typecheck                          # tsc --noEmit
 npm run build                              # vite build → Cloudflare Worker (dist/)
 npm run dev                                # vite dev (workerd). AI 호출은 원격이라 `npx wrangler login` 필요
+npm run evals -- -t 페르소나A              # 평가 세트 (스펙 8.5). 개발 서버(5199)를 먼저 띄운다. 1회 약 4분, 약 270 Neuron
 ```
 
-- `vitest.config.ts`는 단위 테스트 전용이다. `vite.config.ts`의 Cloudflare 플러그인을 테스트에서 불러오지 않으려고 분리했다. LLM 평가 세트는 나중에 `vitest.evals.config.ts`로 따로 둔다 (스펙 8.5).
+- `vitest.config.ts`는 단위 테스트 전용이다. `vite.config.ts`의 Cloudflare 플러그인을 테스트에서 불러오지 않으려고 분리했다. LLM 평가 세트는 `vitest.evals.config.ts`(`src/evals/**/*.eval.ts`)로 따로 돈다. 기본 2회이고 `EVAL_RUNS=1`로 줄일 수 있다 (스펙 8.5).
 - `npm run deploy`는 스펙 11.4(토큰 확인, 사용자별 호출 제한, 전체 Neuron 안전선)가 구현되기 전에는 쓰지 않는다. Flue 에이전트 경로에는 인증이 없어서, 열어 두면 누구나 하루 무료 한도를 소진시킬 수 있다.
 
 ## 구조
@@ -61,7 +62,7 @@ src/app.ts    Hono 라우트 맵. 에이전트를 마운트한다.
 
 - 하루 10,000 Neuron, 00:00 UTC(한국 오전 9시) 초기화. 넘으면 호출이 에러로 실패한다. **로컬 `vite dev`도 원격 호출이라 같은 한도를 쓴다.**
 - 기본 모델은 `@cf/google/gemma-4-26b-a4b-it`(`src/agents/models.ts`). glm-4.7-flash는 태그 품질이 나빠 후순위다.
-- 측정값(스펙 11.5): 1주일 14칸을 한 번에 만들면 약 3분, 약 200 Neuron. 2칸만 만들어도 1분 이상 걸린다. 실제 모델을 부르는 확인이나 평가는 사용량을 먼저 어림하고 돌린다.
+- 측정값(스펙 11.5): 1주일 14칸을 한 번에 만들면 약 4분, 약 250~280 Neuron. 2칸만 만들어도 1분 이상 걸린다. 실제 모델을 부르는 확인이나 평가는 사용량을 먼저 어림하고 돌린다.
 
 ## Windows 개발 환경 메모
 

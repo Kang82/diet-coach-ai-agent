@@ -1,0 +1,94 @@
+// 스펙 8.5 평가 세트: 식단표 생성. 실제 모델을 부르므로 npm test에 들어가지 않는다.
+//
+//   npm run dev -- --port 5199            (다른 터미널)
+//   npm run evals                          (전부)
+//   npm run evals -- -t 페르소나A          (페르소나 하나)
+//   EVAL_RUNS=1 npm run evals -- -t 페르소나A
+//
+// 1회에 약 4분, 약 250 Neuron (스펙 11.5). 기본은 페르소나별 2회다.
+// 한도 초과가 나면 그 실행을 "건너뜀"으로 기록하고 남은 실행도 모두 건너뛴다 (스펙 11.3-5).
+//
+// 페르소나 2~4는 도구가 프로필을 입력받게 되면 추가한다 (지금 create_week_plan은 페르소나 A로 고정).
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { classesA, profileA } from '../core/__fixtures__/persona-a.ts';
+import { checkPlan } from '../core/check-plan.ts';
+import { buildCriteria } from '../core/criteria.ts';
+import { isQuotaExceeded } from '../core/quota.ts';
+import type { MenuClassification, Plan, Profile, Violation } from '../core/types.ts';
+import { recordRun, writeReport, type RunRecord } from './support/report.ts';
+import { assertServerUp, parseToolOutput, sendAndWait, toolParts } from './support/agent-http.ts';
+
+const RUNS = Number(process.env.EVAL_RUNS ?? 2);
+/** 스펙 8.5: 점검 루프 3회 안에 checkPlan 통과 8회 중 7회 이상 */
+const PASS_RATE = 7 / 8;
+
+interface ToolOutput {
+  status: 'ok' | 'violations' | 'quota';
+  plan?: Plan;
+  lastPlan?: Plan;
+  violations?: Violation[];
+  summary?: string[];
+  stats?: { seconds: number; regenerations: number; neurons: number };
+}
+
+interface Persona {
+  name: string;
+  profile: Profile;
+  classes: MenuClassification[];
+}
+
+const personas: Persona[] = [{ name: '페르소나A', profile: profileA, classes: classesA }];
+
+let quotaHit = false;
+const records: RunRecord[] = [];
+
+beforeAll(assertServerUp);
+afterAll(() => writeReport(records));
+
+for (const persona of personas) {
+  describe(persona.name, () => {
+    const results: ('pass' | 'fail' | 'skip')[] = [];
+
+    for (let run = 1; run <= RUNS; run++) {
+      it(`${run}회차: 식단표를 만들고 checkPlan으로 다시 점검한다`, async (ctx) => {
+        if (quotaHit) {
+          results.push('skip');
+          ctx.skip('앞에서 한도 초과가 나서 건너뜀');
+        }
+
+        const res = await sendAndWait('식단표 만들어 줘');
+        const call = toolParts(res.snapshot, 'create_week_plan');
+        const output = parseToolOutput<ToolOutput>(call.at(-1));
+
+        if (output?.status === 'quota' || (res.outcome === 'failed' && isQuotaExceeded(res.error))) {
+          quotaHit = true;
+          results.push('skip');
+          recordRun(records, { persona: persona.name, run, result: 'skip', note: '한도 초과', res });
+          ctx.skip('한도 초과로 건너뜀');
+        }
+
+        // 도구를 정확히 한 번 부르고, 대화가 정상으로 끝난다
+        expect(res.outcome, JSON.stringify(res.error)).toBe('completed');
+        expect(call).toHaveLength(1);
+        expect(output?.status).toMatch(/^(ok|violations)$/);
+
+        // 도구가 돌려준 식단표를 평가 쪽에서도 같은 기준으로 다시 점검한다
+        const rules = buildCriteria(persona.profile.goals);
+        const plan = output!.plan ?? output!.lastPlan!;
+        const check = checkPlan(plan, persona.profile, persona.classes, rules);
+        expect(check.passed).toBe(output!.status === 'ok');
+
+        const result = check.passed ? 'pass' : 'fail';
+        results.push(result);
+        recordRun(records, { persona: persona.name, run, result, res, output, violations: check.violations });
+      });
+    }
+
+    it(`통과율 ${Math.round(PASS_RATE * 100)}% 이상 (건너뛴 실행 제외)`, (ctx) => {
+      const done = results.filter((r) => r !== 'skip');
+      if (done.length === 0) ctx.skip('실행한 회차가 없음');
+      const passed = done.filter((r) => r === 'pass').length;
+      expect(passed / done.length, `${passed}/${done.length} 통과`).toBeGreaterThanOrEqual(PASS_RATE);
+    });
+  });
+}
