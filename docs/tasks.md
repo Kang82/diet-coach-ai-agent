@@ -29,8 +29,10 @@
   - 완료 기준: 루프 테스트에서 가짜 구현으로 호출 순서와 인자를 확인할 수 있음
   - 선행: T0-1
 
-- [ ] **T1-2. Neuron 계산** (스펙 11.4)
+- [x] **T1-2. Neuron 계산** (스펙 11.4) (2026-11-06)
   - 토큰 수 × 모델별 단가. Flue의 `usage.cost`는 Workers AI에서 0이라 쓰지 않는다.
+  - `src/core/neurons.ts`(`estimateNeurons`, `totalNeurons`), 단가는 `src/agents/models.ts`의 `NEURON_PRICES`. 단가를 모르는 모델은 0으로 세지 않고 에러
+  - Flue가 돌려주는 `usage`의 모델 이름이 `NEURON_PRICES` 키와 같은 모양인지는 T1-5에서 확인한다
   - 완료 기준: gemma, glm 단가로 계산하는 단위 테스트 통과
 
 - [ ] **T1-3. 점검·다시 추천 루프** (스펙 4.4)
