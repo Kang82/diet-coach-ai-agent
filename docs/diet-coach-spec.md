@@ -352,8 +352,10 @@ generatePlan(input: {
   classes: MenuClassification[];
   weekStart: string;
   events: Plan["events"];
-}): Plan
+}): PlanCell[]
 ```
+
+LLM에는 칸(`cells`)만 받는다. `planId`, `userId`, `profileVersion`, `weekStart`, `events`, `createdAt`은 루프가 입력 값으로 채운다. LLM이 일정이나 날짜를 바꿔 점검을 비켜 가지 못하게 하려는 것이다.
 
 ### 4.4 점검과 다시 추천 루프
 
@@ -382,8 +384,12 @@ regenerateCells(input: {
 - "3회"는 `regenerateCells` 호출 횟수다. 새로 만들 때는 `generatePlan` 1번 + `regenerateCells` 최대 3번, 칸 수정은 사용자 요청 회차를 포함해 `regenerateCells` 최대 3번이다.
 - `unexpected_cell` 칸 지우기는 LLM 호출이 아니라서 횟수로 세지 않는다. 같은 끼니에 칸이 여러 개면 `checkPlan`처럼 앞의 칸을 남긴다.
 - `regenerateCells`가 돌려준 칸 중 `targets`가 아닌 칸은 버리고, 한 끼니에 여러 개면 첫 칸만 쓴다. 돌아오지 않은 칸은 비워 두어 다음 점검의 `missing_cell`로 다시 요청한다.
-- 칸 수정에서 `userRequest`는 첫 회차에만 보낸다. 이후 회차는 바꾼 칸 때문에 생긴 위반을 고치는 회차다.
-- 루프는 입력 식단표를 고치지 않고, 부른 LLM 호출의 토큰 사용량(`usages`)을 함께 돌려준다.
+- 칸 수정에서 사용자 요청이 성공하면 위반을 고칠 기회는 2회 남는다.
+- 칸 수정의 `userRequest`는 첫 회차와, 이후 회차 중 사용자가 고른 칸이 다시 대상이 된 회차에 보낸다. 고른 칸이 아닌 칸만 고치는 회차에는 보내지 않는다.
+- 칸 수정은 채워야 할 끼니(3.1)만 고를 수 있다. 채우지 않는 끼니, 일정이 있는 끼니, 빈 요청은 LLM을 부르지 않고 `invalid_targets`로 거절한다.
+- 칸 수정이 성공하면 `changed`(수정 전과 달라진 칸)와 `unchangedTargets`(고른 칸 중 메뉴가 그대로인 칸)를 돌려준다. 사용자가 고르지 않은 칸이 바뀌었거나 요청이 반영되지 않았으면 화면에서 알린다.
+- 새로 만들기가 위반으로 실패하면 식단표는 보여 주지 않지만, 평가 세트와 디버깅을 위해 마지막 시도(`lastPlan`)를 결과에 남긴다.
+- 루프는 입력 식단표를 고치지 않고, 성공한 LLM 호출의 토큰 사용량(`usages`)을 함께 돌려준다. 한도 초과가 아닌 에러는 그때까지의 `usages`를 붙인 `PlanLoopError`로 던진다. 호출자는 실패한 경우에도 이 사용량을 안전선(11.4-3)에 더한다.
 
 ## 5. 저장 (Cloudflare)
 

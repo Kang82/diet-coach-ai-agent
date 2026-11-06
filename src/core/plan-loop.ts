@@ -1,7 +1,7 @@
 // 스펙 4.4 점검과 다시 추천 루프.
 // LLM은 PlanGenerator 포트로만 부른다. 입력 식단표는 고치지 않고 새 객체를 만든다.
-import { checkPlan } from './check-plan.ts';
-import { compareSlots, sameSlot, slotOrder, toSlot } from './helpers.ts';
+import { checkPlan, requiredSlots } from './check-plan.ts';
+import { compareSlots, menuKey, sameSlot, slotOrder, toSlot } from './helpers.ts';
 import type { PlanGenerator, TokenUsage } from './plan-generator.ts';
 import { QuotaExceededError } from './quota.ts';
 import type {
@@ -27,41 +27,89 @@ export interface PlanContext {
 export interface LoopStats {
   /** 이번 루프에서 성공한 LLM 호출의 사용량, 호출 순서대로 */
   usages: TokenUsage[];
-  /** regenerateCells를 부른 횟수. 한도 초과로 실패한 호출은 세지 않는다. */
+  /** regenerateCells를 부른 횟수. 실패한 호출은 세지 않는다. */
   regenerations: number;
+}
+
+export interface CreatePlanInput {
+  /** 호출자가 정한다. 루프는 순수 로직이라 ID와 시각을 만들지 않는다. */
+  planId: string;
+  createdAt: string;
+  weekStart: string;
+  events: PlanEvent[];
 }
 
 export type CreatePlanResult =
   | ({ ok: true; plan: Plan; check: CheckResult } & LoopStats)
-  /** 식단표를 보여 주지 않는다. check는 마지막 시도의 점검 결과로, 위반 원인을 알리는 데 쓴다. */
-  | ({ ok: false; reason: 'violations'; check: CheckResult } & LoopStats)
+  /**
+   * 식단표를 사용자에게 보여 주지 않는다. check는 마지막 시도의 점검 결과로 위반 원인을 알리는 데 쓰고,
+   * lastPlan은 평가 세트와 디버깅 기록용이다.
+   */
+  | ({ ok: false; reason: 'violations'; check: CheckResult; lastPlan: Plan } & LoopStats)
   /** 하루 한도 초과 (스펙 11.3). 만들던 식단표는 버린다. */
   | ({ ok: false; reason: 'quota' } & LoopStats);
 
 export type EditPlanResult =
-  | ({ ok: true; plan: Plan; check: CheckResult } & LoopStats)
+  | ({
+      ok: true;
+      plan: Plan;
+      check: CheckResult;
+      /** 수정 전과 달라진 칸, 시간순. 사용자가 고르지 않은 칸이 들어 있으면 화면에서 알린다. */
+      changed: Slot[];
+      /** 사용자가 고른 칸 중 메뉴가 그대로인 칸 (LLM이 요청을 반영하지 않았을 수 있음) */
+      unchangedTargets: Slot[];
+    } & LoopStats)
   /** plan은 수정 전 식단표 그대로다. check는 마지막 시도의 점검 결과. */
   | ({ ok: false; reason: 'violations'; plan: Plan; check: CheckResult } & LoopStats)
   /** 하루 한도 초과. plan은 수정 전 식단표 그대로다. */
-  | ({ ok: false; reason: 'quota'; plan: Plan } & LoopStats);
+  | ({ ok: false; reason: 'quota'; plan: Plan } & LoopStats)
+  /** 고를 수 없는 칸(채우지 않는 끼니, 일정이 있는 끼니) 또는 빈 요청. LLM을 부르지 않는다. */
+  | ({ ok: false; reason: 'invalid_targets'; plan: Plan; invalidTargets: Slot[] } & LoopStats);
+
+/**
+ * 한도 초과가 아닌 LLM 에러. 원래 에러는 cause에 두고, 그때까지 쓴 사용량을 붙여 던진다.
+ * 호출자는 실패했더라도 usages를 Neuron 안전선(스펙 11.4-3)에 더해야 한다.
+ */
+export class PlanLoopError extends Error {
+  readonly usages: TokenUsage[];
+  readonly regenerations: number;
+
+  constructor(cause: unknown, stats: LoopStats) {
+    super(`식단표 생성 중 LLM 호출 실패: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+    this.name = 'PlanLoopError';
+    this.usages = [...stats.usages];
+    this.regenerations = stats.regenerations;
+  }
+}
 
 /** 1주일 식단표를 만들고 점검·다시 추천한다 (스펙 4.4-1~3). */
 export async function createPlan(
   generator: PlanGenerator,
   ctx: PlanContext,
-  input: { weekStart: string; events: PlanEvent[] },
+  input: CreatePlanInput,
 ): Promise<CreatePlanResult> {
   const stats: LoopStats = { usages: [], regenerations: 0 };
   try {
     const generated = await generator.generatePlan({ ...ctx, weekStart: input.weekStart, events: input.events });
     stats.usages.push(generated.usage);
 
-    const result = await repair(generator, ctx, generated.value, stats);
+    // LLM에는 칸만 받는다. 일정과 날짜는 입력 값을 쓴다.
+    const plan: Plan = {
+      planId: input.planId,
+      userId: ctx.profile.userId,
+      profileVersion: ctx.profile.version,
+      weekStart: input.weekStart,
+      events: structuredClone(input.events),
+      cells: structuredClone(generated.value).sort(compareSlots),
+      createdAt: input.createdAt,
+    };
+
+    const result = await repair(generator, ctx, plan, stats);
     if (result.ok) return { ok: true, plan: result.plan, check: result.check, ...stats };
-    return { ok: false, reason: 'violations', check: result.check, ...stats };
+    return { ok: false, reason: 'violations', check: result.check, lastPlan: result.plan, ...stats };
   } catch (error) {
     if (error instanceof QuotaExceededError) return { ok: false, reason: 'quota', ...stats };
-    throw error;
+    throw new PlanLoopError(error, stats);
   }
 }
 
@@ -78,6 +126,14 @@ export async function editPlanCells(
   const original = structuredClone(plan);
   const targets = uniqueSlots(input.targets);
   const stats: LoopStats = { usages: [], regenerations: 0 };
+
+  const allowed = requiredSlots(ctx.profile, plan.events);
+  const invalidTargets = targets.filter((t) => !allowed.some((a) => sameSlot(a, t)));
+  if (targets.length === 0 || invalidTargets.length > 0) {
+    return { ok: false, reason: 'invalid_targets', plan: original, invalidTargets, ...stats };
+  }
+
+  const request = { slots: targets, text: input.userRequest };
   try {
     const first = await generator.regenerateCells({
       ...ctx,
@@ -89,24 +145,33 @@ export async function editPlanCells(
     stats.usages.push(first.usage);
     stats.regenerations++;
 
-    const result = await repair(generator, ctx, applyCells(plan, targets, first.value), stats);
-    if (result.ok) return { ok: true, plan: result.plan, check: result.check, ...stats };
-    return { ok: false, reason: 'violations', plan: original, check: result.check, ...stats };
+    const result = await repair(generator, ctx, applyCells(plan, targets, first.value), stats, request);
+    if (!result.ok) return { ok: false, reason: 'violations', plan: original, check: result.check, ...stats };
+    return {
+      ok: true,
+      plan: result.plan,
+      check: result.check,
+      changed: changedSlots(original, result.plan),
+      unchangedTargets: targets.filter((t) => sameMenu(original, result.plan, t)),
+      ...stats,
+    };
   } catch (error) {
     if (error instanceof QuotaExceededError) return { ok: false, reason: 'quota', plan: original, ...stats };
-    throw error;
+    throw new PlanLoopError(error, stats);
   }
 }
 
 /**
  * 점검 → (지울 칸 지우기 → 다시 추천) 반복. stats를 고쳐 가며 사용량과 횟수를 센다.
- * LLM 에러는 잡지 않고 그대로 던진다 (한도 초과는 바깥에서 결과로 바꾼다).
+ * request가 있으면(칸 수정) 사용자가 고른 칸이 다시 대상이 될 때 사용자 요청도 함께 보낸다.
+ * LLM 에러는 잡지 않고 그대로 던진다 (바깥에서 결과나 PlanLoopError로 바꾼다).
  */
 async function repair(
   generator: PlanGenerator,
   ctx: PlanContext,
   start: Plan,
   stats: LoopStats,
+  request?: { slots: Slot[]; text: string },
 ): Promise<{ ok: boolean; plan: Plan; check: CheckResult }> {
   let plan = start;
   for (;;) {
@@ -117,6 +182,8 @@ async function repair(
     }
     if (check.passed) return { ok: true, plan, check };
 
+    // 지금 규칙에서는 unexpected_cell(위에서 지움)만 regenerate가 비어 있어서 targets가 빌 수 없다.
+    // 규칙이 늘어 regenerate가 빈 위반이 남으면 LLM으로 고칠 수 없으므로 회차가 남아도 실패로 끝낸다.
     const targets = uniqueSlots(check.violations.flatMap((v) => v.regenerate));
     if (stats.regenerations >= MAX_REGENERATIONS || targets.length === 0) return { ok: false, plan, check };
 
@@ -125,6 +192,7 @@ async function repair(
       plan: structuredClone(plan),
       targets,
       violations: check.violations,
+      ...(request && targets.some((t) => request.slots.some((r) => sameSlot(r, t))) ? { userRequest: request.text } : {}),
     });
     stats.usages.push(res.usage);
     stats.regenerations++;
@@ -174,6 +242,27 @@ export function applyCells(plan: Plan, targets: readonly Slot[], newCells: reado
   const rest = plan.cells.filter((c) => !targets.some((t) => sameSlot(t, c)));
   const cells = [...structuredClone(rest), ...accepted].sort(compareSlots);
   return { ...structuredClone(plan), cells };
+}
+
+/** 두 식단표에서 내용이 다른 칸 (생기거나 없어진 칸 포함), 시간순 */
+function changedSlots(before: Plan, after: Plan): Slot[] {
+  const slots = uniqueSlots([...before.cells, ...after.cells]);
+  return slots.filter((slot) => {
+    const a = before.cells.find((c) => sameSlot(c, slot));
+    const b = after.cells.find((c) => sameSlot(c, slot));
+    return !a || !b || canonical(a) !== canonical(b);
+  });
+}
+
+function sameMenu(before: Plan, after: Plan, slot: Slot): boolean {
+  const a = before.cells.find((c) => sameSlot(c, slot));
+  const b = after.cells.find((c) => sameSlot(c, slot));
+  return !!a && !!b && menuKey(a.menuId) === menuKey(b.menuId);
+}
+
+/** 키 순서와 관계없이 비교하려고 키를 정렬해 직렬화한다. */
+function canonical(cell: PlanCell): string {
+  return JSON.stringify(cell, Object.keys(cell).sort());
 }
 
 function uniqueSlots(slots: readonly Slot[]): Slot[] {

@@ -24,19 +24,10 @@ export function checkPlan(
   rules: CriteriaRules,
 ): CheckResult {
   const violations: Violation[] = [];
-  const settingOf = (slot: Slot): MealSetting | undefined =>
-    profile.meals.find((m) => m.dayType === dayType(slot.day) && m.meal === slot.meal);
-  const isEvent = (slot: Slot) => plan.events.some((e) => e.day === slot.day && e.meal === slot.meal);
+  const settingOf = (slot: Slot): MealSetting | undefined => mealSettingOf(profile, slot);
 
   // 3.1 채워야 할 끼니
-  const required = new Set<number>();
-  for (const day of DAYS) {
-    for (const meal of MEAL_TYPES) {
-      const slot = { day, meal };
-      const setting = settingOf(slot);
-      if (setting && setting.place !== 'skip' && !isEvent(slot)) required.add(slotOrder(slot));
-    }
-  }
+  const required = new Set(requiredSlots(profile, plan.events).map(slotOrder));
 
   // unexpected_cell: 채워야 할 끼니가 아닌 곳, 또는 같은 끼니의 두 번째 이후 칸
   const sorted = plan.cells
@@ -197,6 +188,24 @@ export function checkPlan(
 
   const stats: CheckStats = { avoidTagCounts, limitedMenuCounts, limitedTagCounts, consecutiveCount };
   return { passed: violations.length === 0, violations: sortViolations(violations), stats };
+}
+
+function mealSettingOf(profile: Profile, slot: Slot): MealSetting | undefined {
+  return profile.meals.find((m) => m.dayType === dayType(slot.day) && m.meal === slot.meal);
+}
+
+/** 3.1 채워야 할 끼니: skip이 아니고 일정(회식, 약속)이 없는 끼니. 시간순. */
+export function requiredSlots(profile: Profile, events: readonly Slot[]): Slot[] {
+  const slots: Slot[] = [];
+  for (const day of DAYS) {
+    for (const meal of MEAL_TYPES) {
+      const slot = { day, meal };
+      const setting = mealSettingOf(profile, slot);
+      const isEvent = events.some((e) => e.day === day && e.meal === meal);
+      if (setting && setting.place !== 'skip' && !isEvent) slots.push(slot);
+    }
+  }
+  return slots;
 }
 
 /** 같은 메뉴는 주 2회까지 (스펙 3.2) */

@@ -29,15 +29,15 @@ function regenerateInput(): RegenerateCellsInput {
 describe('FakePlanGenerator', () => {
   it('정해 둔 응답을 순서대로 돌려주고 사용량을 붙인다', async () => {
     const cell = planA.cells[0]!;
-    const fake = new FakePlanGenerator({ plans: [planA], regenerations: [[cell], []] });
+    const fake = new FakePlanGenerator({ plans: [planA.cells], regenerations: [[cell], []] });
 
-    expect(await fake.generatePlan(generateInput())).toEqual({ value: planA, usage: FAKE_USAGE });
+    expect(await fake.generatePlan(generateInput())).toEqual({ value: planA.cells, usage: FAKE_USAGE });
     expect(await fake.regenerateCells(regenerateInput())).toEqual({ value: [cell], usage: FAKE_USAGE });
     expect(await fake.regenerateCells(regenerateInput())).toEqual({ value: [], usage: FAKE_USAGE });
   });
 
   it('호출 순서와 인자를 기록한다', async () => {
-    const fake = new FakePlanGenerator({ plans: [planA], regenerations: [[]] });
+    const fake = new FakePlanGenerator({ plans: [planA.cells], regenerations: [[]] });
     const gen = generateInput();
     const regen = regenerateInput();
 
@@ -65,12 +65,12 @@ describe('FakePlanGenerator', () => {
   });
 
   it('돌려준 값을 고쳐도 정해 둔 원본은 그대로다', async () => {
-    const fake = new FakePlanGenerator({ plans: [planA] });
+    const fake = new FakePlanGenerator({ plans: [planA.cells] });
 
     const { value } = await fake.generatePlan(generateInput());
-    value.cells = [];
+    value[0]!.menuId = '바뀜';
 
-    expect(planA.cells.length).toBeGreaterThan(0);
+    expect(planA.cells[0]!.menuId).toBe('회덮밥');
   });
 
   it('함수 응답은 입력을 받아 값을 만든다', async () => {
@@ -92,7 +92,7 @@ describe('FakePlanGenerator', () => {
   });
 
   it('정해 둔 응답이 떨어지면 에러를 던진다', async () => {
-    const fake = new FakePlanGenerator({ plans: [planA] });
+    const fake = new FakePlanGenerator({ plans: [planA.cells] });
     await fake.generatePlan(generateInput());
 
     await expect(fake.generatePlan(generateInput())).rejects.toThrow('generatePlan 응답을 더 정해 두지 않음');
@@ -100,7 +100,7 @@ describe('FakePlanGenerator', () => {
 
   it('사용량을 바꿔 줄 수 있다', async () => {
     const usage = { model: 'cloudflare/@cf/google/gemma-4-26b-a4b-it', input: 1648, output: 6226 };
-    const fake = new FakePlanGenerator({ plans: [planA], usage });
+    const fake = new FakePlanGenerator({ plans: [planA.cells], usage });
 
     expect((await fake.generatePlan(generateInput())).usage).toEqual(usage);
   });

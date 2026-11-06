@@ -45,8 +45,11 @@ export interface RegenerateCellsInput {
 }
 
 export interface PlanGenerator {
-  /** 1주일 칸 전체를 한 번의 호출로 만든다 (스펙 4.3). */
-  generatePlan(input: GeneratePlanInput): Promise<LlmResult<Plan>>;
+  /**
+   * 1주일 칸 전체를 한 번의 호출로 만든다 (스펙 4.3).
+   * 칸만 돌려준다. planId, weekStart, events 같은 Plan의 나머지는 LLM에 맡기지 않고 루프가 입력으로 채운다.
+   */
+  generatePlan(input: GeneratePlanInput): Promise<LlmResult<PlanCell[]>>;
   /** targets 칸만 다시 만든다 (스펙 4.4). */
   regenerateCells(input: RegenerateCellsInput): Promise<LlmResult<PlanCell[]>>;
 }

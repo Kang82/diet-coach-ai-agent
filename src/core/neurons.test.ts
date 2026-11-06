@@ -20,8 +20,36 @@ describe('estimateNeurons', () => {
     expect(estimateNeurons({ model: 'a', input: 0, output: 0 }, prices)).toBe(0);
   });
 
-  it('단가를 모르는 모델이면 0으로 세지 않고 에러', () => {
+  it('단가를 모르는 모델이면 0으로 세지 않고 에러 (기본)', () => {
     expect(() => estimateNeurons({ model: 'unknown', input: 1, output: 1 }, prices)).toThrow(UnknownModelPriceError);
+  });
+
+  it('프로토타입 속성 이름의 모델도 모르는 모델로 본다', () => {
+    expect(() => estimateNeurons({ model: 'constructor', input: 1, output: 1 }, prices)).toThrow(UnknownModelPriceError);
+    expect(() => estimateNeurons({ model: '__proto__', input: 1, output: 1 }, prices)).toThrow(UnknownModelPriceError);
+  });
+
+  it("'max-price'면 입력·출력 각각 가장 비싼 단가로 세고 경고를 부른다", () => {
+    const warned: string[] = [];
+    const policy = { unknownModel: 'max-price' as const, onUnknownModel: (m: string) => warned.push(m) };
+
+    // 입력 최고 1,000,000(a), 출력 최고 2,000,000(a) → 토큰당 1, 2
+    expect(estimateNeurons({ model: 'unknown', input: 10, output: 3 }, prices, policy)).toBe(16);
+    expect(warned).toEqual(['unknown']);
+  });
+
+  it("'max-price'여도 아는 모델은 그 모델 단가로 세고 경고하지 않는다", () => {
+    const warned: string[] = [];
+    const policy = { unknownModel: 'max-price' as const, onUnknownModel: (m: string) => warned.push(m) };
+
+    expect(estimateNeurons({ model: 'b', input: 4, output: 9 }, prices, policy)).toBe(2);
+    expect(warned).toEqual([]);
+  });
+
+  it("'max-price'인데 단가표가 비었으면 에러", () => {
+    expect(() =>
+      estimateNeurons({ model: 'unknown', input: 1, output: 1 }, {}, { unknownModel: 'max-price' }),
+    ).toThrow(UnknownModelPriceError);
   });
 });
 

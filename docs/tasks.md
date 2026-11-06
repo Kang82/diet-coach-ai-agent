@@ -37,6 +37,7 @@
 
 - [x] **T1-3. 점검·다시 추천 루프** (스펙 4.4) (2026-11-06)
   - `src/core/plan-loop.ts`(`createPlan`, `editPlanCells`). 해석한 세부 규칙은 스펙 4.4 "구현 세부"
+  - 리뷰 반영(2026-11-06): `generatePlan`은 칸만 돌려주고 Plan은 루프가 조립, 에러 시 사용량을 붙인 `PlanLoopError`, 고른 칸이 다시 대상이면 `userRequest` 전달, `changed`/`unchangedTargets`, 고를 수 없는 칸 거절, 한도 초과 판별을 숫자만으로 하지 않기, 단가표 `Object.hasOwn`과 `max-price` 정책
   - 완료 기준 (가짜 LLM으로 TDD):
     - `unexpected_cell` 칸은 코드가 지운다
     - 나머지 위반의 `regenerate`를 중복 없이 모아 그 칸만 다시 요청한다
@@ -53,7 +54,8 @@
 - [ ] **T1-5. Flue로 실제 생성 연결** (스펙 4.3)
   - `PlanCell` valibot 스키마, 다양성 규칙이 들어간 프롬프트, `harness.prompt(..., { result })`
   - 어댑터는 Flue 에러를 `isQuotaExceeded`로 판별해 `QuotaExceededError`로 바꿔 던진다. Flue의 스키마 재요청이 한도 초과에서도 다시 부르는지 확인한다 (스펙 11.3-2)
-  - Flue `usage`의 모델 이름을 `NEURON_PRICES` 키 모양으로 맞춘다
+  - Flue `usage`의 모델 이름을 `NEURON_PRICES` 키 모양으로 맞춘다. Flue는 `{ provider, id }`로 나눠 주므로 `${provider}/${id}`로 잇는다. 운영 경로에서는 `estimateNeurons`를 `{ unknownModel: 'max-price' }`와 경고로 부른다
+  - Flue 에러에서 실패한 호출의 부분 사용량(스키마 재요청으로 쓴 토큰)을 얻을 수 있는지 확인한다. 지금 `PlanLoopError.usages`에는 성공한 호출만 들어 있다
   - 완료 기준: 개발 서버에서 페르소나 A 1주일 식단표 1회 생성 → `checkPlan` 통과. 약 200 Neuron
   - 선행: T1-3
 
@@ -74,6 +76,7 @@
 - [ ] **T2-2. 식단표 생성 도구** (스펙 4.3, 4.4, 7.1)
   - 에이전트에 식단표를 만드는 도구를 붙인다. 도구 안에서 점검·다시 추천 루프를 돌리고, `Plan`과 점검 요약을 도구 결과로 돌려준다
   - 완료 기준: 개발 서버에서 대화로 호출하면 도구 결과에 `checkPlan`을 통과한 `Plan`이 남음
+  - `createPlan`의 `planId`, `createdAt`은 도구에서 만든다. 결과의 `usages`와 `PlanLoopError.usages`는 성공·실패와 관계없이 사용량으로 센다
   - 선행: T1-5
 
 - [ ] **T2-3. 식단표 화면** (스펙 7장)
@@ -83,6 +86,7 @@
   - 선행: T2-1, T2-2
 
 - [ ] **T2-4. 칸별 "다시 추천"** (스펙 4.4-4)
+  - `editPlanCells` 결과의 `changed`에 고르지 않은 칸이 있으면 "다른 칸도 바꿨어요", `unchangedTargets`가 있으면 "요청을 반영하지 못했어요"를 알린다. `invalid_targets`는 고를 수 없는 칸이라고 알린다
   - 완료 기준: 칸 하나를 바꿔 달라고 하면 그 칸만 바뀌고, 실패하면 원래 식단표가 그대로 남음
   - 선행: T2-3
 
@@ -150,6 +154,7 @@
 | 3. LLM 태그를 믿을 수 있는지 | T1-6 평가 결과를 보고 |
 | 4. 인터뷰 상태를 Flue에서 어떻게 표현할지 | T4-4 시작 전 |
 | 6. 한도 초과 에러 형태 | T1-4 임시 구현 뒤, 실제 에러를 봤을 때 |
+| 프로필이나 메뉴 분류가 바뀌면 저장된 식단표를 새로 만들어야 하는지. 아니면 칸 수정이 고르지 않은 칸의 기존 위반까지 고치거나 그 때문에 실패한다 (T1-3 리뷰) | T2-4 시작 전 |
 
 ## 나중에
 

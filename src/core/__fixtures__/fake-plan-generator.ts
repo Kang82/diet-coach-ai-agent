@@ -7,7 +7,7 @@ import type {
   RegenerateCellsInput,
   TokenUsage,
 } from '../plan-generator.ts';
-import type { Plan, PlanCell } from '../types.ts';
+import type { PlanCell } from '../types.ts';
 
 /** 정해 둔 응답 하나. 값, 던질 에러, 또는 입력을 받아 값을 만드는 함수. */
 export type FakeStep<I, T> = T | Error | ((input: I) => T);
@@ -21,12 +21,13 @@ export const FAKE_USAGE: TokenUsage = { model: 'fake', input: 100, output: 200 }
 export class FakePlanGenerator implements PlanGenerator {
   /** 받은 호출. 입력은 호출 시점의 복사본이라 루프가 나중에 고쳐도 바뀌지 않는다. */
   readonly calls: FakeCall[] = [];
-  private readonly plans: FakeStep<GeneratePlanInput, Plan>[];
+  private readonly plans: FakeStep<GeneratePlanInput, PlanCell[]>[];
   private readonly regenerations: FakeStep<RegenerateCellsInput, PlanCell[]>[];
   private readonly usage: TokenUsage;
 
   constructor(options: {
-    plans?: FakeStep<GeneratePlanInput, Plan>[];
+    /** generatePlan 응답 (1주일 칸 목록) */
+    plans?: FakeStep<GeneratePlanInput, PlanCell[]>[];
     regenerations?: FakeStep<RegenerateCellsInput, PlanCell[]>[];
     usage?: TokenUsage;
   }) {
@@ -35,7 +36,7 @@ export class FakePlanGenerator implements PlanGenerator {
     this.usage = options.usage ?? FAKE_USAGE;
   }
 
-  async generatePlan(input: GeneratePlanInput): Promise<LlmResult<Plan>> {
+  async generatePlan(input: GeneratePlanInput): Promise<LlmResult<PlanCell[]>> {
     this.calls.push({ method: 'generatePlan', input: structuredClone(input) });
     return this.respond('generatePlan', this.plans, input);
   }
