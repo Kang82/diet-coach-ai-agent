@@ -12,6 +12,7 @@ import { CREATE_PLAN_TOOL, createWeekPlanTool } from './create-plan-tool.ts';
 import { EDIT_PLAN_TOOL, editPlanCellsTool } from './edit-plan-tool.ts';
 import { INTERVIEW_TOOL, submitInterviewTool } from './interview-tool.ts';
 import { DEFAULT_MODEL, INTERVIEW_THINKING, NEURON_PRICES } from './models.ts';
+import { usageMeter } from './usage-meter.ts';
 
 // 인터뷰는 화면에서 진행하고 끝나면 제출 메시지를 한 번 보낸다 (tasks.md B4).
 // 인터뷰가 끝나기 전에는 submit_interview만, 끝난 뒤에는 메뉴 분류·식단표 도구를 마운트한다.
@@ -36,9 +37,11 @@ export function DietCoach() {
   // 인터뷰 중 바깥 턴은 도구를 부르기만 하면 되므로 추론을 줄인다. 식단표 단계는 Flue 기본값('medium') 그대로
   useModel(DEFAULT_MODEL, interviewing ? { thinkingLevel: INTERVIEW_THINKING } : undefined);
   if (interviewing) {
-    useTool(submitInterviewTool({ saveResult: setInterviewResult, delivery }));
+    useTool(submitInterviewTool({ saveResult: setInterviewResult, delivery, meter: usageMeter }));
   } else {
-    useTool(classifyMenusTool({ interviewResult, saveClasses: setMenuClasses, savePeriod: setPeriod, delivery }));
+    useTool(
+      classifyMenusTool({ interviewResult, saveClasses: setMenuClasses, savePeriod: setPeriod, delivery, meter: usageMeter }),
+    );
     useTool(
       createWeekPlanTool({
         interviewResult,
@@ -47,16 +50,23 @@ export function DietCoach() {
         saveClasses: setMenuClasses,
         savePlan: setPlan,
         delivery,
+        meter: usageMeter,
       }),
     );
-    useTool(editPlanCellsTool({ interviewResult, menuClasses, plan, savePlan: setPlan, delivery }));
+    useTool(editPlanCellsTool({ interviewResult, menuClasses, plan, savePlan: setPlan, delivery, meter: usageMeter }));
   }
 
-  // 응답 하나의 사용량을 응답 metadata와 로그로 남긴다. 도구 안 harness.prompt 사용량은 들어가지 않는다 (스펙 11.5, B1).
+  // 응답 하나의 사용량을 응답 metadata와 로그로 남기고 전체 안전선 카운터에 더한다 (스펙 11.4-3).
+  // 도구 안 harness.prompt 사용량은 여기 들어가지 않고 도구가 따로 더한다 (스펙 11.5, B1, metered-harness.ts).
+  // 콜백이 동기라 기록은 기다리지 않는다. Durable Object는 응답 뒤에도 살아 있어 끝까지 쓴다.
   useResponseFinish(({ response, log }) => {
     const { input, output } = response.usage;
-    const neurons = Math.round(estimateNeurons({ model: DEFAULT_MODEL, input, output }, NEURON_PRICES));
+    const exact = estimateNeurons({ model: DEFAULT_MODEL, input, output }, NEURON_PRICES);
+    const neurons = Math.round(exact);
     log.info('응답 사용량', { input, output, neurons });
+    usageMeter.add(exact).catch((error: unknown) => {
+      log.warn('사용량 기록 실패', { message: error instanceof Error ? error.message : String(error) });
+    });
     return { usage: { model: DEFAULT_MODEL, input, output, neurons } };
   });
 

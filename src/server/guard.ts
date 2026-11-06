@@ -1,0 +1,68 @@
+// 스펙 11.4 한도 보호 미들웨어. app.ts에서 에이전트 라우터 앞에 둔다.
+// 순서: 토큰 → 대화 소유 → (새 메시지만) 전체 안전선 → 사용자 하루 횟수.
+// 횟수와 안전선은 새 메시지 POST에만 건다. SDK는 대화 읽기(GET 스트림)가 429를 받으면 끝없이 다시 시도하고,
+// send(POST)는 다시 시도하지 않기 때문이다. 읽기와 abort는 진행 중인 요청이라 막지 않는다.
+import type { Context, MiddlewareHandler } from 'hono';
+import {
+  errorBody,
+  GLOBAL_DAILY_NEURON_LIMIT,
+  hashToken,
+  isMessagePost,
+  ownsConversation,
+  USER_DAILY_MESSAGE_LIMIT,
+  utcDay,
+} from '../core/guard.ts';
+import type { GuardStore } from '../storage/guard-store.ts';
+
+export interface GuardOptions {
+  getStore: (c: Context) => GuardStore;
+  now?: () => Date;
+}
+
+/** authorization: Bearer <토큰>의 사용자 ID. 없거나 모르는 토큰이면 null */
+async function authenticate(c: Context, store: GuardStore): Promise<string | null> {
+  const match = /^Bearer (\S+)$/.exec(c.req.header('authorization') ?? '');
+  if (!match) return null;
+  return store.findUserByTokenHash(await hashToken(match[1]!));
+}
+
+export function guardAgentRoutes(mount: string, options: GuardOptions): MiddlewareHandler {
+  const now = options.now ?? (() => new Date());
+  return async (c, next) => {
+    const store = options.getStore(c);
+    const userId = await authenticate(c, store);
+    if (!userId) return c.json(errorBody('unauthorized'), 401);
+
+    const [conversationId = '', ...rest] = c.req.path.slice(mount.length + 1).split('/');
+    if (!ownsConversation(userId, safeDecode(conversationId))) return c.json(errorBody('forbidden'), 403);
+
+    if (isMessagePost(c.req.method, rest)) {
+      const day = utcDay(now());
+      if ((await store.neuronsOn(day)) >= GLOBAL_DAILY_NEURON_LIMIT) {
+        return c.json(errorBody('global_daily_limit'), 429);
+      }
+      if (!(await store.tryCountMessage(userId, day, USER_DAILY_MESSAGE_LIMIT))) {
+        return c.json(errorBody('user_daily_limit'), 429);
+      }
+    }
+    await next();
+  };
+}
+
+/** 잘못된 %인코딩이면 빈 문자열(→ 403)로 본다 */
+function safeDecode(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return '';
+  }
+}
+
+/** GET /api/me: 화면이 대화 ID 접두어로 쓸 사용자 ID */
+export function meHandler(options: GuardOptions) {
+  return async (c: Context) => {
+    const userId = await authenticate(c, options.getStore(c));
+    if (!userId) return c.json(errorBody('unauthorized'), 401);
+    return c.json({ userId });
+  };
+}

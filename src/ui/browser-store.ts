@@ -8,6 +8,8 @@ export type KeyValueStore = Pick<Storage, 'getItem' | 'setItem' | 'removeItem' |
 const PREFIX = 'diet-coach:';
 export const CONVERSATION_KEY = `${PREFIX}conversation`;
 export const PROFILE_KEY = `${PREFIX}profile`;
+/** 사용자 링크 토큰 (auth-token.ts). 내 정보 지우기에서도 남긴다: 지우면 받은 링크를 다시 열어야 한다 */
+export const TOKEN_KEY = `${PREFIX}token`;
 
 export type DraftKind = 'interview' | 'period' | 'menuClasses';
 
@@ -39,14 +41,14 @@ export function clearDrafts(conversationId: string, kinds: readonly DraftKind[],
   }
 }
 
-/** 대화 ID를 뺀 diet-coach:* 키를 모두 지운다 */
+/** 대화 ID와 토큰을 뺀 diet-coach:* 키를 모두 지운다 */
 export function clearAll(store = defaultStore()): void {
   try {
     if (!store) return;
     const keys: string[] = [];
     for (let i = 0; i < store.length; i++) {
       const key = store.key(i);
-      if (key?.startsWith(PREFIX) && key !== CONVERSATION_KEY) keys.push(key);
+      if (key?.startsWith(PREFIX) && key !== CONVERSATION_KEY && key !== TOKEN_KEY) keys.push(key);
     }
     for (const key of keys) store.removeItem(key);
   } catch {

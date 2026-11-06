@@ -11,7 +11,8 @@ import type { EditToolOutput } from '../core/plan-tool-output.ts';
 import { QUOTA_EXCEEDED_MESSAGE } from '../core/quota.ts';
 import type { InterviewResult } from '../core/interview.ts';
 import type { MenuClassification, Plan } from '../core/types.ts';
-import { pickGenerator, planContext, planFailure, toJson, toolStats, type SavePlan } from './plan-tool-support.ts';
+import type { NeuronMeter } from './metered-harness.ts';
+import { metered, pickGenerator, planContext, planFailure, toJson, toolStats, type SavePlan } from './plan-tool-support.ts';
 
 export const EDIT_PLAN_TOOL = 'edit_plan_cells';
 
@@ -21,6 +22,7 @@ export function editPlanCellsTool({
   plan,
   savePlan,
   delivery,
+  meter,
 }: {
   interviewResult: InterviewResult | undefined;
   /** 식단표를 만들 때 저장한 분류 (사용자 수정 반영) */
@@ -28,6 +30,8 @@ export function editPlanCellsTool({
   plan: Plan | undefined;
   savePlan: SavePlan;
   delivery: DeliveredMessage;
+  /** LLM 사용량을 전체 안전선 카운터에 더한다 (스펙 11.4-3) */
+  meter: NeuronMeter;
 }) {
   return defineTool({
     name: EDIT_PLAN_TOOL,
@@ -47,7 +51,7 @@ export function editPlanCellsTool({
       const ctx = planContext(interviewResult, menuClasses);
       const startedAt = Date.now();
       try {
-        const result = await editPlanCells(pickGenerator(harness), ctx, plan, { targets, userRequest: parsed.request });
+        const result = await editPlanCells(pickGenerator(metered(harness, meter, log)), ctx, plan, { targets, userRequest: parsed.request });
         const stats = toolStats(startedAt, result, log);
         log.info('칸 다시 추천 끝', { ok: result.ok, reason: result.ok ? undefined : result.reason, ...stats });
 

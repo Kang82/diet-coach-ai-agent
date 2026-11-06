@@ -3,8 +3,10 @@
 // 프로필은 저장에 동의했을 때만 이 브라우저(localStorage)에 둔다 (saved-profile.ts).
 // 대화별 진행 값(인터뷰 답, 일정, 고르던 분류)은 그 단계가 끝나면 지운다 (browser-store.ts, 리뷰 4번).
 // 대화 ID를 localStorage에 두어 새로고침하거나 창을 닫았다 열어도 같은 대화(진행 상태나 결과)를 다시 읽는다.
+// 대화 ID는 "<userId>-<UUID>"이고, 모든 요청에 사용자 링크 토큰을 붙인다 (스펙 11.4-1, AccessGate.tsx).
 import { useFlueAgent } from '@flue/react';
-import { useEffect, useState } from 'react';
+import { createFlueClient } from '@flue/sdk';
+import { useEffect, useMemo, useState } from 'react';
 import { formatEditRequest } from '../core/edit-request.ts';
 import { formatInterviewSubmission, type InterviewSubmission } from '../core/interview-form.ts';
 import type { MenuClassOverride } from '../core/menu-classification.ts';
@@ -20,20 +22,34 @@ import { StartChoice } from './StartChoice.tsx';
 import { InterviewView } from './InterviewView.tsx';
 import { toInterviewViewState } from './interview-view-state.ts';
 import type { Slot } from '../core/types.ts';
-import { newConversationId } from './conversation-id.ts';
+import { conversationIdFor } from './conversation-id.ts';
+import { toSendFailure, withSendAlert, withSendPlanFailure, type SendFailure } from './send-error.ts';
 import { toMenuClassViewState } from './menu-class-view-state.ts';
 import { MenuClassView } from './MenuClassView.tsx';
 import { PlanBoard } from './PlanBoard.tsx';
 import { toPlanViewState } from './plan-view-state.ts';
 import { WaitingView } from './WaitingView.tsx';
 
-export function App() {
-  const [conversationId, setConversationId] = useState(loadConversationId);
+export function App({ token, userId }: { token: string; userId: string }) {
+  const [conversationId, setConversationId] = useState(() => loadConversationId(userId));
   const [sentAt, setSentAt] = useState<number>();
-  const agent = useFlueAgent({ url: `/agents/diet-coach/${conversationId}` });
-  const interview = toInterviewViewState(agent);
-  const menu = interview.kind === 'done' ? toMenuClassViewState({ ...agent, messages: interview.planMessages }) : undefined;
-  const view = menu?.kind === 'classified' ? toPlanViewState({ ...agent, messages: menu.planMessages }) : undefined;
+  // 토큰을 붙이려고 client를 직접 만든다. 새 client는 연결을 새로 열므로 대화나 토큰이 바뀔 때만 만든다
+  const client = useMemo(
+    () => createFlueClient({ url: new URL(`/agents/diet-coach/${conversationId}`, location.origin).href, token }),
+    [conversationId, token],
+  );
+  const agent = useFlueAgent({ client });
+  // 보내기 실패(하루 한도, 링크 문제 등). 한도와 링크 문제면 각 화면의 실패 문구를 그 안내로 바꾼다 (send-error.ts)
+  const [sendFailure, setSendFailure] = useState<SendFailure>();
+  const interview = withSendAlert(toInterviewViewState(agent), sendFailure, 'form');
+  const menu =
+    interview.kind === 'done'
+      ? withSendAlert(toMenuClassViewState({ ...agent, messages: interview.planMessages }), sendFailure, 'idle')
+      : undefined;
+  const view =
+    menu?.kind === 'classified'
+      ? withSendPlanFailure(toPlanViewState({ ...agent, messages: menu.planMessages }), sendFailure)
+      : undefined;
 
   // 첫 화면 분기 (T5-5): 저장한 프로필이 있고 이 대화의 인터뷰를 아직 시작하지 않았으면 고르게 한다
   const [saved, setSaved] = useState(loadSavedProfile);
@@ -62,15 +78,26 @@ export function App() {
     if (planDone) clearDrafts(conversationId, ['menuClasses']);
   }, [classified, planDone, conversationId]);
 
+  /** 모든 메시지는 여기로 보낸다. 실패하면 던지지 않고 안내를 띄운다 (스펙 11.4) */
+  async function send(body: string) {
+    setSendFailure(undefined);
+    try {
+      await agent.sendMessage(body);
+    } catch (error) {
+      setSentAt(undefined);
+      setSendFailure(toSendFailure(error));
+    }
+  }
+
   /** 인터뷰 제출. 도구가 이 메시지를 직접 해석하므로 형식은 formatInterviewSubmission으로만 만든다. */
   async function submitInterview(submission: InterviewSubmission) {
-    await agent.sendMessage(formatInterviewSubmission(submission));
+    await send(formatInterviewSubmission(submission));
   }
 
   /** 기간 선택의 "다음": 일정을 실어 메뉴 분류를 요청한다 (스펙 4.2). 메뉴는 도구가 인터뷰 결과에서 직접 읽는다 */
   async function classify(events: PlanEvent[]) {
     setSentAt(Date.now());
-    await agent.sendMessage(formatClassifyRequest({ events }));
+    await send(formatClassifyRequest({ events }));
   }
 
   /** 지난 프로필로 시작: 저장한 결과를 그대로 제출한다. 보내기에 실패하면 확인 화면에서 다시 보낸다 */
@@ -97,27 +124,28 @@ export function App() {
   /** 식단표 만들기 실패 뒤 같은 대화에 같은 메시지(바꾼 분류 포함)를 다시 보낸다 (리뷰 3번) */
   async function retryCreate(body: string) {
     setSentAt(Date.now());
-    await agent.sendMessage(body);
+    await send(body);
   }
 
   /** 식단표 만들기. 사용자가 바꾼 분류를 메시지에 싣는다. 형식은 formatPlanRequest로만 만든다 */
   async function create(overrides: MenuClassOverride[]) {
     setSentAt(Date.now());
-    await agent.sendMessage(formatPlanRequest({ overrides }));
+    await send(formatPlanRequest({ overrides }));
   }
 
   /** 칸 다시 추천 (스펙 4.4-4). 도구가 이 메시지를 직접 해석하므로 형식은 formatEditRequest로만 만든다. */
   async function edit(target: Slot, request: string) {
     setSentAt(Date.now());
-    await agent.sendMessage(formatEditRequest({ target, request }));
+    await send(formatEditRequest({ target, request }));
   }
 
   /** 새 대화로 시작한다. 두고 가는 대화의 진행 값(건강 정보)은 지운다 (리뷰 4번) */
   function startOver() {
     clearDrafts(conversationId, ['interview', 'period', 'menuClasses']);
-    const id = newConversationId();
+    const id = conversationIdFor(userId, null);
     saveConversationId(id);
     setSentAt(undefined);
+    setSendFailure(undefined);
     setChoice(undefined);
     setConversationId(id);
   }
@@ -244,15 +272,16 @@ function saveProgress(conversationId: string, progress: unknown) {
   }
 }
 
-function loadConversationId(): string {
+/** 저장한 대화가 이 사용자 것이면 그대로, 아니면(토큰 전 UUID, 다른 링크) 새 대화 */
+function loadConversationId(userId: string): string {
+  let saved: string | null = null;
   try {
-    const saved = localStorage.getItem(CONVERSATION_KEY);
-    if (saved) return saved;
+    saved = localStorage.getItem(CONVERSATION_KEY);
   } catch {
     // 저장소를 못 쓰는 환경(사생활 보호 창 등)에서는 이번 창에서만 쓰는 ID로 진행한다
   }
-  const id = newConversationId();
-  saveConversationId(id);
+  const id = conversationIdFor(userId, saved);
+  if (id !== saved) saveConversationId(id);
   return id;
 }
 

@@ -1,7 +1,7 @@
 // 이 브라우저에 두는 값 지우기 (B5·B6 리뷰 4번)
 import { describe, expect, it } from 'vitest';
 import { memoryStore } from './__fixtures__/memory-store.ts';
-import { clearAll, clearDrafts, CONVERSATION_KEY, draftKey, PROFILE_KEY } from './browser-store.ts';
+import { clearAll, clearDrafts, CONVERSATION_KEY, draftKey, PROFILE_KEY, TOKEN_KEY } from './browser-store.ts';
 
 describe('clearDrafts', () => {
   it('그 대화의 고른 종류만 지운다', () => {
@@ -16,16 +16,17 @@ describe('clearDrafts', () => {
 });
 
 describe('clearAll', () => {
-  it('대화 ID와 다른 앱 키는 남기고 diet-coach:* 를 모두 지운다', () => {
+  it('대화 ID, 토큰, 다른 앱 키는 남기고 diet-coach:* 를 모두 지운다', () => {
     const store = memoryStore({
       [CONVERSATION_KEY]: 'c1',
+      [TOKEN_KEY]: 'tok',
       [PROFILE_KEY]: '{}',
       [draftKey('interview', 'c1')]: '{}',
       [draftKey('menuClasses', 'c0')]: '{}',
       'other-app': 'x',
     });
     clearAll(store);
-    expect(store.dump()).toEqual({ [CONVERSATION_KEY]: 'c1', 'other-app': 'x' });
+    expect(store.dump()).toEqual({ [CONVERSATION_KEY]: 'c1', [TOKEN_KEY]: 'tok', 'other-app': 'x' });
   });
 
   it('저장소가 없어도 에러 없이 끝난다', () => {

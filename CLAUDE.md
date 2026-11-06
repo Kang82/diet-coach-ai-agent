@@ -9,6 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `docs/diet-coach-agent-screener.md`: 기획서 (무엇을 왜)
 - `docs/diet-coach-spec.md`: 구현 스펙. **데이터 모양, 규칙, 테스트 케이스의 기준은 이 문서다.** 코드 주석의 "스펙 3장", "8.2" 같은 표기는 이 문서의 절을 가리킨다. 9장이 구현 순서, 10장이 열린 질문, 11장이 모델·사용량·배포 전 필수 항목이다.
 - `docs/experiments/`: 실제 모델을 부른 실험 기록(방법, 비용, 원본 결과 `data/`). **실제 모델을 부르는 실험이나 측정을 하면 여기에 문서를 남기고 README 목록에 한 줄 더한다.** 결정으로 이어진 요약은 스펙 11.5에도 적는다. 같은 실험을 다시 돌리기 전에 먼저 확인한다.
+- `docs/plan-upgrade.md`: 무료 티어 전제로 정한 값(전체 Neuron 안전선 8,000, 사용자 하루 30회 등)과 요금제를 올릴 때 바꿀 것. **한도·요금 관련 값을 바꾸면 이 문서도 고친다.**
 - `docs/tasks.md`: 작업 목록. **"이어서 하자"고 하면 체크되지 않은 첫 task(선행이 끝난 것)가 속한 묶음("작업 묶음" 표)을 진행한다.** task를 끝내면 체크하고, 새로 생긴 일은 알맞은 자리에 추가한다.
 - 문서, 주석, 커밋 메시지, 사용자 응대는 한국어로 쓴다.
 
@@ -35,21 +36,25 @@ npx vitest run -t "18. 같은 끼니"           # 이름으로 테스트 하나
 npm run typecheck                          # tsc --noEmit
 npm run build                              # vite build → Cloudflare Worker (dist/)
 npm run dev                                # vite dev (workerd). AI 호출은 원격이라 `npx wrangler login` 필요
-npm run evals -- -t 페르소나A              # 평가 세트 (스펙 8.5). 개발 서버(5199)를 먼저 띄운다. 1회 약 5~6분, 약 450 Neuron(분류 gemma 포함)
+npm run evals -- -t 페르소나A              # 평가 세트 (스펙 8.5). 개발 서버(5199)와 DIET_COACH_TOKEN이 필요하다. 1회 약 5~6분, 약 450 Neuron(분류 gemma 포함)
+npm run db:migrate:local                   # 로컬 D1(.wrangler/state)에 migrations/ 적용. 개발 서버 전에 한 번
+npm run issue-token -- --local             # 로컬 사용자 토큰 발급. 링크와 토큰을 한 번만 출력한다
 ```
 
 - `vitest.config.ts`는 단위 테스트 전용이다. `vite.config.ts`의 Cloudflare 플러그인을 테스트에서 불러오지 않으려고 분리했다. LLM 평가 세트는 `vitest.evals.config.ts`(`src/evals/**/*.eval.ts`)로 따로 돈다. 기본 2회이고 `EVAL_RUNS=1`로 줄일 수 있다 (스펙 8.5).
 - 화면 개발 중에는 `.dev.vars`에 `PLAN_GENERATOR=demo`를 넣으면 식단 생성이 실제 모델 대신 페르소나 A 칸을 5초 뒤 돌려준다(바깥 턴만 실제 호출, 약 2 Neuron). `MENU_CLASSIFIER=demo`면 메뉴 분류가 페르소나 A 분류(`classesA`, 모르는 메뉴는 often)를 2초 뒤 돌려준다. 가짜 식단은 페르소나 A 칸이라 인터뷰도 페르소나 A 답으로 해야 점검을 통과한다. `.dev.vars`를 바꾸면 개발 서버를 다시 띄운다. 평가 세트와 실제 확인은 이 줄을 지우거나 주석 처리한다.
-- `npm run deploy`는 스펙 11.4(토큰 확인, 사용자별 호출 제한, 전체 Neuron 안전선)가 구현되기 전에는 쓰지 않는다. Flue 에이전트 경로에는 인증이 없어서, 열어 두면 누구나 하루 무료 한도를 소진시킬 수 있다.
+- 에이전트 경로(`/agents/diet-coach/*`)와 `/api/me`에는 사용자 링크 토큰이 필요하다(스펙 11.4, `server/guard.ts`). 개발 서버도 같다. 브라우저는 `issue-token`이 출력한 링크(`/?t=…`)로 열고, curl은 `-H "authorization: Bearer <토큰>"`을 붙이며 대화 ID는 `<userId>-…`로 시작해야 한다(`GET /api/me`로 확인). 메시지 POST는 사용자당 하루 30회이고 Worker 전체 Neuron이 8,000이면 막힌다. 로컬에서 막히면 `npx wrangler d1 execute diet-coach --local --command "DELETE FROM usage_daily"`.
+- `npm run deploy`는 B9(T6-2 실제 D1 database_id, T7-4)에서 확인받고 쓴다. 지금 `wrangler.jsonc`의 D1 `database_id`는 자리표시 값이다.
 
 ## 구조
 
 ```
 src/core/     순수 로직. Flue·Cloudflare를 import하지 않는다.
-src/storage/  Storage 인터페이스, 메모리 구현, 계약 테스트
+src/storage/  Storage 인터페이스와 메모리·D1 구현, 한도 보호 카운터(guard-store.ts), 계약 테스트
+src/server/   Hono 미들웨어 (한도 보호: 토큰, 대화 소유, 하루 횟수, Neuron 안전선)
 src/agents/   Flue 에이전트 ('use agent'), 모델 ID (models.ts)
 src/ui/       React 화면 (@flue/react). 화면 상태 판단은 순수 함수(plan-view-state.ts)로 두고 테스트한다
-src/app.ts    Hono 라우트 맵. 에이전트를 마운트한다.
+src/app.ts    Hono 라우트 맵. 한도 보호 미들웨어 뒤에 에이전트를 마운트한다.
 ```
 
 **처리 원칙: 결과를 보장해야 하는 일은 코드, 판단과 문장은 LLM.** 식단 기준 계산(`buildCriteria`), 규칙 점검(`checkPlan`), 요약 문구(`formatCheckSummary`), 저장은 코드다. LLM 출력은 `checkPlan`이 걸러 내고, 위반한 칸만 다시 추천하는 루프(스펙 4.4)를 돈다.
@@ -83,6 +88,8 @@ src/app.ts    Hono 라우트 맵. 에이전트를 마운트한다.
 
 ## Workers AI 무료 한도
 
+- 한도를 전제로 정한 값은 `docs/plan-upgrade.md`에 모아 두었다.
+- Neuron 사용량은 D1 `usage_daily`(`key = 'all'`)에 쌓인다. 바깥 턴은 `useResponseFinish`, 도구 안 LLM 호출은 `agents/metered-harness.ts`로 센다. 새 LLM 호출을 추가하면 harness를 `metered()`로 감싼다.
 - 하루 10,000 Neuron, 00:00 UTC(한국 오전 9시) 초기화. 넘으면 호출이 에러로 실패한다. **로컬 `vite dev`도 원격 호출이라 같은 한도를 쓴다.**
 - 기본 모델은 `@cf/google/gemma-4-26b-a4b-it`(`src/agents/models.ts`). glm-4.7-flash는 태그 품질이 나빠 후순위다.
 - 측정값(스펙 11.5): 1주일 14칸을 한 번에 만들면 약 4분, 약 250~280 Neuron. 2칸만 만들어도 1분 이상 걸린다. 실제 모델을 부르는 확인이나 평가는 사용량을 먼저 어림하고 돌린다.

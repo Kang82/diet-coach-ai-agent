@@ -12,7 +12,8 @@ import { createFlueGoalNoteChecker } from './flue-goal-note-checker.ts';
 import { parseInterviewSubmission } from './interview-schema.ts';
 import { goalNoteModel } from './models.ts';
 import { failureKind, failureMessage } from '../core/tool-failure.ts';
-import { countNeurons, toJson } from './plan-tool-support.ts';
+import type { NeuronMeter } from './metered-harness.ts';
+import { countNeurons, metered, toJson } from './plan-tool-support.ts';
 
 export const INTERVIEW_TOOL = 'submit_interview';
 
@@ -21,9 +22,12 @@ const BAD_REQUEST = '인터뷰 답을 읽지 못했어요. 처음부터 다시 �
 export function submitInterviewTool({
   saveResult,
   delivery,
+  meter,
 }: {
   saveResult: (result: InterviewResult) => void;
   delivery: DeliveredMessage;
+  /** LLM 사용량을 전체 안전선 카운터에 더한다 (스펙 11.4-3) */
+  meter: NeuronMeter;
 }) {
   return defineTool({
     name: INTERVIEW_TOOL,
@@ -39,7 +43,7 @@ export function submitInterviewTool({
       }
 
       // nodejs_compat에서는 Worker의 vars가 process.env로도 들어온다 (plan-tool-support.ts의 pickGenerator와 같음)
-      const checker = createFlueGoalNoteChecker(harness, goalNoteModel(process.env.INTERVIEW_MODEL));
+      const checker = createFlueGoalNoteChecker(metered(harness, meter, log), goalNoteModel(process.env.INTERVIEW_MODEL));
       let out: Awaited<ReturnType<typeof submitInterview>>;
       try {
         out = await submitInterview(checker, submission);

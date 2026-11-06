@@ -13,6 +13,7 @@ import type { EditToolOutput, PlanToolOutput, PlanToolStats } from '../core/plan
 import type { MenuClassification, Plan } from '../core/types.ts';
 import { createDemoPlanGenerator } from './demo-plan-generator.ts';
 import { createFluePlanGenerator, type PromptHarness } from './flue-plan-generator.ts';
+import { meteredHarness, type NeuronMeter } from './metered-harness.ts';
 import { NEURON_PRICES } from './models.ts';
 
 /** 에이전트가 들고 있는 지금 식단표 (usePersistentState 'plan'). 칸 수정이 이것을 고친다. */
@@ -30,6 +31,13 @@ export function planContext(result: InterviewResult, classes: readonly MenuClass
  */
 export function pickGenerator(harness: PromptHarness): PlanGenerator {
   return process.env.PLAN_GENERATOR === 'demo' ? createDemoPlanGenerator() : createFluePlanGenerator(harness);
+}
+
+/** 도구 안 LLM 호출의 사용량을 전체 안전선 카운터에 더하는 harness (스펙 11.4-3). 기록 실패는 경고만 남긴다 */
+export function metered(harness: PromptHarness, meter: NeuronMeter, log: Pick<FlueLogger, 'warn'>): PromptHarness {
+  return meteredHarness(harness, meter, {
+    onMeterError: (error) => log.warn('사용량 기록 실패', { message: error instanceof Error ? error.message : String(error) }),
+  });
 }
 
 /** 운영 경로의 Neuron 계산. 단가를 모르는 모델은 가장 비싼 단가로 세고 경고한다 (스펙 11.4). */

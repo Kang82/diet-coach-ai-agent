@@ -5,6 +5,17 @@
   "compatibility_flags": ["nodejs_compat"],
   // Workers AI. Flue의 cloudflare/... 모델이 이 바인딩을 쓴다. 로컬 개발에서도 원격 호출이라 무료 한도에서 차감된다.
   "ai": { "binding": "AI" },
+  // D1: 한도 보호 카운터·사용자 토큰 해시(B8), 프로필·식단표(T6-2). 테이블은 migrations/.
+  // database_id는 자리표시 값이다. 로컬(vite dev)은 이 값으로 .wrangler/state에 만든다.
+  // 배포 전(B9) `wrangler d1 create diet-coach`로 받은 실제 ID로 바꾸고 `wrangler d1 migrations apply diet-coach --remote`.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "diet-coach",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
   // 화면(React 빌드)을 같은 Worker의 정적 자산으로 내보낸다 (스펙 7.1). 디렉터리는 Cloudflare Vite 플러그인이 정한다.
   // /agents/*, /api/*는 Worker(app.ts)가 먼저 받고, 나머지 경로는 SPA(index.html)로 보낸다.
   "assets": {

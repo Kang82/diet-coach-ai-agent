@@ -18,7 +18,8 @@ import { createDemoMenuClassifier } from './demo-menu-classifier.ts';
 import { createFlueMenuClassifier } from './flue-menu-classifier.ts';
 import type { PromptHarness } from './flue-plan-generator.ts';
 import { menuClassModel } from './models.ts';
-import { countNeurons, toJson } from './plan-tool-support.ts';
+import type { NeuronMeter } from './metered-harness.ts';
+import { countNeurons, metered, toJson } from './plan-tool-support.ts';
 
 export const CLASSIFY_TOOL = 'classify_menus';
 
@@ -29,11 +30,14 @@ export function classifyMenusTool({
   saveClasses,
   savePeriod,
   delivery,
+  meter,
 }: {
   interviewResult: InterviewResult | undefined;
   saveClasses: (classes: MenuClassification[]) => void;
   savePeriod: (period: PlanPeriod) => void;
   delivery: DeliveredMessage;
+  /** LLM 사용량을 전체 안전선 카운터에 더한다 (스펙 11.4-3) */
+  meter: NeuronMeter;
 }) {
   return defineTool({
     name: CLASSIFY_TOOL,
@@ -65,7 +69,7 @@ export function classifyMenusTool({
 
       let out: Awaited<ReturnType<typeof runClassification>>;
       try {
-        out = await runClassification(pickClassifier(harness), interviewResult);
+        out = await runClassification(pickClassifier(metered(harness, meter, log)), interviewResult);
       } catch (error) {
         // 던지면 바깥 모델이 이 도구를 다시 부를 수 있다 (리뷰 1번). 결과로 답하고 턴을 끝낸다
         const kind = failureKind(error);

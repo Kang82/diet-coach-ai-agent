@@ -15,7 +15,8 @@ import type { MenuClassification } from '../core/types.ts';
 import { createPlan } from '../core/plan-loop.ts';
 import { buildPlanNotices } from '../core/plan-notices.ts';
 import { QUOTA_EXCEEDED_MESSAGE } from '../core/quota.ts';
-import { pickGenerator, planContext, planFailure, toJson, toolStats, type SavePlan } from './plan-tool-support.ts';
+import type { NeuronMeter } from './metered-harness.ts';
+import { metered, pickGenerator, planContext, planFailure, toJson, toolStats, type SavePlan } from './plan-tool-support.ts';
 
 export const CREATE_PLAN_TOOL = 'create_week_plan';
 
@@ -28,6 +29,7 @@ export function createWeekPlanTool({
   saveClasses,
   savePlan,
   delivery,
+  meter,
 }: {
   interviewResult: InterviewResult | undefined;
   menuClasses: MenuClassification[] | undefined;
@@ -36,6 +38,8 @@ export function createWeekPlanTool({
   saveClasses: (classes: MenuClassification[]) => void;
   savePlan: SavePlan;
   delivery: DeliveredMessage;
+  /** LLM 사용량을 전체 안전선 카운터에 더한다 (스펙 11.4-3) */
+  meter: NeuronMeter;
 }) {
   return defineTool({
     name: CREATE_PLAN_TOOL,
@@ -58,7 +62,7 @@ export function createWeekPlanTool({
       const startedAt = Date.now();
 
       try {
-        const result = await createPlan(pickGenerator(harness), ctx, {
+        const result = await createPlan(pickGenerator(metered(harness, meter, log)), ctx, {
           planId: crypto.randomUUID(),
           createdAt: new Date().toISOString(),
           weekStart: period?.weekStart ?? nextMondayKst(new Date()),

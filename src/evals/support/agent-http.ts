@@ -4,6 +4,12 @@
 
 export const AGENT_URL = process.env.DIET_COACH_URL ?? 'http://localhost:5199/agents/diet-coach';
 
+// 에이전트 경로에는 사용자 링크 토큰이 필요하다 (스펙 11.4-1). `npm run issue-token -- --local`로 발급한 토큰을 준다.
+// 평가 메시지도 그 사용자의 하루 메시지 수(30)에 들어간다.
+const TOKEN = process.env.DIET_COACH_TOKEN;
+const authHeaders = (): Record<string, string> => (TOKEN ? { authorization: `Bearer ${TOKEN}` } : {});
+let userId: string | undefined;
+
 export interface SnapshotPart {
   type: string;
   text?: string;
@@ -32,11 +38,27 @@ export async function assertServerUp(): Promise<void> {
   const ping = new URL('/api/ping', AGENT_URL);
   try {
     const res = await fetch(ping, { signal: AbortSignal.timeout(5_000) });
-    if ((await res.text()) === 'pong') return;
-  } catch {
+    if ((await res.text()) === 'pong') {
+      await loadUserId();
+      return;
+    }
+  } catch (error) {
+    if (error instanceof TokenError) throw error;
     // 아래에서 안내
   }
   throw new Error(`개발 서버가 응답하지 않습니다 (${ping}). 다른 터미널에서 npm run dev -- --port 5199 를 먼저 띄우세요.`);
+}
+
+class TokenError extends Error {}
+
+/** 토큰의 사용자 ID. 대화 ID는 "<userId>-"로 시작해야 한다 */
+async function loadUserId(): Promise<string> {
+  if (userId) return userId;
+  if (!TOKEN) throw new TokenError('DIET_COACH_TOKEN이 없습니다. npm run issue-token -- --local 로 발급한 토큰을 주세요.');
+  const res = await fetch(new URL('/api/me', AGENT_URL), { headers: authHeaders() });
+  if (!res.ok) throw new TokenError(`토큰을 확인하지 못했습니다 (${res.status}). 개발 서버의 로컬 D1에 발급한 토큰인지 확인하세요.`);
+  userId = ((await res.json()) as { userId: string }).userId;
+  return userId;
 }
 
 /** 새 대화에 사용자 메시지를 보내고, 그 제출이 끝날 때까지 기다린다. */
@@ -44,13 +66,13 @@ export async function sendAndWait(
   body: string,
   options: { conversationId?: string; timeoutMs?: number; pollMs?: number } = {},
 ): Promise<ConversationResult> {
-  const conversationId = options.conversationId ?? `eval-${crypto.randomUUID()}`;
+  const conversationId = options.conversationId ?? `${await loadUserId()}-eval-${crypto.randomUUID()}`;
   const url = `${AGENT_URL}/${conversationId}`;
   const startedAt = Date.now();
 
   const admitted = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    headers: { 'Content-Type': 'application/json; charset=utf-8', ...authHeaders() },
     body: JSON.stringify({ kind: 'user', body }),
   });
   if (admitted.status !== 202) throw new Error(`메시지 전송 실패: ${admitted.status} ${await admitted.text()}`);
@@ -58,7 +80,7 @@ export async function sendAndWait(
 
   const deadline = startedAt + (options.timeoutMs ?? 9 * 60_000);
   for (;;) {
-    const snapshot = (await (await fetch(url)).json()) as Snapshot;
+    const snapshot = (await (await fetch(url, { headers: authHeaders() })).json()) as Snapshot;
     const settled = snapshot.settlements.find((s) => s.submissionId === submissionId);
     if (settled) {
       return {
