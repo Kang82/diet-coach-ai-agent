@@ -150,6 +150,12 @@ describe('finishDraft', () => {
 });
 
 describe('profileFromInterview', () => {
+  it('동의 시각이 있으면 그대로 쓴다', () => {
+    const { goals, goalNote, medication, avoid, avoidNote, meals } = profileA;
+    const result = { goals, goalNote, medication, avoid, avoidNote, meals, consentedAt: '2026-11-06T01:00:00.000Z' };
+    expect(profileFromInterview(result, new Date('2026-11-06T02:00:00Z')).consentedAt).toBe('2026-11-06T01:00:00.000Z');
+  });
+
   it('인터뷰 결과에 임시 사용자 ID, 버전 0, 빈 동의 시각을 붙인다', () => {
     const { goals, goalNote, medication, avoid, avoidNote, meals } = profileA;
     const result = { goals, goalNote, medication, avoid, avoidNote, meals };

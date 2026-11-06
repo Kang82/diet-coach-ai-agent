@@ -21,6 +21,17 @@ describe('layoutPlan', () => {
     expect(layout.days[2]!.cells).toEqual([undefined, undefined]);
   });
 
+  it('일정은 칸 대신 그 자리에 놓이고, 일정만 있는 끼니도 행이 된다 (B6)', () => {
+    const layout = layoutPlan({
+      weekStart: '2026-11-09',
+      cells: [cell('mon', 'lunch')],
+      events: [{ day: 'wed', meal: 'dinner', note: '회식' }],
+    });
+    expect(layout.meals).toEqual(['lunch', 'dinner']);
+    expect(layout.days[2]!.events).toEqual([undefined, { day: 'wed', meal: 'dinner', note: '회식' }]);
+    expect(layout.days[2]!.cells).toEqual([undefined, undefined]);
+  });
+
   it('날짜는 weekStart부터 하루씩, 달이 바뀌어도 맞다', () => {
     const layout = layoutPlan({ weekStart: '2026-11-30', cells: [] });
     expect(layout.days.map((d) => d.date)).toEqual(['11/30', '12/1', '12/2', '12/3', '12/4', '12/5', '12/6']);

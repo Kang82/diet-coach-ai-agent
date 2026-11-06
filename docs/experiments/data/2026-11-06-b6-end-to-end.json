@@ -1,0 +1,75 @@
+{
+  "note": "B6 실제 끝까지 확인. 멈춘 실행의 사용량은 Durable Object 저장소의 harness 기록(assistant_message_completed의 usage)을 더한 값. 목표 메모 확인 턴 1회 포함",
+  "stuck_runs": [
+    {
+      "conversationId": "b6-real-1793953844525",
+      "classifier": "llama-4-scout",
+      "time_limit": "없음 (약 3분 뒤 /abort)",
+      "harness_turns": 25,
+      "stop_reasons": { "length": 24, "aborted": 1 },
+      "input_tokens": 61599,
+      "output_tokens": 6144,
+      "estimated_neurons": 1987
+    },
+    {
+      "conversationId": "b6-real2-1793954721739",
+      "classifier": "llama-4-scout",
+      "time_limit": "60초",
+      "harness_turns": 9,
+      "stop_reasons": { "length": 8, "aborted": 1 },
+      "input_tokens": 15900,
+      "output_tokens": 2048,
+      "estimated_neurons": 548
+    },
+    {
+      "conversationId": "b6-nonote-1793954863104",
+      "classifier": "llama-4-scout",
+      "goal_note": false,
+      "time_limit": "60초",
+      "harness_turns": 9,
+      "stop_reasons": { "length": 8, "aborted": 1 },
+      "input_tokens": 18090,
+      "output_tokens": 2048,
+      "estimated_neurons": 602,
+      "outer_turn_neurons": 18
+    }
+  ],
+  "llama_turn_example": { "stopReason": "length", "input": 1830, "output": 256 },
+  "gemma_first_finish_rejected": {
+    "reason": "criterionIds, orderTips를 배열 대신 문자열 하나로 냄",
+    "example": { "menu": "국밥", "class": "weekly_max_1", "criterionIds": "reduce_saturated_fat", "orderTips": "국물 남기기" }
+  },
+  "final_run": {
+    "conversationId": "b6-real3-1793955208482",
+    "flow": "첫 화면 분기(바뀐 항목 고치기) → 평일 저녁 조리 시간 20분으로 고침 → 동의(기본 체크) → 수요일 저녁 팀 회식 → 분류(gemma) → 식단표",
+    "submit_interview": { "seconds": 1, "model": "llama-4-scout", "input": 1489, "output": 27, "neurons": 39 },
+    "classify_timeout_60s": { "model": "gemma", "turns": 1, "note": "추론 중 60초에 끊김. 사용량 기록 없음" },
+    "classify_ok": {
+      "seconds": 95,
+      "model": "gemma",
+      "input": 5880,
+      "output": 4675,
+      "neurons": 181,
+      "turns": 2,
+      "classes": {
+        "국밥": "weekly_max_1",
+        "백반": "often",
+        "돈가스": "weekly_max_1",
+        "쌀국수": "weekly_max_1",
+        "회덮밥": "often"
+      }
+    },
+    "create_week_plan": {
+      "seconds": 168,
+      "input": 2174,
+      "output": 7918,
+      "neurons": 236,
+      "regenerations": 0,
+      "status": "ok",
+      "cells": 13,
+      "events": [{ "day": "wed", "meal": "dinner", "note": "팀 회식" }],
+      "summary": ["유제품 0회", "주 1회 이하 메뉴: 쌀국수 1회, 돈가스 1회", "같은 메뉴 연속 없음"]
+    },
+    "outer_turn_neurons": [12, 20, 19, 19]
+  }
+}

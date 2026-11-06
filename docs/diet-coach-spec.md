@@ -388,7 +388,8 @@ classifyMenus(profile: Profile, rules: CriteriaRules): MenuClassification[]
 
 - 분류 대상(`classificationTargets`): 외식 끼니의 `menus`를 끼니 순서(평일 아침 → 주말 저녁)로 합치고, 앞뒤 공백을 지워 같은 문자열을 한 번만 남긴다. 외식 끼니가 없으면 LLM을 부르지 않고 빈 분류로 끝난다.
 - 1:1 검사는 결과 스키마의 `v.check`로 한다(`agents/menu-schema.ts`). 맞지 않으면 Flue가 빠진·추가된·두 번 나온 메뉴를 적은 메시지로 다시 요청한다. 받은 뒤 코드가 한 번 더 확인하고(`normalizeClassifications`), 대상 순서로 정렬한다. 이번 기준에 없는 `criterionIds`는 다시 요청하지 않고 지운다.
-- 모델은 llama-4-scout, `thinkingLevel: 'low'`(`models.ts`의 `menuClassModel`, `.dev.vars`의 `MENU_MODEL`로 바꿔 시험).
+- 모델은 gemma, `thinkingLevel: 'low'`(`models.ts`의 `menuClassModel`, `.dev.vars`의 `MENU_MODEL`로 바꿔 시험). B5는 llama-4-scout였지만, Workers AI 기본 출력 상한 256토큰에서 잘려 `finish`를 부르지 못하고 Flue 재요청이 반복돼 바꿨다(B6, 11.5). 배열 필드는 문자열 하나도 받는다.
+- 메뉴 분류 요청에는 기간 선택 화면의 일정을 싣는다: `메뉴 분류 요청:` + `{"events":[{day, meal, note}]}`(B6). 도구가 `validateEvents`(`core/period.ts`: 안 먹는 끼니·같은 칸·빈 메모·50자 초과면 `bad_request`)로 검증하고, `nextMondayKst`로 정한 시작일과 함께 `usePersistentState('period')`에 둔다. `create_week_plan`은 이 기간과 일정으로 만든다.
 - 흐름: 인터뷰가 끝나면 화면이 `메뉴 분류 요청`을 보내고 `classify_menus` 도구가 끝난 인터뷰로 분류해 `usePersistentState('menuClasses')`에 저장한다. 분류 확인 화면에서 `식단표 만들기:` + `{"overrides":[{menu, class}]}` 메시지를 보내면 `create_week_plan`이 `useDelivery()`로 읽어 저장된 분류에 반영하고(`classesForPlan`), 반영한 분류를 다시 저장한 뒤 식단을 만든다. 칸 수정도 이 분류로 점검한다. 저장된 분류에 없는 메뉴로 온 수정은 무시한다.
 - 사용자가 바꾼 메뉴는 `class`만 바꾸고 `reason`은 "직접 정한 분류"로 바꾼다. `orderTips`는 그대로 둔다.
 - 분류가 없거나 지금 메뉴와 1:1이 아니면 `create_week_plan`은 LLM을 부르지 않고 `no_classes`를 돌려준다.
@@ -495,6 +496,13 @@ formatCheckSummary(stats: CheckStats, profile: Pick<Profile, 'avoid'>): string[]
 | 식단표 | 요일 × 끼니 표, 칸마다 이유와 주문 팁, 점검 요약, 의료 조언 아님 안내(약 복용 중이면 상담 권고 추가), 칸별 "다시 추천" | 저장 |
 
 저장된 프로필이 있으면 첫 화면은 "지난 프로필로 시작 / 바뀐 항목 고치기" 선택이다.
+
+**구현 (B6):**
+
+- 프로필 확인은 인터뷰 단계가 끝난 뒤, 제출 전에 화면에서 한다. 항목별 "고치기"는 그 항목만 초안에서 비우고(`core/profile-edit.ts`의 `reopenSection`) 그 단계를 다시 묻는다. 다 답하면 확인 화면으로 돌아온다. 식단 기준은 `buildCriteria` 결과를 `criteriaText`로 보여 준다.
+- 저장 동의는 선택이다. 제출 메시지의 `consent: true`면 도구가 서버 시각으로 `consentedAt`을 채운다. 저장(T6)과 사용자 토큰(T7-1) 전이라 동의한 프로필은 이 브라우저 `localStorage`(`diet-coach:profile`)에 둔다. 동의하지 않고 진행하면 지운다(`ui/saved-profile.ts`).
+- 첫 화면 분기: 새 대화이고 저장한 프로필이 있으면 "지난 프로필로 시작"(바로 제출) / "바뀐 항목 고치기"(확인 화면부터) / "인터뷰 처음부터" / "저장한 프로필 지우기".
+- 기간 선택: "다음 주 월~일" 한 가지와 정해진 일정(요일 + 안 먹는 끼니가 아닌 끼니 + 메모). 일정 칸은 식단표에 "일정"으로 보인다.
 
 **식단표 화면에서 기다리는 동안:** 생성에 약 3분이 걸린다(11.5). "식단표를 만드는 중이에요(약 3분)"와 경과 시간을 보여 준다. 창을 닫았다 다시 열어도 같은 대화를 다시 읽으므로 진행 중이면 진행 상태를, 끝났으면 결과를 보여 준다. 다시 추천 루프가 도는 중이면 "몇 칸을 다시 고르는 중이에요"처럼 알린다.
 
@@ -784,5 +792,10 @@ A는 요일별로 대화 7개를 동시에 시작해 하루 2칸씩, B는 대화
 **인터뷰 턴 실제 측정 (2026-11-06, B4):** 추출 1회(`harness.prompt` + InterviewUpdate 스키마) 출력 4,600~7,000토큰, 1~2.5분, 약 180~240 Neuron. "없어요" 한 마디도 약 200 Neuron이었다. `thinkingLevel`을 `off`·`low`로 바꿔도 추출은 줄지 않았다. `off`는 Workers AI에 전달되지 않는다(Flue 공급자가 low~high일 때만 `reasoning_effort`를 보냄). 인터뷰 중 바깥 턴은 `low`로 6~12 Neuron이 됐다. 이대로면 인터뷰 7~9턴에 약 1,500~2,000 Neuron이라 방식을 다시 정한다. 추론 없는 모델로 추출만 바꿔 보니 granite-micro는 Flue 메시지 형식을 거부, mistral-small은 포기, llama-4-scout는 5초·입력 6,017토큰·약 151 Neuron이었다(입력 단가가 높음). 그래서 정해진 답은 화면 입력으로 받고 목표 메모만 llama-4-scout로 확인한다(4.1). 제출 1회 약 48~50 Neuron(바깥 턴 포함), 4~6초, 보통·무리한 목표·지원하지 않는 목표 메모 3개를 모두 맞게 분류했다. [실험 기록](experiments/2026-11-06-b4-interview-real-run.md)
 
 **외식 메뉴 분류 실제 1회 (2026-11-06, B5):** 페르소나 A 메뉴 5개를 llama-4-scout로 한 번에 1:1로 분류했다. 분류 7초, 입력 1,826 / 출력 256 약 65 Neuron, 바깥 턴 14. 돈가스는 주 1회, 국밥은 often(픽스처는 주 1회)으로 나눴고, 백반·회덮밥은 이유가 "일반적인 식사라 식단 기준에 부합함"으로 성의가 없었다. 분류는 사용자가 확인 화면에서 바꿀 수 있어 그대로 쓴다. [실험 기록](experiments/2026-11-06-b5-menu-classify.md)
+
+**B6 실제 끝까지 (2026-11-06):** 첫 화면 분기 → 프로필 확인(고치기, 동의) → 기간 선택(수요일 저녁 회식) → 메뉴 분류 → 식단표가 통과했다. 제출 약 10초(메모 확인 39 Neuron), 분류 95초 181 Neuron(gemma, 2턴), 식단 168초 236 Neuron(처음에 통과, 13칸), 바깥 턴 4번 약 70 Neuron.
+
+- 그 전에 llama-4-scout 분류가 세 번 멈췄다. 매 턴 출력 256토큰에서 `stopReason: "length"`로 잘렸다. Flue는 `max_completion_tokens`를 보내지 않아 모델 기본값이 쓰이고, `finish`가 없으면 최대 33턴까지 다시 요청한다. 세 번에 약 3,100 Neuron을 썼다.
+- 대응: 분류 모델을 gemma로 바꿨다. LLM 호출마다 시간 제한을 둔다(목표 메모 60초, 분류 3분, 식단 8분, 칸 수정 4분; `core/llm-timeout.ts`). 분류 스키마는 문자열 하나도 배열로 받는다(gemma가 첫 `finish`에서 그렇게 냈다). [실험 기록](experiments/2026-11-06-b6-end-to-end.md)
 
 - 개발 메모: Windows의 Git Bash에서 `curl -d '한글'`로 보내면 본문이 깨진다. 요청 본문은 UTF-8 파일로 만들어 `--data-binary @파일`로 보낸다.

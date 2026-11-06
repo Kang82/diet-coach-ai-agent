@@ -32,14 +32,19 @@ const DraftSchema = v.strictObject({
 export const InterviewSubmissionSchema = v.strictObject({
   draft: DraftSchema,
   stopFlags: v.array(v.picklist(STOP_FLAGS)),
+  consent: v.optional(v.boolean()),
 });
 
 /** 형식이 틀리면 undefined */
 export function parseInterviewSubmission(json: unknown): InterviewSubmission | undefined {
   const res = v.safeParse(InterviewSubmissionSchema, json);
   if (!res.success) return undefined;
-  const { draft, stopFlags } = res.output;
-  return { draft: draft as InterviewDraft & { meals?: DraftMealSetting[] }, stopFlags: [...stopFlags] };
+  const { draft, stopFlags, consent } = res.output;
+  return {
+    draft: draft as InterviewDraft & { meals?: DraftMealSetting[] },
+    stopFlags: [...stopFlags],
+    ...(consent ? { consent: true } : {}),
+  };
 }
 
 // 모델이 빈 값을 null로 내는 경우가 많아 nullish로 받고 빈 배열로 바꾼다.

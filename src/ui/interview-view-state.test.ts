@@ -1,5 +1,6 @@
 // 인터뷰 화면 상태: 제출 메시지와 submit_interview 결과로 지금 화면을 정한다 (스펙 4.1, 7장, tasks.md B4)
 import { describe, expect, it } from 'vitest';
+import { profileA } from '../core/__fixtures__/persona-a.ts';
 import { formatInterviewSubmission } from '../core/interview-form.ts';
 import type { InterviewToolOutput } from '../core/interview-tool-output.ts';
 import {
@@ -14,6 +15,8 @@ import {
 import { INTERVIEW_ERROR, INTERVIEW_TOOL, toInterviewViewState } from './interview-view-state.ts';
 
 const stats = { seconds: 3, usages: [], neurons: 20 };
+const { goals, goalNote, medication, avoid, avoidNote, meals } = profileA;
+const resultA = { goals, goalNote, medication, avoid, avoidNote, meals };
 const SUBMIT = formatInterviewSubmission({ draft: { goals: ['weight_loss'] }, stopFlags: [] });
 const out = (output: InterviewToolOutput) => doneTool(INTERVIEW_TOOL, output);
 const ask: InterviewToolOutput = {
@@ -81,7 +84,13 @@ describe('toInterviewViewState', () => {
   });
 
   it('끝나면 done과 요약, 그 뒤 메시지는 식단표 화면 몫', () => {
-    const doneOut: InterviewToolOutput = { status: 'done', message: { text: '확인해 주세요' }, summary: ['목표: 체중 감량'], stats };
+    const doneOut: InterviewToolOutput = {
+      status: 'done',
+      message: { text: '확인해 주세요' },
+      summary: ['목표: 체중 감량'],
+      result: resultA,
+      stats,
+    };
     const after = [userMsg('식단표 만들어 줘', 's2'), assistantMsg('s2', pendingTool('create_week_plan'))];
     const messages = [userMsg(SUBMIT, 's1'), assistantMsg('s1', out(doneOut)), ...after];
 
@@ -89,6 +98,7 @@ describe('toInterviewViewState', () => {
       kind: 'done',
       message: { text: '확인해 주세요' },
       summary: ['목표: 체중 감량'],
+      result: resultA,
       planMessages: after,
     });
   });

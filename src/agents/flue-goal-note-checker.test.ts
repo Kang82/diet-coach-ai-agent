@@ -32,7 +32,11 @@ describe('createFlueGoalNoteChecker', () => {
     const res = await createFlueGoalNoteChecker(harness, MODEL).check(input);
 
     expect(prompts).toEqual([
-      { text: buildGoalNotePrompt(input), options: { result: GoalNoteCheckSchema, model: MODEL, thinkingLevel: 'low' } },
+      {
+        text: buildGoalNotePrompt(input),
+        // 시간 제한 signal이 붙는다 (B6, prompt-call.ts)
+        options: { result: GoalNoteCheckSchema, model: MODEL, thinkingLevel: 'low', signal: expect.any(AbortSignal) },
+      },
     ]);
     expect(res).toEqual({
       value: { stopFlags: [], turnFlags: ['extreme_restriction'], choices: ['한 달에 2kg'] },

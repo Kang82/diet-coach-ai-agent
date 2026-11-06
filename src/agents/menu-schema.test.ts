@@ -23,6 +23,13 @@ describe('menuClassesSchema', () => {
     expect(v.safeParse(schema, { classes: [item('국밥'), { ...item('백반'), class: 'sometimes' }] }).success).toBe(false);
   });
 
+  it('값 하나를 문자열로 내도 배열로 받는다 (B6 gemma)', () => {
+    const res = v.parse(schema, {
+      classes: [item('국밥'), { ...item('백반'), criterionIds: 'increase_fiber', orderTips: '채소 반찬 위주로' }],
+    });
+    expect(toMenuClassifications(res)[1]).toMatchObject({ criterionIds: ['increase_fiber'], orderTips: ['채소 반찬 위주로'] });
+  });
+
   it('null 배열을 받아 빈 배열로 바꾼다', () => {
     const res = v.parse(schema, {
       classes: [item('국밥'), { ...item('백반'), criterionIds: null, orderTips: null }],

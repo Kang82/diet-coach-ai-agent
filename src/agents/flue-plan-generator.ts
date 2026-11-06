@@ -4,9 +4,10 @@ import type { FlueHarness, PromptResultResponse } from '@flue/runtime';
 import { dayType } from '../core/helpers.ts';
 import type { PlanGenerator, TokenUsage } from '../core/plan-generator.ts';
 import { buildGeneratePrompt, buildRegeneratePrompt, normalizeMenuId } from '../core/plan-prompt.ts';
-import { isQuotaExceeded, QuotaExceededError } from '../core/quota.ts';
+import { LLM_TIME_LIMITS } from '../core/llm-timeout.ts';
 import type { PlanCell, Profile } from '../core/types.ts';
 import { PlanCellsResultSchema } from './plan-schema.ts';
+import { promptWithLimit } from './prompt-call.ts';
 
 /** harness 중 이 구현이 쓰는 부분. 테스트에서 가짜를 넣기 쉽게 좁혀 둔다. */
 export type PromptHarness = Pick<FlueHarness, 'prompt'>;
@@ -14,11 +15,11 @@ export type PromptHarness = Pick<FlueHarness, 'prompt'>;
 export function createFluePlanGenerator(harness: PromptHarness): PlanGenerator {
   return {
     async generatePlan(input) {
-      const res = await call(harness, buildGeneratePrompt(input));
+      const res = await call(harness, buildGeneratePrompt(input), LLM_TIME_LIMITS.generatePlan);
       return { value: normalizeCells(res.data.cells, input.profile), usage: toTokenUsage(res) };
     },
     async regenerateCells(input) {
-      const res = await call(harness, buildRegeneratePrompt(input));
+      const res = await call(harness, buildRegeneratePrompt(input), LLM_TIME_LIMITS.regenerateCells);
       return { value: normalizeCells(res.data.cells, input.profile), usage: toTokenUsage(res) };
     },
   } satisfies PlanGenerator;
@@ -26,15 +27,10 @@ export function createFluePlanGenerator(harness: PromptHarness): PlanGenerator {
 
 type CellsResponse = PromptResultResponse<{ cells: PlanCell[] }>;
 
-async function call(harness: PromptHarness, text: string): Promise<CellsResponse> {
-  try {
-    // valibot 출력 타입의 tags 등은 PlanCell과 같은 리터럴 유니온이다.
-    return (await harness.prompt(text, { result: PlanCellsResultSchema })) as CellsResponse;
-  } catch (error) {
-    // 스펙 11.3-1: 한도 초과는 core가 알아보는 에러로 바꿔 루프가 즉시 멈추게 한다.
-    if (isQuotaExceeded(error)) throw new QuotaExceededError({ cause: error });
-    throw error;
-  }
+/** 한도 초과는 QuotaExceededError(루프가 즉시 멈춤), 시간 초과는 LlmTimeoutError로 바뀐다 (prompt-call.ts) */
+async function call(harness: PromptHarness, text: string, limitMs: number): Promise<CellsResponse> {
+  // valibot 출력 타입의 tags 등은 PlanCell과 같은 리터럴 유니온이다.
+  return (await promptWithLimit(harness, text, { result: PlanCellsResultSchema }, limitMs)) as CellsResponse;
 }
 
 /** Flue는 모델을 { provider, id }로 나눠 준다. NEURON_PRICES 키(models.ts)와 같은 'provider/id' 모양으로 잇는다. */

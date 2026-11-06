@@ -4,6 +4,7 @@
 import type { FlueConversationMessage } from '@flue/sdk';
 import type { ClassifyToolOutput } from '../core/classify-tool-output.ts';
 import { isClassifyRequest } from '../core/plan-request.ts';
+import type { PlanPeriod } from '../core/period.ts';
 import type { MenuClassification } from '../core/types.ts';
 import type { PlanViewInput } from './plan-view-state.ts';
 
@@ -16,7 +17,7 @@ export type MenuClassViewState =
   | { kind: 'idle'; alert?: string }
   /** startedAt: 요청 메시지의 서버 시각 */
   | { kind: 'classifying'; startedAt: string | undefined }
-  | { kind: 'classified'; classes: MenuClassification[]; planMessages: FlueConversationMessage[] };
+  | { kind: 'classified'; classes: MenuClassification[]; period: PlanPeriod; planMessages: FlueConversationMessage[] };
 
 type ToolPart = Extract<FlueConversationMessage['parts'][number], { type: 'dynamic-tool' }>;
 
@@ -41,7 +42,12 @@ export function toMenuClassViewState({ historyReady, status, messages, settlemen
       const output = parse<ClassifyToolOutput>(part.output);
       open = undefined;
       if (output?.status === 'ok') {
-        return { kind: 'classified', classes: output.classes, planMessages: messages.slice(index + 1) };
+        return {
+          kind: 'classified',
+          classes: output.classes,
+          period: output.period,
+          planMessages: messages.slice(index + 1),
+        };
       }
       alert = output?.message ?? CLASSIFY_ERROR;
     }

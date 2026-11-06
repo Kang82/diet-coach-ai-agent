@@ -1,11 +1,11 @@
 // 평가 세트용: 식단표를 만들기 전 단계(인터뷰 제출, 메뉴 분류)를 대화에 채운다 (tasks.md B5).
-// 인터뷰는 목표 메모를 비워 보내 LLM을 부르지 않는다. 메뉴 분류는 실제 모델을 부르지만(약 50 Neuron),
+// 인터뷰는 목표 메모를 비워 보내 LLM을 부르지 않는다. 메뉴 분류는 실제 모델(gemma)을 부르지만(약 180 Neuron, 1.5분),
 // 식단표 만들기 메시지에서 분류를 페르소나 픽스처 값으로 바꿔 보내 점검 기준이 회차마다 같게 한다.
 import { formatInterviewSubmission } from '../../core/interview-form.ts';
 import { applyClassOverrides, type MenuClassOverride } from '../../core/menu-classification.ts';
 import type { ClassifyToolOutput } from '../../core/classify-tool-output.ts';
 import type { InterviewToolOutput } from '../../core/interview-tool-output.ts';
-import { CLASSIFY_REQUEST } from '../../core/plan-request.ts';
+import { formatClassifyRequest } from '../../core/plan-request.ts';
 import type { InterviewDraft, MenuClassification, Profile } from '../../core/types.ts';
 import { parseToolOutput, sendAndWait, toolParts, type ConversationResult } from './agent-http.ts';
 
@@ -27,7 +27,7 @@ export async function prepareConversation(profile: Profile, fixtureClasses: Menu
     return { conversationId, overrides: [], classes: [], failed: { step: '인터뷰', res: submitted, quota: interview?.status === 'quota' } };
   }
 
-  const classified = await sendAndWait(CLASSIFY_REQUEST, { conversationId, pollMs: 2_000 });
+  const classified = await sendAndWait(formatClassifyRequest({ events: [] }), { conversationId, pollMs: 2_000 });
   const out = parseToolOutput<ClassifyToolOutput>(toolParts(classified.snapshot, 'classify_menus').at(-1));
   if (out?.status !== 'ok') {
     return { conversationId, overrides: [], classes: [], failed: { step: '메뉴 분류', res: classified, quota: out?.status === 'quota' } };

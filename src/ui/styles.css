@@ -724,3 +724,230 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+/* 일정(회식, 약속)이 있는 끼니 (B6). 칸 대신 일정 메모를 보여 준다 */
+.slot.event {
+  background: var(--tray-light);
+  border-left-color: var(--ink-soft);
+  border-style: dashed;
+  border-left-style: solid;
+}
+
+/* 프로필 확인 화면 (tasks.md B6 T5-2) */
+.profile-confirm {
+  gap: 20px;
+}
+
+.profile-table {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--tray-light);
+  border-radius: 8px;
+}
+
+.profile-row {
+  display: grid;
+  grid-template-columns: 7em 1fr auto;
+  gap: 4px 16px;
+  align-items: baseline;
+  padding: 12px 16px;
+  border-top: 1px solid var(--tray-light);
+}
+
+.profile-row:first-child {
+  border-top: 0;
+}
+
+.profile-row dt {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.profile-row dd {
+  margin: 0;
+}
+
+.profile-note {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+}
+
+.profile-edit button.link,
+.meal-summary button.link,
+.profile-meals-head button.link {
+  margin-top: 0;
+}
+
+.profile-meals {
+  display: grid;
+  gap: 8px;
+}
+
+.profile-meals-head {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.meal-summary {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.meal-line {
+  display: grid;
+  grid-template-columns: 7em 9em 1fr;
+  gap: 4px 16px;
+  align-items: baseline;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--tray-light);
+  border-left: 4px solid var(--tray);
+  border-radius: 4px;
+}
+
+.meal-line.eat_out {
+  border-left-color: var(--out);
+}
+
+.meal-line.home {
+  border-left-color: var(--home);
+}
+
+.meal-line-name {
+  font-weight: 600;
+}
+
+.meal-line-detail {
+  font-size: 0.9375rem;
+}
+
+.criteria-box {
+  display: grid;
+  gap: 4px;
+  padding: 12px 16px;
+  border-left: 4px solid var(--home);
+  background: var(--surface);
+}
+
+.criteria-limits,
+.criteria-hint {
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+}
+
+.option.consent {
+  align-items: flex-start;
+}
+
+.option.consent input {
+  margin-top: 4px;
+  flex: none;
+}
+
+.option.consent small {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+
+/* 기간 선택 화면 (tasks.md B6 T5-3) */
+.period {
+  display: grid;
+  gap: 28px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.event-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.event-item {
+  display: grid;
+  grid-template-columns: 8em 1fr auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 8px 12px;
+  background: var(--tray-light);
+  border-left: 4px solid var(--ink-soft);
+  border-radius: 4px;
+}
+
+.event-item button.link {
+  margin-top: 0;
+}
+
+.event-slot {
+  font-weight: 600;
+}
+
+.event-form {
+  display: grid;
+  grid-template-columns: auto minmax(8em, 12em) auto 1fr auto;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+.event-form .field-label {
+  margin: 0;
+}
+
+.event-form select,
+.event-form input {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--tray);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.event-form select:focus-visible,
+.event-form input:focus-visible {
+  outline: 3px solid var(--out);
+  outline-offset: 1px;
+}
+
+@media (max-width: 640px) {
+  .profile-row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .profile-row dt {
+    grid-column: 1 / -1;
+  }
+
+  .meal-line {
+    grid-template-columns: 1fr;
+  }
+
+  .event-item {
+    grid-template-columns: 1fr auto;
+  }
+
+  .event-item .event-slot {
+    grid-column: 1 / -1;
+  }
+
+  .event-form {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
+  .event-form select,
+  .event-form input {
+    width: 100%;
+  }
+}

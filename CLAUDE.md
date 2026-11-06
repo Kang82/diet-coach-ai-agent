@@ -35,7 +35,7 @@ npx vitest run -t "18. 같은 끼니"           # 이름으로 테스트 하나
 npm run typecheck                          # tsc --noEmit
 npm run build                              # vite build → Cloudflare Worker (dist/)
 npm run dev                                # vite dev (workerd). AI 호출은 원격이라 `npx wrangler login` 필요
-npm run evals -- -t 페르소나A              # 평가 세트 (스펙 8.5). 개발 서버(5199)를 먼저 띄운다. 1회 약 4분, 약 300 Neuron(분류 포함)
+npm run evals -- -t 페르소나A              # 평가 세트 (스펙 8.5). 개발 서버(5199)를 먼저 띄운다. 1회 약 5~6분, 약 450 Neuron(분류 gemma 포함)
 ```
 
 - `vitest.config.ts`는 단위 테스트 전용이다. `vite.config.ts`의 Cloudflare 플러그인을 테스트에서 불러오지 않으려고 분리했다. LLM 평가 세트는 `vitest.evals.config.ts`(`src/evals/**/*.eval.ts`)로 따로 돈다. 기본 2회이고 `EVAL_RUNS=1`로 줄일 수 있다 (스펙 8.5).
@@ -73,6 +73,8 @@ src/app.ts    Hono 라우트 맵. 에이전트를 마운트한다.
 - 에이전트를 추가하려면 세 가지가 필요하다: `'use agent'` 파일, `app.ts`의 `app.route(...)`, `wrangler.jsonc`의 Durable Object 마이그레이션(뒤에 덧붙이기만, 배포한 항목은 고치지 않음). 함수 이름이 곧 저장 식별자라서 이름을 바꾸면 마이그레이션이 필요하다.
 - 결과를 보장해야 하는 값(시작일, 고칠 칸 등)은 모델이 채우는 도구 입력으로 받지 않는다. 코드가 정하거나, 화면이 정해진 형식으로 보낸 메시지를 도구가 `useDelivery()`로 직접 읽는다(`core/edit-request.ts`). 도구 사이에 넘길 상태는 `usePersistentState`에 둔다.
 - 구조화된 출력은 `harness.prompt(text, { result: valibot 스키마 })`로 받는다. 모델이 프레임워크의 `finish` 도구를 호출하고, 검증 실패 시 Flue가 다시 요청한다. 스키마는 zod가 아니라 valibot이다.
+- **Flue의 재요청은 최대 33턴이다.** `finish`가 안 오거나 검증이 계속 실패하면 몇 분씩 돌며 한도를 쓴다. `harness.prompt`는 `agents/prompt-call.ts`의 `promptWithLimit`(시간 제한, 한도 초과·시간 초과 에러 변환)으로 부른다. 스키마는 모델이 낼 법한 모양(null, 문자열 하나)을 받아 준다.
+- Flue는 Workers AI 요청에 `max_completion_tokens`를 보내지 않아 모델 기본 출력 상한이 쓰인다. llama-4-scout는 256토큰이라 긴 구조화 출력이 잘린다(목표 메모 확인처럼 짧은 출력에만 쓴다). 새 모델은 출력 상한부터 확인한다 (docs/experiments/2026-11-06-b6-end-to-end.md).
 - Workers AI 모델에서는 `usage.cost`가 항상 0이다. Neuron은 토큰 수 × 모델별 단가로 직접 계산한다 (스펙 11.4).
 - `package.json`의 `overrides`로 `@earendil-works/pi-ai`와 `pi-agent-core`를 1.4.0에 고정했다. 1.5.0은 Flue 2.3.0과 호환되지 않아 빌드가 깨진다. Flue를 올릴 때 이 고정을 풀 수 있는지 확인한다.
 
@@ -86,4 +88,5 @@ src/app.ts    Hono 라우트 맵. 에이전트를 마운트한다.
 
 - Git Bash에서 `curl -d '한글'`은 본문이 깨진다. UTF-8 파일로 만들어 `--data-binary @파일`로 보낸다.
 - `vite dev`를 끝낼 때 node와 `workerd.exe` 프로세스가 남는다. 포트(예: 5199)를 쓰는 프로세스까지 종료한다. vite의 node 프로세스가 살아 있으면 `workerd`를 꺼도 다시 띄우므로 node(vite) → `workerd` 순서로 끈다.
-- 개발 서버에서 식단표 만들기: 새 대화(`POST /agents/diet-coach/<id>`)에 차례로 인터뷰 제출(`인터뷰 제출:` + JSON, `core/interview-form.ts`) → `메뉴 분류 요청` → `식단표 만들기:` + `{"overrides":[]}`(`core/plan-request.ts`)를 보내고, 각각 끝날 때까지 `GET` 같은 주소로 대화를 읽는다. 순서는 `src/evals/support/prepare.ts`가 그대로 한다. `create_week_plan` 도구 결과에 식단표가 남는다. 만들기 1회에 약 4분, 약 250 Neuron.
+- harness 대화(도구 안 `harness.prompt`)는 클라이언트 대화에 나오지 않는다. 로컬에서는 Durable Object 저장소를 직접 본다: `POST /cdn-cgi/local/explorer/api/workers/durable_objects/namespaces/diet-coach-FlueDietCoachAgent/query`에 `{"durable_object_name":"<대화 ID>","queries":[{"sql":"SELECT seq, data FROM flue_conversation_stream_batches ORDER BY seq"}]}`. `assistant_message_completed`의 `stopReason`, `usage`와 `tool_outcome`(검증 실패 메시지)이 있다.
+- 개발 서버에서 식단표 만들기: 새 대화(`POST /agents/diet-coach/<id>`)에 차례로 인터뷰 제출(`인터뷰 제출:` + JSON, `core/interview-form.ts`) → `메뉴 분류 요청:` + `{"events":[]}` → `식단표 만들기:` + `{"overrides":[]}`(`core/plan-request.ts`)를 보내고, 각각 끝날 때까지 `GET` 같은 주소로 대화를 읽는다. 순서는 `src/evals/support/prepare.ts`가 그대로 한다. `create_week_plan` 도구 결과에 식단표가 남는다. 만들기 1회에 약 4분, 약 250 Neuron.

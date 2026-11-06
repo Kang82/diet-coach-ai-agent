@@ -94,7 +94,7 @@ function askText(field: InterviewField, reason: Extract<TurnNext, { kind: 'ask' 
   }
 }
 
-/** 인터뷰 결과 요약 줄. 프로필 확인 화면(T5-2)이 생기기 전까지 끝 화면에 보여 준다. */
+/** 인터뷰 결과 요약 줄. 기간 선택 화면과 첫 화면 분기에 보여 준다 (B6). */
 export function summarizeInterviewResult(result: InterviewResult): string[] {
   const lines = [
     withNote(`목표: ${result.goals.map((g) => GOAL_LABELS[g]).join(', ')}`, result.goalNote),

@@ -6,6 +6,7 @@ import type { GoalNoteCheck, GoalNoteInput } from './interview-note.ts';
 import { submitInterview, type GoalNoteChecker } from './interview-runner.ts';
 import { questionText } from './interview-text.ts';
 import { mergeDraft } from './interview.ts';
+import { LLM_TIMEOUT_MESSAGE, LlmTimeoutError } from './llm-timeout.ts';
 import { QUOTA_EXCEEDED_MESSAGE, QuotaExceededError } from './quota.ts';
 import type { InterviewDraft } from './types.ts';
 
@@ -45,6 +46,15 @@ describe('submitInterview', () => {
     expect(calls).toEqual([]);
     expect(out.kind).toBe('done');
     expect(out.usages).toEqual([]);
+  });
+
+  it('저장에 동의했으면 결과에 동의 시각, 아니면 없음 (B6)', async () => {
+    const { checker } = fakeChecker({});
+    const now = new Date('2026-11-06T03:00:00Z');
+    const agreed = await submitInterview(checker, { draft: draftA(''), stopFlags: [], consent: true }, now);
+    const declined = await submitInterview(checker, { draft: draftA(''), stopFlags: [] }, now);
+    expect(agreed.kind === 'done' && agreed.result.consentedAt).toBe('2026-11-06T03:00:00.000Z');
+    expect(declined.kind === 'done' && declined.result).not.toHaveProperty('consentedAt');
   });
 
   it('메모가 있으면 한 번 확인하고 done과 요약', async () => {
@@ -93,6 +103,12 @@ describe('submitInterview', () => {
     const { checker } = fakeChecker(new QuotaExceededError());
     const out = await submitInterview(checker, { draft: draftA(), stopFlags: [] });
     expect(out).toEqual({ kind: 'quota', message: { text: QUOTA_EXCEEDED_MESSAGE }, usages: [] });
+  });
+
+  it('메모 확인이 시간 제한을 넘기면 timeout (B6)', async () => {
+    const { checker } = fakeChecker(new LlmTimeoutError(60_000));
+    const out = await submitInterview(checker, { draft: draftA(), stopFlags: [] });
+    expect(out).toEqual({ kind: 'timeout', message: { text: LLM_TIMEOUT_MESSAGE }, usages: [] });
   });
 
   it('다른 에러는 그대로 던진다', async () => {

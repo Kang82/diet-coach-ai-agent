@@ -82,9 +82,10 @@ export function PlanBoard({ view, editing, editNotice, onEdit, onStartOver }: Pr
               </th>
               {days.map((d) => {
                 const cell = d.cells[mi];
+                const event = d.events[mi];
                 return (
-                  <td key={d.day} className={cellClass(cell, editNotice)}>
-                    {cell ? slot(cell) : null}
+                  <td key={d.day} className={event ? 'slot event' : cellClass(cell, editNotice)}>
+                    {cell ? slot(cell) : event ? <EventBody note={event.note} /> : null}
                   </td>
                 );
               })}
@@ -102,11 +103,12 @@ export function PlanBoard({ view, editing, editNotice, onEdit, onStartOver }: Pr
             </h2>
             {meals.map((meal, mi) => {
               const cell = d.cells[mi];
-              if (!cell) return null;
+              const event = d.events[mi];
+              if (!cell && !event) return null;
               return (
-                <div key={meal} className={cellClass(cell, editNotice)}>
+                <div key={meal} className={cell ? cellClass(cell, editNotice) : 'slot event'}>
                   <p className="meal-label">{MEAL_LABELS[meal]}</p>
-                  {slot(cell)}
+                  {cell ? slot(cell) : <EventBody note={event!.note} />}
                 </div>
               );
             })}
@@ -130,6 +132,16 @@ export function PlanBoard({ view, editing, editNotice, onEdit, onStartOver }: Pr
         </div>
       </footer>
     </section>
+  );
+}
+
+/** 일정(회식, 약속)이 있는 끼니. 식단표 칸이 없고 다시 추천도 없다 (B6) */
+function EventBody({ note }: { note: string }) {
+  return (
+    <>
+      <p className="menu">{note}</p>
+      <p className="place">일정</p>
+    </>
   );
 }
 

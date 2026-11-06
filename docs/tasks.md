@@ -90,7 +90,7 @@
 
 - [ ] **T1-7. 평가 세트 페르소나 2~4** (스펙 8.5)
   - B5부터 평가 세트는 회차마다 인터뷰 제출(메모 없음) → 메뉴 분류 → 식단표 만들기를 보낸다(`src/evals/support/prepare.ts`). 분류는 픽스처 값으로 바꿔 보내 점검 기준을 고정한다. 페르소나 2~4의 프로필과 메뉴 분류 픽스처를 더하면 된다
-  - 페르소나별 2회 = 8회. 약 2,400 Neuron(회차마다 분류 약 50 포함), 약 35분. 하루에 한 번만 돌린다
+  - 페르소나별 2회 = 8회. 약 3,600 Neuron(회차마다 분류 gemma 약 180 포함), 약 45분. 하루에 한 번만 돌린다. 하루 한도의 3분의 1이 넘으므로 다른 실제 확인이 없는 날 돌린다
   - 잘못된 입력 케이스(8.5 표)는 인터뷰(T4-4) 뒤에 추가한다
   - 선행: T1-6, 태그 제한 값 확정(열린 질문 1)
 
@@ -143,6 +143,7 @@
   - 선행: T1-5
   - 결정: 1:1 검사는 결과 스키마의 `v.check`(Flue가 틀린 메뉴를 알려 주며 다시 요청) + 받은 뒤 코드에서 한 번 더. 기준 밖 `criterionIds`는 다시 요청하지 않고 지운다. 외식 끼니가 없으면 LLM 없이 빈 분류 (스펙 4.2 구현 세부)
   - 결정: 모델은 llama-4-scout, `thinkingLevel: 'low'`. `.dev.vars`의 `MENU_MODEL`로 바꿔 시험, `MENU_CLASSIFIER=demo`면 `classesA`를 쓰는 가짜 분류기
+  - 바뀜(B6): llama-4-scout는 출력 256토큰에서 잘려 Flue 재요청이 반복됐다. 분류 모델을 gemma로 바꿨다(1회 약 95초, 약 180 Neuron). 배열 필드는 문자열 하나도 받는다 ([실험 기록](experiments/2026-11-06-b6-end-to-end.md))
   - 결정: `classify_menus` 도구는 `메뉴 분류 요청` 메시지에 불리고 결과를 `usePersistentState('menuClasses')`에 둔다. 식단표 도구는 페르소나 A 고정을 없애고 끝난 인터뷰(`profileFromInterview`, `userId: 'demo'`) + 확인된 분류로 만든다
   - 코드: `core/menu-classification.ts`, `core/menu-classifier.ts`(`runClassification`), `core/plan-request.ts`, `agents/menu-schema.ts`, `agents/flue-menu-classifier.ts`, `agents/demo-menu-classifier.ts`, `agents/classify-menus-tool.ts`
   - 결과: 실제 1회 한 번에 1:1, 분류 7초 약 65 Neuron(바깥 턴 14 별도). 국밥을 often으로 나눴고 백반·회덮밥은 이유가 성의 없음 ([실험 기록](experiments/2026-11-06-b5-menu-classify.md))
@@ -188,11 +189,17 @@
   - 코드: `ui/InterviewView.tsx`, `ui/InterviewSteps.tsx`, `ui/interview-form-state.ts`(localStorage 진행, 서버 ask 이어받기, 테스트), `ui/interview-view-state.ts`(제출 결과 → 화면, done 뒤 메시지는 식단표 화면으로)
   - 결과: Chrome에서 페르소나 A 답으로 끝까지 → 약 10초 뒤 요약과 "식단표 만들기". 메뉴 2개면 한 번 더 묻기, 새로고침 이어짐 확인
   - "이전" 버튼은 없다(고치기는 T5-2). B5부터 식단표는 인터뷰 결과로 만든다
-- [ ] **T5-2. 프로필 확인 화면**
+- [x] **T5-2. 프로필 확인 화면** (2026-11-06)
   - 프로필 표, 식단 기준, 항목별 수정, 저장 동의
   - 선행: T4-1
-- [ ] **T5-3. 기간 선택 화면**
+  - 결정: 인터뷰 단계가 끝나면 제출 전에 화면에서 보여 준다. "고치기"는 그 항목만 초안에서 비우고 그 단계를 다시 묻는다(`core/profile-edit.ts`의 `reopenSection`, 섹션: 목표·약·피할 음식·끼니 표·끼니별 메뉴·끼니별 조리 시간). 다시 묻는 단계는 이전 답을 미리 채우지 않는다
+  - 결정: 저장 동의는 선택. 제출 메시지 `consent: true`면 도구가 서버 시각으로 `consentedAt`을 채운다(`InterviewResult.consentedAt?`, `profileFromInterview`가 씀). `validateProfile` 이슈(동의 제외)가 있으면 진행을 막는다
+  - 코드: `ui/ProfileConfirmView.tsx`, `ui/interview-form-state.ts`(`reopen`, `progressFromResult`), `InterviewView.tsx`(자동 제출 대신 확인 화면)
+- [x] **T5-3. 기간 선택 화면** (2026-11-06)
   - 1주일 선택, 정해진 일정(회식, 약속) 입력
+  - 결정: 인터뷰 끝 → 기간 선택 → 메뉴 분류. 기간은 "다음 주 월~일" 한 가지. 일정은 요일 + 안 먹는 끼니가 아닌 끼니 + 메모(50자), 같은 칸은 한 번. 넣는 중인 일정은 localStorage(대화 ID별)
+  - 결정: `메뉴 분류 요청:` + `{"events":[...]}`로 보내고 `classify_menus`가 `validateEvents`로 검증해 시작일(`nextMondayKst`, 이때 고정)과 함께 `usePersistentState('period')`에 둔다. `create_week_plan`은 이 기간을 쓴다. 식단표는 일정 칸을 "일정"으로 보여 주고 다시 추천은 없다(`plan-layout.ts`의 `DayRow.events`)
+  - 코드: `core/period.ts`, `core/plan-request.ts`(`formatClassifyRequest`/`parseClassifyRequest`), `ui/PeriodView.tsx`, `PlanBoard.tsx`
 - [x] **T5-4. 메뉴 분류 확인 화면** (2026-11-06)
   - 분류 표, 분류 바꾸기
   - 선행: T3-1
@@ -200,9 +207,15 @@
   - 결정: 바꾼 메뉴의 이유는 "직접 정한 분류"로 바꾼다(LLM 이유와 어긋나지 않게). 모든 메뉴를 피하기로 고르면 만들기를 막는다
   - 코드: `ui/menu-class-view-state.ts`(테스트 있음), `ui/MenuClassView.tsx`, `App.tsx`, `styles.css`. 761px 이상은 메뉴 | 분류 | 이유 3열, 그보다 좁으면 카드
   - 결과: 가짜 모드 두 가지로 Chrome에서 인터뷰 제출 → 분류 → 돈가스를 often으로 바꿈 → 식단표까지 확인(점검 요약의 주 1회 메뉴에서 돈가스가 빠짐). 새로고침 이어짐, 390px 폭 카드 확인
-- [ ] **T5-5. 첫 화면 분기**
+- [x] **T5-5. 첫 화면 분기** (2026-11-06)
   - 저장된 프로필이 있으면 "지난 프로필로 시작 / 바뀐 항목 고치기"
-- 완료 기준(T5 전체): 개발 서버에서 기획서 예시 사용자로 인터뷰부터 식단표까지 화면으로 끝까지 진행
+  - 결정(사용자): 서버 저장(T6)과 토큰(T7-1) 전이라 동의한 프로필은 이 브라우저 localStorage(`diet-coach:profile`)에 둔다. 동의하지 않고 진행하면 지운다. 다른 기기에서는 불러오지 못한다
+  - 결정: 새 대화이고 저장한 프로필이 있으면 "지난 프로필로 시작"(바로 제출, 동의 유지) / "바뀐 항목 고치기"(확인 화면부터, 동의 기본 체크) / "인터뷰 처음부터" / "저장한 프로필 지우기"
+  - 코드: `ui/saved-profile.ts`(모양·프로필 검증, 테스트), `ui/StartChoice.tsx`, `App.tsx`. `core/profile-edit.ts`의 `draftFromResult`
+- [x] 완료 기준(T5 전체): 개발 서버에서 기획서 예시 사용자로 인터뷰부터 식단표까지 화면으로 끝까지 진행 (2026-11-06)
+  - 결과: 첫 화면 분기 → 프로필 확인(조리 시간 고치기, 동의) → 기간 선택(수요일 저녁 팀 회식) → 분류(gemma 95초, 181 Neuron) → 식단표(168초, 236 Neuron, 처음에 통과, 13칸). 인터뷰 단계는 B4에서 확인해 이번에는 끝난 답을 넣고 시작했다 ([실험 기록](experiments/2026-11-06-b6-end-to-end.md))
+  - 가짜 모드로: 동의 안 함(저장 지워짐), 지난 프로필로 시작, 새로고침 이어짐, 390px 폭 확인
+  - 진행 중 추가: LLM 호출 시간 제한(`core/llm-timeout.ts`, `agents/prompt-call.ts`). 넘으면 인터뷰 제출·분류는 `timeout`으로 답하고 화면이 다시 시도를 안내한다. 식단 생성·칸 수정은 에러로 끝난다
 
 ### T6. D1 저장소 (9장 9단계)
 
@@ -236,6 +249,10 @@
 - "새로 만들기"를 누르면 지금 식단표를 다시 볼 방법이 없다 (대화 ID만 바뀜). 저장(T6)이나 지난 식단표 목록이 생길 때 함께 정한다
 - 바깥 턴 문맥이 대화마다 커진다: 도구 결과의 식단표 JSON이 다음 턴 모델 입력에 다시 들어간다(칸 수정 턴 입력 2,234토큰). 모델에게는 짧은 요약만 보이게 할 방법을 찾는다
 - 가짜 모드 확인 중 만들기 응답이 2분 늦게 시작한 적이 있다(오류 없음). 다시 보이면 원인을 찾는다
+- llama-4-scout 출력 256토큰: Flue가 `max_completion_tokens`를 보내지 않아서다. cloudflare 공급자를 감싸 상한을 넣으면 분류를 llama(7초, 약 65 Neuron)로 되돌릴 수 있다. Flue를 올릴 때 공식 옵션이 생겼는지 본다
+- 식단 생성 스키마(`plan-schema.ts`)도 gemma가 배열 대신 문자열 하나를 낼 수 있다. 지금까지 실패는 없었지만 메뉴 분류처럼 받아 줄지 정한다
+- 식단 생성·칸 수정 시간 초과는 지금 "만들지 못했어요"(일반 에러)로 끝난다. 인터뷰·분류처럼 `timeout` 결과로 안내할지
+- 프로필 확인의 "고치기"는 이전 답을 미리 채우지 않는다(목표만 채움). 끼니 표를 고치면 6끼를 다시 골라야 한다
 - 메뉴 분류 품질: 국밥을 often으로 나눴고 이유가 "일반적인 식사라 식단 기준에 부합함"처럼 성의 없는 메뉴가 있다(B5 실제 1회). 프롬프트에서 메뉴마다 근거 기준과 주문 팁을 꼭 쓰게 하거나 gemma와 비교한다
 - 모든 메뉴를 피하기로 고르는 것만 막는다. 외식 끼니가 여러 개면 한 끼니의 메뉴가 모두 피하기여도 만들 수 있고, 그러면 점검에서 실패한다. 끼니별로 막을지 정한다
 - 제목에 주문 팁이 괄호로 들어가 주문 팁 칸과 겹친다("백반 (생선 반찬 고르기)"). 프롬프트에서 제목은 메뉴 이름만 쓰게 할지

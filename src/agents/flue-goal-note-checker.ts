@@ -3,25 +3,21 @@
 import type { PromptResultResponse } from '@flue/runtime';
 import { buildGoalNotePrompt } from '../core/interview-note.ts';
 import type { GoalNoteChecker } from '../core/interview-runner.ts';
-import { isQuotaExceeded, QuotaExceededError } from '../core/quota.ts';
+import { LLM_TIME_LIMITS } from '../core/llm-timeout.ts';
 import { toTokenUsage, type PromptHarness } from './flue-plan-generator.ts';
 import { GoalNoteCheckSchema, toGoalNoteCheck, type GoalNoteCheckOutput } from './interview-schema.ts';
 import { INTERVIEW_THINKING } from './models.ts';
+import { promptWithLimit } from './prompt-call.ts';
 
 export function createFlueGoalNoteChecker(harness: PromptHarness, model: string): GoalNoteChecker {
   return {
     async check(input) {
-      let res: PromptResultResponse<GoalNoteCheckOutput>;
-      try {
-        res = (await harness.prompt(buildGoalNotePrompt(input), {
-          result: GoalNoteCheckSchema,
-          model,
-          thinkingLevel: INTERVIEW_THINKING,
-        })) as PromptResultResponse<GoalNoteCheckOutput>;
-      } catch (error) {
-        if (isQuotaExceeded(error)) throw new QuotaExceededError({ cause: error });
-        throw error;
-      }
+      const res = (await promptWithLimit(
+        harness,
+        buildGoalNotePrompt(input),
+        { result: GoalNoteCheckSchema, model, thinkingLevel: INTERVIEW_THINKING },
+        LLM_TIME_LIMITS.goalNote,
+      )) as PromptResultResponse<GoalNoteCheckOutput>;
       return { value: toGoalNoteCheck(res.data), usage: toTokenUsage(res) };
     },
   };

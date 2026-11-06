@@ -20,6 +20,12 @@ describe('parseInterviewSubmission', () => {
     expect(parseInterviewSubmission(submission)).toEqual(submission);
   });
 
+  it('저장 동의는 true일 때만 남긴다 (B6)', () => {
+    expect(parseInterviewSubmission({ draft: {}, stopFlags: [], consent: true })).toEqual({ draft: {}, stopFlags: [], consent: true });
+    expect(parseInterviewSubmission({ draft: {}, stopFlags: [], consent: false })).toEqual({ draft: {}, stopFlags: [] });
+    expect(parseInterviewSubmission({ draft: {}, stopFlags: [], consent: 'yes' })).toBeUndefined();
+  });
+
   it.each([
     ['모르는 목표', { draft: { goals: ['muscle_gain'] }, stopFlags: [] }],
     ['모르는 필드', { draft: { userId: 'x' }, stopFlags: [] }],

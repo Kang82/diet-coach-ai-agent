@@ -5,6 +5,8 @@ import { EMPTY_INTERVIEW } from '../core/interview-runner.ts';
 import { formatTurnReply, type InterviewMessage } from '../core/interview-text.ts';
 import { applyTurn, type TurnNext } from '../core/interview-turn.ts';
 import type { InterviewToolOutput } from '../core/interview-tool-output.ts';
+import type { InterviewResult } from '../core/interview.ts';
+import { draftFromResult, reopenSection, type ProfileSection } from '../core/profile-edit.ts';
 import type { InterviewState, InterviewUpdate } from '../core/types.ts';
 
 export interface FormProgress {
@@ -35,6 +37,18 @@ export function advance(progress: FormProgress, update: InterviewUpdate): FormPr
     ...(explain ? { message: formatTurnReply(turn.next, turn.notices) } : {}),
     ...(progress.basedOn ? { basedOn: progress.basedOn } : {}),
   };
+}
+
+const NO_ANSWER: InterviewUpdate = { filled: {}, stopFlags: [], turnFlags: [] };
+
+/** 프로필 확인 화면의 "고치기" (B6). 그 항목만 비우고 다음 질문을 다시 계산한다. 다 답하면 다시 확인 화면(done) */
+export function reopen(progress: FormProgress, section: ProfileSection): FormProgress {
+  return advance({ ...progress, state: reopenSection(progress.state, section) }, NO_ANSWER);
+}
+
+/** 저장된 프로필로 시작 (B6 "바뀐 항목 고치기"): 끝난 진행이라 프로필 확인 화면부터 */
+export function progressFromResult(result: InterviewResult): FormProgress {
+  return advance({ ...startProgress(), state: { draft: draftFromResult(result), stopFlags: [], menuFollowUps: [] } }, NO_ANSWER);
 }
 
 /**

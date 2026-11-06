@@ -31,11 +31,14 @@ export function goalNoteModel(key: string | undefined): ModelId {
 }
 
 /**
- * 외식 메뉴 분류 모델 (tasks.md B5). 메모 확인처럼 짧은 구조화 출력이라 llama-4-scout를 기본으로 쓴다.
+ * 외식 메뉴 분류 모델 (tasks.md B5, B6). gemma를 쓴다.
+ * llama-4-scout는 Workers AI 기본 출력 상한이 256토큰이고 Flue는 max_completion_tokens를 보내지 않는다.
+ * 메뉴 5개 분류 JSON이 256토큰에서 잘려 finish를 부르지 못하고 Flue가 재요청을 반복했다
+ * (docs/experiments/2026-11-06-b6-end-to-end.md). 목표 메모 확인은 출력이 짧아 llama-4-scout 그대로 둔다.
  * 개발 중 `.dev.vars`의 MENU_MODEL(MODEL_CANDIDATES의 키)로 바꿔 시험할 수 있다.
  */
 export function menuClassModel(key: string | undefined): ModelId {
-  return candidateOr(key, MODEL_CANDIDATES.llamaScout);
+  return candidateOr(key, MODEL_CANDIDATES.gemma);
 }
 
 function candidateOr(key: string | undefined, fallback: ModelId): ModelId {

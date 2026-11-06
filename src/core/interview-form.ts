@@ -84,6 +84,8 @@ export const INTERVIEW_SUBMIT_PREFIX = '인터뷰 제출:';
 export interface InterviewSubmission {
   draft: InterviewDraft;
   stopFlags: StopFlag[];
+  /** 프로필 확인 화면의 저장 동의 (tasks.md B6). 없으면 동의하지 않음 */
+  consent?: boolean;
 }
 
 export function formatInterviewSubmission(submission: InterviewSubmission): string {

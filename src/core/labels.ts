@@ -10,6 +10,7 @@ import type {
   MealType,
   Medication,
   MenuClass,
+  NutritionTag,
 } from './types.ts';
 
 export const DAY_LABELS: Record<Day, string> = {
@@ -73,4 +74,13 @@ export const MENU_CLASS_LABELS: Record<MenuClass, string> = {
   often: '자주 먹어도 됨',
   weekly_max_1: '주 1회까지',
   avoid: '피하기',
+};
+
+/** 화면용 짧은 라벨. 프롬프트용 설명은 plan-prompt.ts에 따로 있다 */
+export const NUTRITION_TAG_LABELS: Record<NutritionTag, string> = {
+  fried: '튀김',
+  fatty_meat: '기름진 고기',
+  processed_meat: '햄·소시지 같은 가공육',
+  refined_carb_main: '흰 면·흰 빵이 주식인 메뉴',
+  sugary: '단 소스·디저트',
 };

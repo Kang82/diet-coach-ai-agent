@@ -4,6 +4,7 @@ import { classesA, profileA } from './__fixtures__/persona-a.ts';
 import { rulesA } from './__fixtures__/rules-a.ts';
 import type { ClassifyInput } from './menu-classification.ts';
 import { runClassification, type MenuClassifier } from './menu-classifier.ts';
+import { LlmTimeoutError } from './llm-timeout.ts';
 import { QuotaExceededError } from './quota.ts';
 import type { MenuClassification } from './types.ts';
 
@@ -43,6 +44,11 @@ describe('runClassification', () => {
   it('한도 초과면 quota', async () => {
     const { classifier } = fakeClassifier(new QuotaExceededError());
     expect(await runClassification(classifier, profileA)).toEqual({ kind: 'quota', usages: [] });
+  });
+
+  it('시간 초과면 timeout (B6)', async () => {
+    const { classifier } = fakeClassifier(new LlmTimeoutError(60_000));
+    expect(await runClassification(classifier, profileA)).toEqual({ kind: 'timeout', usages: [] });
   });
 
   it('결과가 대상과 1:1이 아니면 에러', async () => {

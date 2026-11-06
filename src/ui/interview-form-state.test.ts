@@ -1,7 +1,19 @@
 // 인터뷰 화면의 진행 상태 (스펙 4.1, tasks.md B4)
 import { describe, expect, it } from 'vitest';
-import { goalsUpdate, medicationUpdate } from '../core/interview-form.ts';
-import { advance, resolveProgress, restoreProgress, startProgress, type ServerAsk } from './interview-form-state.ts';
+import { cookMinutesUpdate, goalsUpdate, medicationUpdate } from '../core/interview-form.ts';
+import { profileA } from '../core/__fixtures__/persona-a.ts';
+import {
+  advance,
+  progressFromResult,
+  reopen,
+  resolveProgress,
+  restoreProgress,
+  startProgress,
+  type ServerAsk,
+} from './interview-form-state.ts';
+
+const { goals, goalNote, medication, avoid, avoidNote, meals } = profileA;
+const resultA = { goals, goalNote, medication, avoid, avoidNote, meals };
 
 const stats = { seconds: 3, usages: [], neurons: 20 };
 const serverAsk = (id: string): ServerAsk => ({
@@ -72,5 +84,27 @@ describe('restoreProgress', () => {
 
   it('정상 값', () => {
     expect(restoreProgress(JSON.stringify(startProgress()))).toEqual(startProgress());
+  });
+});
+
+describe('프로필 확인 화면 (B6)', () => {
+  it('저장된 결과로 시작하면 끝난 진행(done)이고 결과가 같다', () => {
+    const p = progressFromResult(resultA);
+    expect(p.next.kind).toBe('done');
+    expect(p.next.kind === 'done' && p.next.result).toEqual(resultA);
+    expect(p.message).toBeUndefined();
+  });
+
+  it('고치기: 그 단계를 다시 묻고, 다 답하면 다시 done', () => {
+    const p = reopen(progressFromResult(resultA), { kind: 'cookMinutes', meal: { dayType: 'weekday', meal: 'dinner' } });
+    expect(p.next).toEqual({ kind: 'ask', field: { cookMinutesFor: { dayType: 'weekday', meal: 'dinner' } } });
+    const answered = advance(p, cookMinutesUpdate({ dayType: 'weekday', meal: 'dinner' }, 30));
+    expect(answered.next.kind).toBe('done');
+    const dinner = answered.next.kind === 'done' ? answered.next.result.meals.find((m) => m.meal === 'dinner' && m.dayType === 'weekday') : undefined;
+    expect(dinner?.cookMinutes).toBe(30);
+  });
+
+  it('고치기: 목표를 고치면 목표부터', () => {
+    expect(reopen(progressFromResult(resultA), { kind: 'goals' }).next).toEqual({ kind: 'ask', field: 'goals' });
   });
 });

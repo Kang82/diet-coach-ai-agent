@@ -6,6 +6,7 @@ import { goalNoteUpdate, type GoalNoteCheck, type GoalNoteInput } from './interv
 import { formatTurnReply, summarizeInterviewResult, type InterviewMessage } from './interview-text.ts';
 import { applyTurn, type TurnNext } from './interview-turn.ts';
 import type { LlmResult, TokenUsage } from './plan-generator.ts';
+import { LLM_TIMEOUT_MESSAGE, LlmTimeoutError } from './llm-timeout.ts';
 import { QUOTA_EXCEEDED_MESSAGE, QuotaExceededError } from './quota.ts';
 import type { InterviewState, InterviewUpdate } from './types.ts';
 
@@ -23,10 +24,19 @@ export type InterviewSubmitOutcome =
   /** 목표를 다시 묻는다 (무리한 목표, 지원하지 않는 목표). 화면은 state에서 목표 단계로 돌아간다 */
   | { kind: 'ask'; message: InterviewMessage; state: InterviewState; next: AskNext; usages: TokenUsage[] }
   /** 한도 초과. 같은 제출을 나중에 다시 보내면 된다 */
-  | { kind: 'quota'; message: InterviewMessage; usages: TokenUsage[] };
+  | { kind: 'quota'; message: InterviewMessage; usages: TokenUsage[] }
+  /** 메모 확인이 시간 제한을 넘김 (B6). 같은 제출을 다시 보내면 된다 */
+  | { kind: 'timeout'; message: InterviewMessage; usages: TokenUsage[] };
 
-/** 끝나지 않은 초안이면 에러를 던진다 (화면은 끝난 뒤에만 제출한다) */
-export async function submitInterview(checker: GoalNoteChecker, submission: InterviewSubmission): Promise<InterviewSubmitOutcome> {
+/**
+ * 끝나지 않은 초안이면 에러를 던진다 (화면은 끝난 뒤에만 제출한다).
+ * 저장에 동의했으면 끝난 결과에 동의 시각(now)을 넣는다 (tasks.md B6)
+ */
+export async function submitInterview(
+  checker: GoalNoteChecker,
+  submission: InterviewSubmission,
+  now: Date = new Date(),
+): Promise<InterviewSubmitOutcome> {
   if (nextField(submission.draft) !== null) throw new Error('인터뷰가 끝나지 않은 초안입니다');
   const state: InterviewState = { draft: structuredClone(submission.draft), stopFlags: [...submission.stopFlags], menuFollowUps: [] };
 
@@ -40,6 +50,7 @@ export async function submitInterview(checker: GoalNoteChecker, submission: Inte
       update = goalNoteUpdate(checked.value);
     } catch (error) {
       if (error instanceof QuotaExceededError) return { kind: 'quota', message: { text: QUOTA_EXCEEDED_MESSAGE }, usages };
+      if (error instanceof LlmTimeoutError) return { kind: 'timeout', message: { text: LLM_TIMEOUT_MESSAGE }, usages };
       throw error;
     }
   }
@@ -47,8 +58,10 @@ export async function submitInterview(checker: GoalNoteChecker, submission: Inte
   const turn = applyTurn(state, update);
   const message = formatTurnReply(turn.next, turn.notices);
   switch (turn.next.kind) {
-    case 'done':
-      return { kind: 'done', message, result: turn.next.result, summary: summarizeInterviewResult(turn.next.result), usages };
+    case 'done': {
+      const result = submission.consent ? { ...turn.next.result, consentedAt: now.toISOString() } : turn.next.result;
+      return { kind: 'done', message, result, summary: summarizeInterviewResult(result), usages };
+    }
     case 'stop':
       return { kind: 'stop', message, usages };
     case 'ask':

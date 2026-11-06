@@ -2,6 +2,7 @@
 // 인터뷰 단계 진행은 화면이 들고 있고(interview-form-state.ts), 대화에는 끝난 뒤 보낸 제출 메시지와 submit_interview 결과만 있다.
 // 인터뷰가 끝나면(done) 그 뒤 메시지는 식단표 화면(plan-view-state.ts)에 넘긴다.
 import type { FlueConversationMessage } from '@flue/sdk';
+import type { InterviewResult } from '../core/interview.ts';
 import { isInterviewSubmission } from '../core/interview-form.ts';
 import type { InterviewMessage } from '../core/interview-text.ts';
 import type { InterviewToolOutput } from '../core/interview-tool-output.ts';
@@ -17,7 +18,14 @@ export type InterviewViewState =
   | { kind: 'form'; serverAsk?: ServerAsk; alert?: string }
   | { kind: 'submitting' }
   | { kind: 'stopped'; message: InterviewMessage }
-  | { kind: 'done'; message: InterviewMessage; summary: string[]; planMessages: FlueConversationMessage[] };
+  /** result: 끝난 인터뷰 (기간 선택, 프로필 저장에 쓴다) */
+  | {
+      kind: 'done';
+      message: InterviewMessage;
+      summary: string[];
+      result: InterviewResult;
+      planMessages: FlueConversationMessage[];
+    };
 
 type ToolPart = Extract<FlueConversationMessage['parts'][number], { type: 'dynamic-tool' }>;
 
@@ -49,7 +57,13 @@ export function toInterviewViewState({ historyReady, status, messages, settlemen
       open = undefined;
       last = { id: part.toolCallId, output };
       if (output.status === 'done') {
-        return { kind: 'done', message: output.message, summary: output.summary, planMessages: messages.slice(index + 1) };
+        return {
+          kind: 'done',
+          message: output.message,
+          summary: output.summary,
+          result: output.result,
+          planMessages: messages.slice(index + 1),
+        };
       }
     }
   }

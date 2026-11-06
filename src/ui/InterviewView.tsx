@@ -1,29 +1,34 @@
 // 인터뷰 화면 (스펙 7장, tasks.md B4). 정해진 답은 단계별 입력으로 받고, 단계마다 화면에서 applyTurn을 돌린다.
-// 진행 상태는 localStorage(대화 ID별)에 둔다. 끝나면 제출 메시지를 한 번 보낸다(LLM은 목표 메모 확인에만 쓴다).
-import { useEffect, useRef, useState } from 'react';
+// 진행 상태는 localStorage(대화 ID별)에 둔다. 단계가 끝나면 프로필 확인 화면(B6)을 보여 주고,
+// "이대로 진행"을 누르면 제출 메시지를 한 번 보낸다(LLM은 목표 메모 확인에만 쓴다).
+import { useEffect, useState } from 'react';
 import { draftMeal, type InterviewSubmission } from '../core/interview-form.ts';
 import { questionText } from '../core/interview-text.ts';
 import type { InterviewUpdate } from '../core/types.ts';
-import { advance, progressKey, resolveProgress, type FormProgress } from './interview-form-state.ts';
+import type { ProfileSection } from '../core/profile-edit.ts';
+import { advance, progressKey, reopen, resolveProgress, type FormProgress } from './interview-form-state.ts';
 import type { InterviewViewState } from './interview-view-state.ts';
 import { AvoidStep, CookMinutesStep, GoalsStep, MealsStep, MedicationStep, MenusStep } from './InterviewSteps.tsx';
+import { ProfileConfirmView } from './ProfileConfirmView.tsx';
 
 type FormView = Extract<InterviewViewState, { kind: 'form' }>;
 
 export function InterviewView({
   conversationId,
   view,
+  defaultConsent,
   onSubmit,
   onStartOver,
 }: {
   conversationId: string;
   view: FormView;
+  /** 이 브라우저에 저장한 프로필이 있으면(전에 동의했으면) 저장 동의를 처음부터 체크 */
+  defaultConsent: boolean;
   onSubmit: (submission: InterviewSubmission) => void;
   onStartOver: () => void;
 }) {
   const key = progressKey(conversationId);
   const [progress, setProgress] = useState<FormProgress>(() => resolveProgress(load(key), view.serverAsk));
-  const submitted = useRef(false);
 
   // 서버가 목표를 다시 물으면 그 상태에서 이어 간다
   const serverAskId = view.serverAsk?.id;
@@ -35,25 +40,23 @@ export function InterviewView({
 
   useEffect(() => save(key, progress), [key, progress]);
 
-  const submission: InterviewSubmission = { draft: progress.state.draft, stopFlags: progress.state.stopFlags };
-  const finished = progress.next.kind === 'done';
-
-  // 단계가 끝나면 바로 보낸다. 보내기에 실패했으면(alert) 버튼으로 다시 보낸다
-  useEffect(() => {
-    if (finished && !view.alert && !submitted.current) {
-      submitted.current = true;
-      onSubmit(submission);
-    }
-  });
-
   function answer(update: InterviewUpdate) {
     setProgress((prev) => advance(prev, update));
+  }
+
+  function edit(section: ProfileSection) {
+    setProgress((prev) => reopen(prev, section));
+  }
+
+  /** 프로필 확인 화면의 "이대로 진행". 보내기에 실패하면(alert) 같은 화면에서 다시 누른다 */
+  function submit(consent: boolean) {
+    onSubmit({ draft: progress.state.draft, stopFlags: progress.state.stopFlags, consent });
   }
 
   const next = progress.next;
   return (
     <section className="interview">
-      <h1 className="display">식단 인터뷰</h1>
+      <h1 className="display">{progress.next.kind === 'done' ? '프로필 확인' : '식단 인터뷰'}</h1>
 
       {view.alert && (
         <p className="chat-alert" role="alert">
@@ -75,14 +78,7 @@ export function InterviewView({
       )}
 
       {next.kind === 'done' && (
-        <div className="step">
-          <p className="lede">답을 다 받았어요.</p>
-          {view.alert && (
-            <button type="button" className="primary" onClick={() => onSubmit(submission)}>
-              다시 보내기
-            </button>
-          )}
-        </div>
+        <ProfileConfirmView result={next.result} defaultConsent={defaultConsent} onEdit={edit} onSubmit={submit} />
       )}
 
       <div className="interview-foot">

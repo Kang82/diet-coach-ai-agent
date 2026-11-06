@@ -50,11 +50,12 @@ export function submitInterviewTool({
       switch (out.kind) {
         case 'done':
           saveResult(out.result);
-          return done({ status: 'done', message: out.message, summary: out.summary, stats });
+          return done({ status: 'done', message: out.message, summary: out.summary, result: out.result, stats });
         case 'ask':
           return done({ status: 'ask', message: out.message, state: out.state, next: out.next, stats });
         case 'stop':
         case 'quota':
+        case 'timeout':
           return done({ status: out.kind, message: out.message, stats });
       }
     },

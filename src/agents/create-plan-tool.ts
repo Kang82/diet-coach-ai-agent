@@ -8,6 +8,7 @@ import { formatCheckSummary } from '../core/format-summary.ts';
 import { nextMondayKst } from '../core/helpers.ts';
 import type { InterviewResult } from '../core/interview.ts';
 import { classesForPlan } from '../core/menu-classification.ts';
+import type { PlanPeriod } from '../core/period.ts';
 import { parsePlanRequest } from '../core/plan-request.ts';
 import type { PlanToolOutput } from '../core/plan-tool-output.ts';
 import type { MenuClassification } from '../core/types.ts';
@@ -23,12 +24,15 @@ export const NO_CLASSES_MESSAGE = '메뉴 분류를 먼저 확인해 주세요.'
 export function createWeekPlanTool({
   interviewResult,
   menuClasses,
+  period,
   saveClasses,
   savePlan,
   delivery,
 }: {
   interviewResult: InterviewResult | undefined;
   menuClasses: MenuClassification[] | undefined;
+  /** 기간 선택(classify_menus가 저장). 없으면 다음 주, 일정 없음 */
+  period: PlanPeriod | undefined;
   saveClasses: (classes: MenuClassification[]) => void;
   savePlan: SavePlan;
   delivery: DeliveredMessage;
@@ -57,8 +61,8 @@ export function createWeekPlanTool({
         const result = await createPlan(pickGenerator(harness), ctx, {
           planId: crypto.randomUUID(),
           createdAt: new Date().toISOString(),
-          weekStart: nextMondayKst(new Date()),
-          events: [],
+          weekStart: period?.weekStart ?? nextMondayKst(new Date()),
+          events: structuredClone(period?.events ?? []),
         });
         const stats = toolStats(startedAt, result, log);
         log.info('식단표 생성 끝', { ok: result.ok, ...stats });

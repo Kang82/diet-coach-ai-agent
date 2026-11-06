@@ -4,8 +4,13 @@ import { MEAL_KEYS, mealKeyOrder, sameMealKey, toMealKey } from './helpers.ts';
 import { needsMedication } from './profile-validation.ts';
 import type { DraftMealSetting, InterviewDraft, InterviewField, MealSetting, Profile } from './types.ts';
 
-/** 인터뷰로 채우는 프로필 항목. 사용자 ID, 버전, 동의 시각은 프로필 확인 화면에서 채운다 */
-export type InterviewResult = Pick<Profile, 'goals' | 'goalNote' | 'medication' | 'avoid' | 'avoidNote' | 'meals'>;
+/**
+ * 인터뷰로 채우는 프로필 항목. 사용자 ID, 버전은 저장(T6)에서 채운다.
+ * consentedAt: 프로필 확인 화면에서 저장에 동의했을 때만 (제출 시 서버 시각, tasks.md B6)
+ */
+export type InterviewResult = Pick<Profile, 'goals' | 'goalNote' | 'medication' | 'avoid' | 'avoidNote' | 'meals'> & {
+  consentedAt?: string;
+};
 
 export function nextField(draft: InterviewDraft): InterviewField | null {
   if (!draft.goals?.length) return 'goals';
@@ -56,15 +61,16 @@ export function finishDraft(draft: InterviewDraft): InterviewResult {
 }
 
 /**
- * 식단표를 만들 때 쓰는 프로필 (tasks.md B5). 저장(T6)과 동의(T5-2) 전이라 사용자 ID는 'demo', 버전은 0,
- * 동의 시각은 빈 문자열로 둔다. 식단표의 userId, profileVersion이 이 값이 된다.
+ * 식단표를 만들 때 쓰는 프로필 (tasks.md B5). 저장(T6) 전이라 사용자 ID는 'demo', 버전은 0이다.
+ * 동의하지 않았으면 동의 시각은 빈 문자열. 식단표의 userId, profileVersion이 이 값이 된다.
  */
 export function profileFromInterview(result: InterviewResult, now: Date): Profile {
+  const { consentedAt, ...rest } = structuredClone(result);
   return {
     userId: 'demo',
     version: 0,
-    ...structuredClone(result),
-    consentedAt: '',
+    ...rest,
+    consentedAt: consentedAt ?? '',
     updatedAt: now.toISOString(),
   };
 }

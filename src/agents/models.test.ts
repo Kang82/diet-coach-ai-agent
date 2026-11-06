@@ -12,9 +12,9 @@ describe('goalNoteModel', () => {
 });
 
 describe('menuClassModel', () => {
-  it('키가 후보에 있으면 그 모델, 아니면 llama-4-scout', () => {
-    expect(menuClassModel('gemma')).toBe(MODEL_CANDIDATES.gemma);
-    expect(menuClassModel('')).toBe(MODEL_CANDIDATES.llamaScout);
+  it('키가 후보에 있으면 그 모델, 아니면 gemma (B6: llama-4-scout는 출력 256토큰에서 잘림)', () => {
+    expect(menuClassModel('llamaScout')).toBe(MODEL_CANDIDATES.llamaScout);
+    expect(menuClassModel('')).toBe(MODEL_CANDIDATES.gemma);
   });
 });
 

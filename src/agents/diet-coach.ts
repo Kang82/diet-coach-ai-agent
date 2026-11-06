@@ -5,6 +5,7 @@ import type { InterviewResult } from '../core/interview.ts';
 import { INTERVIEW_SUBMIT_PREFIX } from '../core/interview-form.ts';
 import { estimateNeurons } from '../core/neurons.ts';
 import { CLASSIFY_REQUEST, PLAN_REQUEST_PREFIX } from '../core/plan-request.ts';
+import type { PlanPeriod } from '../core/period.ts';
 import type { MenuClassification, Plan } from '../core/types.ts';
 import { CLASSIFY_TOOL, classifyMenusTool } from './classify-menus-tool.ts';
 import { CREATE_PLAN_TOOL, createWeekPlanTool } from './create-plan-tool.ts';
@@ -28,15 +29,25 @@ export function DietCoach() {
   // 메뉴 분류 (스펙 4.2). classify_menus가 저장하고, 식단표를 만들 때 사용자가 바꾼 분류로 다시 저장한다. 칸 수정도 이 값으로 점검한다
   const [menuClasses, setMenuClasses] = usePersistentState<MenuClassification[]>('menuClasses');
 
+  // 기간과 일정 (B6). classify_menus가 요청 메시지의 일정을 검증해 저장하고, 식단표를 만들 때 쓴다
+  const [period, setPeriod] = usePersistentState<PlanPeriod>('period');
+
   const interviewing = interviewResult === undefined;
   // 인터뷰 중 바깥 턴은 도구를 부르기만 하면 되므로 추론을 줄인다. 식단표 단계는 Flue 기본값('medium') 그대로
   useModel(DEFAULT_MODEL, interviewing ? { thinkingLevel: INTERVIEW_THINKING } : undefined);
   if (interviewing) {
     useTool(submitInterviewTool({ saveResult: setInterviewResult, delivery }));
   } else {
-    useTool(classifyMenusTool({ interviewResult, saveClasses: setMenuClasses }));
+    useTool(classifyMenusTool({ interviewResult, saveClasses: setMenuClasses, savePeriod: setPeriod, delivery }));
     useTool(
-      createWeekPlanTool({ interviewResult, menuClasses, saveClasses: setMenuClasses, savePlan: setPlan, delivery }),
+      createWeekPlanTool({
+        interviewResult,
+        menuClasses,
+        period,
+        saveClasses: setMenuClasses,
+        savePlan: setPlan,
+        delivery,
+      }),
     );
     useTool(editPlanCellsTool({ interviewResult, menuClasses, plan, savePlan: setPlan, delivery }));
   }
@@ -60,7 +71,7 @@ export function DietCoach() {
   return [
     ...intro,
     `사용자 메시지가 "${EDIT_REQUEST_PREFIX}"로 시작하면 ${EDIT_PLAN_TOOL} 도구를 한 번 부르세요. 칸과 요청은 도구가 메시지에서 직접 읽으므로 입력은 비워 두세요.`,
-    `사용자 메시지가 "${CLASSIFY_REQUEST}"이면 ${CLASSIFY_TOOL} 도구를 한 번 부르세요. 메뉴는 도구가 직접 읽으므로 입력은 비워 두세요.`,
+    `사용자 메시지가 "${CLASSIFY_REQUEST}"로 시작하면 ${CLASSIFY_TOOL} 도구를 한 번 부르세요. 메뉴와 일정은 도구가 직접 읽으므로 입력은 비워 두세요.`,
     `사용자 메시지가 "${PLAN_REQUEST_PREFIX}"로 시작하거나 식단표를 만들어 달라고 하면 ${CREATE_PLAN_TOOL} 도구를 한 번 부르세요. 바꾼 분류는 도구가 메시지에서 직접 읽으므로 입력은 비워 두세요.`,
   ].join('\n');
 }

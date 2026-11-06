@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { classesA } from '../core/__fixtures__/persona-a.ts';
 import type { ClassifyToolOutput } from '../core/classify-tool-output.ts';
-import { CLASSIFY_REQUEST, formatPlanRequest } from '../core/plan-request.ts';
+import { CLASSIFY_REQUEST, formatClassifyRequest, formatPlanRequest } from '../core/plan-request.ts';
 import {
   assistantMsg,
   doneTool,
@@ -15,7 +15,8 @@ import {
 import { CLASSIFY_ERROR, CLASSIFY_TOOL, toMenuClassViewState } from './menu-class-view-state.ts';
 
 const stats = { seconds: 5, usages: [], neurons: 60 };
-const ok: ClassifyToolOutput = { status: 'ok', classes: classesA, stats };
+const period = { weekStart: '2026-11-09', events: [{ day: 'wed' as const, meal: 'dinner' as const, note: '회식' }] };
+const ok: ClassifyToolOutput = { status: 'ok', classes: classesA, period, stats };
 const out = (output: ClassifyToolOutput | string) => doneTool(CLASSIFY_TOOL, output);
 
 describe('toMenuClassViewState', () => {
@@ -41,6 +42,7 @@ describe('toMenuClassViewState', () => {
     expect(toMenuClassViewState(viewInput({ messages, settlements: [settledSub('s1')] }))).toEqual({
       kind: 'classified',
       classes: classesA,
+      period,
       planMessages: after,
     });
   });
@@ -71,6 +73,15 @@ describe('toMenuClassViewState', () => {
     expect(toMenuClassViewState(viewInput({ status: 'submitted', messages, settlements: [settledSub('s1')] }))).toEqual({
       kind: 'classifying',
       startedAt: '2026-11-06T08:01:00Z',
+    });
+  });
+
+  it('일정이 맞지 않으면 idle과 도구의 안내', () => {
+    const bad: ClassifyToolOutput = { status: 'bad_request', message: '일정을 읽지 못했어요', issues: [], stats };
+    const messages = [userMsg(formatClassifyRequest({ events: [] }), 's1'), assistantMsg('s1', out(bad))];
+    expect(toMenuClassViewState(viewInput({ messages, settlements: [settledSub('s1')] }))).toEqual({
+      kind: 'idle',
+      alert: '일정을 읽지 못했어요',
     });
   });
 

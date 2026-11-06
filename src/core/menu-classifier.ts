@@ -3,6 +3,7 @@
 import { buildCriteria } from './criteria.ts';
 import { classificationTargets, normalizeClassifications, type ClassifyInput } from './menu-classification.ts';
 import type { LlmResult, TokenUsage } from './plan-generator.ts';
+import { LlmTimeoutError } from './llm-timeout.ts';
 import { QuotaExceededError } from './quota.ts';
 import type { MenuClassification, Profile } from './types.ts';
 
@@ -13,7 +14,9 @@ export interface MenuClassifier {
 
 export type ClassifyOutcome =
   | { kind: 'ok'; classes: MenuClassification[]; usages: TokenUsage[] }
-  | { kind: 'quota'; usages: TokenUsage[] };
+  | { kind: 'quota'; usages: TokenUsage[] }
+  /** 시간 제한을 넘겨 멈춤 (B6). 멈춘 호출의 사용량은 알 수 없다 */
+  | { kind: 'timeout'; usages: TokenUsage[] };
 
 /** 외식 끼니가 없으면 LLM을 부르지 않는다. 결과가 대상과 1:1이 아니면 에러를 던진다 */
 export async function runClassification(
@@ -29,6 +32,7 @@ export async function runClassification(
     return { kind: 'ok', classes: normalizeClassifications(menus, res.value, rules), usages: [res.usage] };
   } catch (error) {
     if (error instanceof QuotaExceededError) return { kind: 'quota', usages: [] };
+    if (error instanceof LlmTimeoutError) return { kind: 'timeout', usages: [] };
     throw error;
   }
 }
