@@ -65,7 +65,9 @@ src/app.ts    Hono 라우트 맵. 에이전트를 마운트한다.
 
 ### storage
 
-새 `Storage` 구현(D1 등)은 `storageContract('이름', () => new 구현())` 한 줄로 `storage-contract.ts`의 계약 테스트를 통과해야 한다.
+새 `Storage` 구현은 `storageContract('이름', () => new 구현())` 한 줄로 `storage-contract.ts`의 계약 테스트를 통과해야 한다(`create`는 Promise도 된다).
+
+- `D1Storage` 테스트는 `@cloudflare/vitest-pool-workers`(vitest 4 전용)가 아니라 wrangler `getPlatformProxy`로 로컬 D1을 띄운다. 설정은 테스트 전용 `wrangler.storage-test.jsonc`(D1만, 원격 호출 없음), 테이블은 `migrations/`를 이름 순으로 적용한다. 테이블을 바꿀 때는 새 마이그레이션 파일을 덧붙인다.
 
 ### Flue
 

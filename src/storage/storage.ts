@@ -1,4 +1,4 @@
-// 스펙 5장 저장소 인터페이스. D1 구현은 나중에 이 인터페이스 뒤에 붙인다.
+// 스펙 5장 저장소 인터페이스. 구현은 MemoryStorage(테스트·로컬)와 D1Storage. 둘 다 storage-contract.ts를 통과한다.
 import type { Plan, Profile } from '../core/types.ts';
 
 export interface Storage {

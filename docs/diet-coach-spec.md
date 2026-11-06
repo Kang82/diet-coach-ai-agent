@@ -460,7 +460,8 @@ interface Storage {
 }
 ```
 
-- 첫 시연 저장소 후보는 D1(테이블 `profiles`, `plans`)이다. 구현은 이 인터페이스 뒤에 숨기고, 테스트에서는 메모리 구현을 쓴다.
+- 첫 시연 저장소 저장소는 D1(테이블 `profiles`, `plans`)이다. 구현은 이 인터페이스 뒤에 숨기고, 테스트에서는 메모리 구현을 쓴다.
+- **D1 구현 (T6-1):** `storage/d1-storage.ts`, 테이블은 `migrations/0001_init.sql`. 조회에 쓰는 값(`user_id`, `version`, `seq`)만 열로 두고 본문은 JSON으로 둔다. 가장 나중 식단표는 `seq`(저장 순서)로 가린다. 버전 증가는 `INSERT … ON CONFLICT … RETURNING` 한 문장이라 동시에 저장해도 겹치지 않는다. `deleteUser`는 한 트랜잭션(`batch`)이다. 계약 테스트는 wrangler `getPlatformProxy`의 로컬 D1로 돈다. 에이전트·화면 연결은 T6-2(사용자 토큰 T7-1 뒤).
 - 사용자 구분은 첫 시연에서 추측하기 어려운 고유 링크 토큰으로 한다. 로그인은 이후에 붙인다 (열린 질문 2).
 - `consentedAt` 없이 `saveProfile`을 부르면 에러를 던진다.
 - **서버에 남는 대화 기록 (열린 질문, B5·B6 리뷰):** 동의와 상관없이 에이전트 대화(Durable Object)에 인터뷰 제출 메시지, `interviewResult`, 분류, 식단표가 남는다. 동의는 지금 브라우저 저장에만 쓰인다. 보관 범위와 지우는 방법은 T6(D1)·T7에서 정한다.

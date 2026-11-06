@@ -1,0 +1,15 @@
+// D1Storage 단위 테스트 전용 설정 (src/storage/d1-storage.test.ts).
+// getPlatformProxy가 이 파일로 로컬 D1만 띄운다. AI·Durable Object가 없어 원격 호출이 없다.
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "diet-coach-storage-test",
+  "compatibility_date": "2026-06-01",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "diet-coach-test",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

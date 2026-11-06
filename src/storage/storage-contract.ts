@@ -3,16 +3,17 @@ import { describe, expect, it } from 'vitest';
 import { planA, profileA } from '../core/__fixtures__/persona-a.ts';
 import { ConsentRequiredError, type Storage } from './storage.ts';
 
-export function storageContract(name: string, create: () => Storage) {
+// create는 테스트마다 비어 있는 저장소를 돌려준다. D1처럼 비우는 데 await가 필요하면 Promise를 돌려도 된다.
+export function storageContract(name: string, create: () => Storage | Promise<Storage>) {
   describe(name, () => {
     it('저장된 프로필이 없으면 null', async () => {
-      const storage = create();
+      const storage = await create();
       expect(await storage.getProfile('nobody')).toBeNull();
       expect(await storage.getLatestPlan('nobody')).toBeNull();
     });
 
     it('처음 저장하면 버전 1, 다시 저장하면 2 (넘긴 version은 무시)', async () => {
-      const storage = create();
+      const storage = await create();
       const first = await storage.saveProfile({ ...profileA, version: 99 });
       expect(first.version).toBe(1);
       const second = await storage.saveProfile({ ...profileA, goalNote: '감량만' });
@@ -21,7 +22,7 @@ export function storageContract(name: string, create: () => Storage) {
     });
 
     it('동의 시각이 없으면 저장하지 않는다', async () => {
-      const storage = create();
+      const storage = await create();
       await expect(storage.saveProfile({ ...profileA, consentedAt: '' })).rejects.toBeInstanceOf(
         ConsentRequiredError,
       );
@@ -29,7 +30,7 @@ export function storageContract(name: string, create: () => Storage) {
     });
 
     it('돌려준 값을 고쳐도 저장된 값은 바뀌지 않는다', async () => {
-      const storage = create();
+      const storage = await create();
       const saved = await storage.saveProfile(structuredClone(profileA));
       saved.avoid.push('egg');
       const loaded = await storage.getProfile(profileA.userId);
@@ -39,7 +40,7 @@ export function storageContract(name: string, create: () => Storage) {
     });
 
     it('가장 나중에 저장한 식단표를 돌려준다', async () => {
-      const storage = create();
+      const storage = await create();
       await storage.savePlan(planA);
       await storage.savePlan({ ...planA, planId: 'plan-a-2', weekStart: '2026-11-16' });
       await storage.savePlan({ ...planA, planId: 'other', userId: 'user-b' });
@@ -47,7 +48,7 @@ export function storageContract(name: string, create: () => Storage) {
     });
 
     it('deleteUser는 프로필과 식단표를 모두 지우고 다른 사용자는 남긴다', async () => {
-      const storage = create();
+      const storage = await create();
       await storage.saveProfile(profileA);
       await storage.savePlan(planA);
       await storage.savePlan({ ...planA, planId: 'other', userId: 'user-b' });
