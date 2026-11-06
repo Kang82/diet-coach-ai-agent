@@ -42,6 +42,7 @@ src/app.ts    Hono 라우트 맵. 에이전트를 마운트한다.
 - `checkPlan`은 순수 함수다. 위반은 `{ rule, cells, regenerate, detail? }`이고 `RULE_IDS` 순서 → 첫 칸 시간순 → detail 순으로 정렬된다. `cells`는 관련된 칸 전부, `regenerate`는 다시 추천할 칸(대개 허용 횟수를 넘긴 뒤쪽 칸)이다. 문구는 만들지 않고 `stats`만 돌려준다.
 - 같은 메뉴 판정은 `menuKey()`(공백 제거)로 한다. 외식 메뉴 목록과 분류 비교는 정확히 일치로 한다.
 - 규칙을 추가할 때: `RULE_IDS`에 위치를 정해 넣고, 스펙 3.2 표(판정·위반 단위·regenerate)와 8.2 테스트 표를 함께 고친다.
+- LLM 호출은 `plan-generator.ts`의 `PlanGenerator` 포트 뒤에 둔다. 호출마다 `{ value, usage }`(토큰 사용량)를 돌려준다. 루프 테스트는 `__fixtures__/fake-plan-generator.ts`의 `FakePlanGenerator`에 응답(값, 에러, 함수)을 순서대로 정해 두고 `calls`로 호출 순서와 인자를 확인한다.
 - `checkPlan` 테스트는 `__fixtures__/persona-a.ts`(통과하는 1주일 식단표)를 `structuredClone`해서 한 군데만 바꾸고, 기대한 위반 **목록 전체**를 `toEqual`로 비교한다. 기준 값은 `buildCriteria`가 아니라 고정값 `__fixtures__/rules-a.ts`를 쓴다.
 
 ### storage

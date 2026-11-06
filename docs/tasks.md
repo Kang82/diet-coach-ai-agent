@@ -23,8 +23,9 @@
 
 ### T1. 식단표 생성 루프 (9장 5단계)
 
-- [ ] **T1-1. LLM 포트와 가짜 구현** (스펙 4.3, 4.4)
+- [x] **T1-1. LLM 포트와 가짜 구현** (스펙 4.3, 4.4) (2026-11-06)
   - `generatePlan`, `regenerateCells`를 인터페이스로 두고, 테스트용 가짜 구현을 만든다. 각 호출은 칸과 토큰 사용량을 돌려준다.
+  - `src/core/plan-generator.ts`(`PlanGenerator`, `LlmResult`, `TokenUsage`), `__fixtures__/fake-plan-generator.ts`(`FakePlanGenerator`)
   - 완료 기준: 루프 테스트에서 가짜 구현으로 호출 순서와 인자를 확인할 수 있음
   - 선행: T0-1
 
