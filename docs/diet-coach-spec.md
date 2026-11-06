@@ -377,6 +377,14 @@ regenerateCells(input: {
 3. 최대 3회 반복한다. 그래도 위반이 남으면 식단표를 보여 주지 않고 "조건을 모두 맞추기 어렵다"고 알린 뒤, 위반 원인(예: 외식 메뉴 부족)을 근거로 조건 완화를 묻는다.
 4. 사용자가 칸 수정을 요청하면 그 칸을 `targets`로 같은 루프를 탄다. 3회 안에 통과하지 못하면 수정 전 식단표를 그대로 두고 바꾸지 못했다고 알린다.
 
+구현 세부 (`src/core/plan-loop.ts`):
+
+- "3회"는 `regenerateCells` 호출 횟수다. 새로 만들 때는 `generatePlan` 1번 + `regenerateCells` 최대 3번, 칸 수정은 사용자 요청 회차를 포함해 `regenerateCells` 최대 3번이다.
+- `unexpected_cell` 칸 지우기는 LLM 호출이 아니라서 횟수로 세지 않는다. 같은 끼니에 칸이 여러 개면 `checkPlan`처럼 앞의 칸을 남긴다.
+- `regenerateCells`가 돌려준 칸 중 `targets`가 아닌 칸은 버리고, 한 끼니에 여러 개면 첫 칸만 쓴다. 돌아오지 않은 칸은 비워 두어 다음 점검의 `missing_cell`로 다시 요청한다.
+- 칸 수정에서 `userRequest`는 첫 회차에만 보낸다. 이후 회차는 바꾼 칸 때문에 생긴 위반을 고치는 회차다.
+- 루프는 입력 식단표를 고치지 않고, 부른 LLM 호출의 토큰 사용량(`usages`)을 함께 돌려준다.
+
 ## 5. 저장 (Cloudflare)
 
 ```ts

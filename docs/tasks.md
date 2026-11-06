@@ -35,7 +35,8 @@
   - Flue가 돌려주는 `usage`의 모델 이름이 `NEURON_PRICES` 키와 같은 모양인지는 T1-5에서 확인한다
   - 완료 기준: gemma, glm 단가로 계산하는 단위 테스트 통과
 
-- [ ] **T1-3. 점검·다시 추천 루프** (스펙 4.4)
+- [x] **T1-3. 점검·다시 추천 루프** (스펙 4.4) (2026-11-06)
+  - `src/core/plan-loop.ts`(`createPlan`, `editPlanCells`). 해석한 세부 규칙은 스펙 4.4 "구현 세부"
   - 완료 기준 (가짜 LLM으로 TDD):
     - `unexpected_cell` 칸은 코드가 지운다
     - 나머지 위반의 `regenerate`를 중복 없이 모아 그 칸만 다시 요청한다
