@@ -66,4 +66,5 @@ src/app.ts    Hono 라우트 맵. 에이전트를 마운트한다.
 ## Windows 개발 환경 메모
 
 - Git Bash에서 `curl -d '한글'`은 본문이 깨진다. UTF-8 파일로 만들어 `--data-binary @파일`로 보낸다.
-- `vite dev`를 끝낼 때 node와 `workerd.exe` 프로세스가 남는다. 포트(예: 5199)를 쓰는 프로세스까지 종료한다.
+- `vite dev`를 끝낼 때 node와 `workerd.exe` 프로세스가 남는다. 포트(예: 5199)를 쓰는 프로세스까지 종료한다. vite의 node 프로세스가 살아 있으면 `workerd`를 꺼도 다시 띄우므로 node(vite) → `workerd` 순서로 끈다.
+- 개발 서버에서 식단표 만들기: `POST /agents/diet-coach/<id>`에 `{"kind":"user","body":"식단표 만들어 줘"}`를 보내고 `GET` 같은 주소로 대화를 읽는다. `create_week_plan` 도구 결과에 식단표가 남는다. 1회에 약 4분, 약 250 Neuron.

@@ -51,13 +51,16 @@
   - `src/core/quota.ts`. 루프는 `QuotaExceededError`만 보고 `reason: 'quota'`를 돌려준다. 칸 수정이면 수정 전 식단표를 함께 돌려준다
   - 선행: T1-3
 
-- [ ] **T1-5. Flue로 실제 생성 연결** (스펙 4.3)
+- [x] **T1-5. Flue로 실제 생성 연결** (스펙 4.3) (2026-11-06)
   - `PlanCell` valibot 스키마, 다양성 규칙이 들어간 프롬프트, `harness.prompt(..., { result })`
   - 어댑터는 Flue 에러를 `isQuotaExceeded`로 판별해 `QuotaExceededError`로 바꿔 던진다. Flue의 스키마 재요청이 한도 초과에서도 다시 부르는지 확인한다 (스펙 11.3-2)
   - Flue `usage`의 모델 이름을 `NEURON_PRICES` 키 모양으로 맞춘다. Flue는 `{ provider, id }`로 나눠 주므로 `${provider}/${id}`로 잇는다. 운영 경로에서는 `estimateNeurons`를 `{ unknownModel: 'max-price' }`와 경고로 부른다
   - Flue 에러에서 실패한 호출의 부분 사용량(스키마 재요청으로 쓴 토큰)을 얻을 수 있는지 확인한다. 지금 `PlanLoopError.usages`에는 성공한 호출만 들어 있다
   - 완료 기준: 개발 서버에서 페르소나 A 1주일 식단표 1회 생성 → `checkPlan` 통과. 약 200 Neuron
   - 선행: T1-3
+  - 결과: 4분 27초, 약 250 Neuron, 처음에 통과(다시 추천 0회). 측정과 관찰은 스펙 11.5
+  - 코드: `core/plan-prompt.ts`(프롬프트, `normalizeMenuId`), `agents/plan-schema.ts`, `agents/flue-plan-generator.ts`, `agents/create-plan-tool.ts`(`create_week_plan`, 페르소나 A 고정, 결과로 턴 종료)
+  - 남은 확인: 한도 초과 에러 모양과 Flue 재시도(열린 질문 6), 실패한 호출의 부분 사용량. 실제로 마주쳤을 때 확인한다
 
 - [ ] **T1-6. 평가 세트 설정** (스펙 8.5)
   - `vitest.evals.config.ts`, `npm run evals`. 페르소나 A 케이스부터
@@ -75,6 +78,7 @@
 
 - [ ] **T2-2. 식단표 생성 도구** (스펙 4.3, 4.4, 7.1)
   - 에이전트에 식단표를 만드는 도구를 붙인다. 도구 안에서 점검·다시 추천 루프를 돌리고, `Plan`과 점검 요약을 도구 결과로 돌려준다
+  - T1-5에서 `create_week_plan`을 먼저 만들었다. 남은 일: 도구 결과 모양을 화면(T2-3)에 맞게 정하고, 바깥 턴 사용량까지 세는 방법을 정한다
   - 완료 기준: 개발 서버에서 대화로 호출하면 도구 결과에 `checkPlan`을 통과한 `Plan`이 남음
   - `createPlan`의 `planId`, `createdAt`은 도구에서 만든다. 결과의 `usages`와 `PlanLoopError.usages`는 성공·실패와 관계없이 사용량으로 센다
   - 선행: T1-5
