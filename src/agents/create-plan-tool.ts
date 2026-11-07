@@ -5,11 +5,9 @@
 import { defineTool, type DeliveredMessage } from '@flue/runtime';
 import * as v from 'valibot';
 import { formatCheckSummary } from '../core/format-summary.ts';
-import { nextMondayKst } from '../core/helpers.ts';
 import type { InterviewResult } from '../core/interview.ts';
-import { classesForPlan } from '../core/menu-classification.ts';
-import type { PlanPeriod } from '../core/period.ts';
-import { parsePlanRequest } from '../core/plan-request.ts';
+import { planWeekStart, type PlanPeriod } from '../core/period.ts';
+import { resolvePlanClasses } from '../core/plan-request.ts';
 import type { PlanToolOutput } from '../core/plan-tool-output.ts';
 import type { MenuClassification } from '../core/types.ts';
 import { PLAN_TOOL_BUDGETS } from '../core/llm-timeout.ts';
@@ -23,6 +21,8 @@ import { metered, persistQuietly, pickGenerator, planContext, planFailure, toJso
 export const CREATE_PLAN_TOOL = 'create_week_plan';
 
 export const NO_CLASSES_MESSAGE = '메뉴 분류를 먼저 확인해 주세요.';
+
+export const BAD_PLAN_REQUEST_MESSAGE = '식단표 요청을 읽지 못했어요. 분류 확인 화면에서 다시 눌러 주세요.';
 
 export function createWeekPlanTool({
   interviewResult,
@@ -54,15 +54,18 @@ export function createWeekPlanTool({
     input: v.object({}),
     harness: true,
     async run({ harness, log }) {
-      // 정해진 형식이 아닌 메시지("식단표 만들어 줘" 등)면 바꾼 분류 없이 저장된 분류를 그대로 쓴다
-      const request = delivery.kind === 'user' ? parsePlanRequest(delivery.body) : undefined;
-      const classes = interviewResult && classesForPlan(interviewResult.meals, menuClasses, request?.overrides);
-      if (!interviewResult || !classes) {
+      // 정해진 형식이 아닌 메시지("식단표 만들어 줘" 등)면 바꾼 분류 없이 저장된 분류를 그대로 쓴다.
+      // `식단표 만들기:`인데 형식이 깨졌으면 바꾼 분류를 버리지 않고 bad_request로 답한다 (T9-1)
+      const resolved = resolvePlanClasses(delivery.kind === 'user' ? delivery.body : undefined, interviewResult?.meals, menuClasses);
+      if (resolved.kind === 'bad_request') {
+        const output: PlanToolOutput = { status: 'bad_request', message: BAD_PLAN_REQUEST_MESSAGE };
+        return { output: toJson(output), terminate: true };
+      }
+      if (!interviewResult || resolved.kind === 'no_classes') {
         const output: PlanToolOutput = { status: 'no_classes', message: NO_CLASSES_MESSAGE };
         return { output: toJson(output), terminate: true };
       }
-      // 칸 수정이 같은 분류로 점검하도록 사용자가 바꾼 분류를 저장한다
-      saveClasses(classes);
+      const { classes } = resolved;
       const ctx = planContext(interviewResult, classes);
       const startedAt = Date.now();
 
@@ -70,7 +73,7 @@ export function createWeekPlanTool({
         const result = await createPlan(pickGenerator(metered(harness, meter, log)), ctx, {
           planId: crypto.randomUUID(),
           createdAt: new Date().toISOString(),
-          weekStart: period?.weekStart ?? nextMondayKst(new Date()),
+          weekStart: planWeekStart(period?.weekStart, new Date()),
           events: structuredClone(period?.events ?? []),
           // 도구 전체 시간 상한 (tasks.md T8-4)
           budget: { totalMs: PLAN_TOOL_BUDGETS.createPlan, now: Date.now },
@@ -79,6 +82,8 @@ export function createWeekPlanTool({
         log.info('식단표 생성 끝', { ok: result.ok, ...stats });
 
         if (result.ok) {
+          // 칸 수정이 같은 분류로 점검하도록 사용자가 바꾼 분류를 저장한다. 실패하면 저장된 분류는 그대로 둔다 (T9-2)
+          saveClasses(classes);
           savePlan(result.plan);
           if (store) {
             const plan = result.plan;

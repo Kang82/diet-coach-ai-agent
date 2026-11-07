@@ -8,7 +8,10 @@ import {
   isPlanRequest,
   parseClassifyRequest,
   parsePlanRequest,
+  resolvePlanClasses,
 } from './plan-request.ts';
+import { classesA, profileA } from './__fixtures__/persona-a.ts';
+import { classesForPlan } from './menu-classification.ts';
 
 describe('formatPlanRequest / parsePlanRequest', () => {
   it('바꾼 분류를 그대로 되읽는다', () => {
@@ -58,5 +61,33 @@ describe('formatClassifyRequest / parseClassifyRequest', () => {
     expect(parseClassifyRequest('메뉴 분류 요청:\n{"events":[{"day":"xyz","meal":"lunch","note":""}]}')).toBeUndefined();
     expect(parseClassifyRequest('메뉴 분류 요청:\n{"events":[{"day":"mon","meal":"lunch"}]}')).toBeUndefined();
     expect(parseClassifyRequest('안녕')).toBeUndefined();
+  });
+});
+
+// tasks.md T9-1: 깨진 만들기 메시지는 바꾼 분류를 조용히 버리지 않고 bad_request
+describe('resolvePlanClasses', () => {
+  it('정해진 형식이면 바꾼 분류를 반영한다', () => {
+    const body = formatPlanRequest({ overrides: [{ menu: '국밥', class: 'avoid' }] });
+    const out = resolvePlanClasses(body, profileA.meals, classesA);
+    expect(out).toEqual({ kind: 'ok', classes: classesForPlan(profileA.meals, classesA, [{ menu: '국밥', class: 'avoid' }]) });
+  });
+
+  it('"식단표 만들기:"로 시작하는데 JSON이 깨지면 bad_request', () => {
+    expect(resolvePlanClasses('식단표 만들기:\n{"overrides":[', profileA.meals, classesA)).toEqual({ kind: 'bad_request' });
+    expect(resolvePlanClasses('식단표 만들기:\n{"overrides":[{"menu":"국밥","class":"x"}]}', profileA.meals, classesA)).toEqual({
+      kind: 'bad_request',
+    });
+  });
+
+  it('형식 밖 메시지나 사용자 메시지가 아니면 바꾼 분류 없이 저장된 분류를 쓴다', () => {
+    const plain = { kind: 'ok', classes: classesForPlan(profileA.meals, classesA) };
+    expect(resolvePlanClasses('식단표 만들어 줘', profileA.meals, classesA)).toEqual(plain);
+    expect(resolvePlanClasses(undefined, profileA.meals, classesA)).toEqual(plain);
+  });
+
+  it('인터뷰나 저장된 분류가 없으면 no_classes', () => {
+    const body = formatPlanRequest({ overrides: [] });
+    expect(resolvePlanClasses(body, undefined, classesA)).toEqual({ kind: 'no_classes' });
+    expect(resolvePlanClasses(body, profileA.meals, undefined)).toEqual({ kind: 'no_classes' });
   });
 });

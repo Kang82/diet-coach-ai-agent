@@ -34,7 +34,9 @@ export type PlanToolOutput =
   /** 시간 초과나 그 밖의 실패 (리뷰 1번). 도구는 던지지 않고 이 결과로 턴을 끝낸다 */
   | { status: 'timeout' | 'error'; message: string; stats: PlanToolStats }
   /** 인터뷰나 메뉴 분류가 끝나지 않았음. LLM을 부르지 않는다 */
-  | { status: 'no_classes'; message: string };
+  | { status: 'no_classes'; message: string }
+  /** `식단표 만들기:` 메시지 형식이 깨짐 (tasks.md T9-1). LLM을 부르지 않는다. 같은 메시지를 다시 보내도 같아서 다시 시도가 없다 */
+  | { status: 'bad_request'; message: string };
 
 /**
  * 칸 다시 추천 도구(edit_plan_cells)의 결과 (스펙 4.4-4).

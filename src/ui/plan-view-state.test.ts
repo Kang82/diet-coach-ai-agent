@@ -142,6 +142,15 @@ describe('toPlanViewState: 만들기', () => {
     });
   });
 
+  it('만들기 메시지가 깨져 bad_request면 도구 안내로 error, 같은 메시지 다시 시도는 없다 (T9-1)', () => {
+    const broken = '식단표 만들기:\n{"overrides":[';
+    const bad: PlanToolOutput = { status: 'bad_request', message: '식단표 요청을 읽지 못했어요.' };
+    expect(toPlanViewState(input({ messages: [userMsg(broken, 's1'), assistantMsg('s1', done(bad))] }))).toEqual({
+      kind: 'error',
+      message: '식단표 요청을 읽지 못했어요.',
+    });
+  });
+
   it('도구 에러, 알 수 없는 결과, 도구 없이 끝난 답, 실패한 제출, 연결 오류는 error', () => {
     const text: Part = { type: 'text', text: '무엇을 도와드릴까요?', state: 'done' };
     const cases: PlanViewInput[] = [

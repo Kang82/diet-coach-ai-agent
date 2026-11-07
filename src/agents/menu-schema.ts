@@ -11,10 +11,12 @@ import { CRITERION_IDS, MENU_CLASSES, type MenuClassification } from '../core/ty
 // - 값이 하나면 배열 대신 문자열로 낸다 (gemma, B6 실제 실행: "criterionIds": "reduce_saturated_fat")
 const oneOrMany = <T extends v.GenericSchema<string>>(item: T) => v.nullish(v.union([v.array(item), item]));
 
+// - 메뉴 이름 앞뒤에 공백·줄바꿈을 붙인다 (대상 목록은 classificationTargets가 trim한다) (T9-3)
+// - reason을 null로 내거나 뺀다. 빈 이유는 화면에 빈 칸으로 보인다 (T9-3)
 const ClassificationSchema = v.object({
-  menu: v.string(),
+  menu: v.pipe(v.string(), v.trim()),
   class: v.picklist(MENU_CLASSES),
-  reason: v.string(),
+  reason: v.nullish(v.string()),
   criterionIds: oneOrMany(v.picklist(CRITERION_IDS)),
   orderTips: oneOrMany(v.string()),
 });
@@ -37,7 +39,7 @@ export function toMenuClassifications(raw: MenuClassesOutput): MenuClassificatio
   return raw.classes.map((c) => ({
     menu: c.menu,
     class: c.class,
-    reason: c.reason,
+    reason: c.reason ?? '',
     criterionIds: toArray(c.criterionIds),
     orderTips: toArray(c.orderTips),
   }));

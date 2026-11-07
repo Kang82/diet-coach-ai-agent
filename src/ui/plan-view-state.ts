@@ -82,7 +82,7 @@ export function toPlanViewState({ historyReady, status, messages, settlements }:
     if (output?.status === 'violations') return { kind: 'violations', message: output.message, ...retry };
     if (output?.status === 'quota') return { kind: 'quota', message: output.message, ...retry };
     if (output?.status === 'timeout' || output?.status === 'error') return { kind: 'error', message: output.message, ...retry };
-    if (output?.status === 'no_classes') return { kind: 'error', message: output.message };
+    if (output?.status === 'no_classes' || output?.status === 'bad_request') return { kind: 'error', message: output.message };
     return { kind: 'error', message: GENERIC_ERROR, ...retry };
   }
   if (call?.state === 'output-error' || status === 'error' || settled) return { kind: 'error', message: GENERIC_ERROR, ...retry };

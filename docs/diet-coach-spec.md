@@ -394,8 +394,8 @@ classifyMenus(profile: Profile, rules: CriteriaRules): MenuClassification[]
 
 - 분류 대상(`classificationTargets`): 외식 끼니의 `menus`를 끼니 순서(평일 아침 → 주말 저녁)로 합치고, 앞뒤 공백을 지워 같은 문자열을 한 번만 남긴다. 외식 끼니가 없으면 LLM을 부르지 않고 빈 분류로 끝난다.
 - 1:1 검사는 결과 스키마의 `v.check`로 한다(`agents/menu-schema.ts`). 맞지 않으면 Flue가 빠진·추가된·두 번 나온 메뉴를 적은 메시지로 다시 요청한다. 받은 뒤 코드가 한 번 더 확인하고(`normalizeClassifications`), 대상 순서로 정렬한다. 이번 기준에 없는 `criterionIds`는 다시 요청하지 않고 지운다.
-- 모델은 gemma, `thinkingLevel: 'low'`(`models.ts`의 `menuClassModel`, `.dev.vars`의 `MENU_MODEL`로 바꿔 시험). B5는 llama-4-scout였지만, Workers AI 기본 출력 상한 256토큰에서 잘려 `finish`를 부르지 못하고 Flue 재요청이 반복돼 바꿨다(B6, 11.5). 배열 필드는 문자열 하나도 받는다.
-- 메뉴 분류 요청에는 기간 선택 화면의 일정을 싣는다: `메뉴 분류 요청:` + `{"events":[{day, meal, note}]}`(B6). 도구가 `validateEvents`(`core/period.ts`: 안 먹는 끼니·같은 칸·빈 메모·50자 초과면 `bad_request`)로 검증하고, `nextMondayKst`로 정한 시작일과 함께 `usePersistentState('period')`에 둔다. `create_week_plan`은 이 기간과 일정으로 만든다.
+- 모델은 gemma, `thinkingLevel: 'low'`(`models.ts`의 `menuClassModel`, `.dev.vars`의 `MENU_MODEL`로 바꿔 시험). B5는 llama-4-scout였지만, Workers AI 기본 출력 상한 256토큰에서 잘려 `finish`를 부르지 못하고 Flue 재요청이 반복돼 바꿨다(B6, 11.5). 배열 필드는 문자열 하나도 받는다. 메뉴 이름 앞뒤 공백은 떼고 1:1을 보며, `reason`이 null이거나 없으면 빈 문자열로 받는다(T9-3).
+- 메뉴 분류 요청에는 기간 선택 화면의 일정을 싣는다: `메뉴 분류 요청:` + `{"events":[{day, meal, note}]}`(B6). 도구가 `validateEvents`(`core/period.ts`: 안 먹는 끼니·같은 칸·빈 메모·50자 초과·모든 끼니가 일정이면 `bad_request`)로 검증하고, 분류가 성공하면 `nextMondayKst`로 정한 시작일과 함께 `usePersistentState('period')`에 둔다(판단은 `core/classify-runner.ts`). `create_week_plan`은 이 기간과 일정으로 만들되, 저장한 시작일이 오늘(KST)이거나 지났으면 다음 월요일로 다시 정한다(`planWeekStart`, T9-4).
 - 흐름: 인터뷰가 끝나면 화면이 `메뉴 분류 요청`을 보내고 `classify_menus` 도구가 끝난 인터뷰로 분류해 `usePersistentState('menuClasses')`에 저장한다. 분류 확인 화면에서 `식단표 만들기:` + `{"overrides":[{menu, class}]}` 메시지를 보내면 `create_week_plan`이 `useDelivery()`로 읽어 저장된 분류에 반영하고(`classesForPlan`), 반영한 분류를 다시 저장한 뒤 식단을 만든다. 칸 수정도 이 분류로 점검한다. 저장된 분류에 없는 메뉴로 온 수정은 무시한다.
 - 사용자가 바꾼 메뉴는 `class`만 바꾸고 `reason`은 "직접 정한 분류"로 바꾼다. `orderTips`는 그대로 둔다.
 - 분류가 없거나 지금 메뉴와 1:1이 아니면 `create_week_plan`은 LLM을 부르지 않고 `no_classes`를 돌려준다.

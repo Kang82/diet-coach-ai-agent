@@ -1,18 +1,14 @@
 // 스펙 4.2 외식 메뉴 분류 도구 (tasks.md B5).
 // 화면이 "메뉴 분류 요청" 메시지를 보내면 모델이 이 도구를 부른다. 입력은 없고, 끝난 인터뷰(interviewResult)로 분류한다.
 // 결과는 에이전트 상태(menuClasses)에 저장하고 도구 출력으로 화면에 보여 준다. 사용자가 바꾼 분류는 create_week_plan이 반영한다.
-// 요청 메시지에 실린 기간 선택 화면의 일정(B6)을 검증해 기간(period)으로 함께 저장한다. 시작일은 이때 고정한다.
+// 요청 메시지에 실린 기간 선택 화면의 일정(B6)을 검증해 기간(period)으로 함께 저장한다.
+// 판단은 core/classify-runner.ts(테스트 있음, T9-5). 이 파일은 분류기를 고르고, 저장과 로그만 한다.
 import { defineTool, type DeliveredMessage } from '@flue/runtime';
 import * as v from 'valibot';
-import type { ClassifyToolOutput } from '../core/classify-tool-output.ts';
-import { nextMondayKst } from '../core/helpers.ts';
-import { validateEvents, type PlanPeriod } from '../core/period.ts';
-import { parseClassifyRequest } from '../core/plan-request.ts';
+import { handleClassifyRequest } from '../core/classify-runner.ts';
 import type { InterviewResult } from '../core/interview.ts';
-import { runClassification, type MenuClassifier } from '../core/menu-classifier.ts';
-import { LLM_TIMEOUT_MESSAGE } from '../core/llm-timeout.ts';
-import { failureKind, failureMessage } from '../core/tool-failure.ts';
-import { QUOTA_EXCEEDED_MESSAGE } from '../core/quota.ts';
+import type { MenuClassifier } from '../core/menu-classifier.ts';
+import type { PlanPeriod } from '../core/period.ts';
 import type { MenuClassification } from '../core/types.ts';
 import { createDemoMenuClassifier } from './demo-menu-classifier.ts';
 import { createFlueMenuClassifier } from './flue-menu-classifier.ts';
@@ -22,8 +18,6 @@ import type { NeuronMeter } from './metered-harness.ts';
 import { countNeurons, metered, toJson } from './plan-tool-support.ts';
 
 export const CLASSIFY_TOOL = 'classify_menus';
-
-export const BAD_EVENTS_MESSAGE = '일정을 읽지 못했어요. 기간 선택 화면에서 다시 넣어 주세요.';
 
 export function classifyMenusTool({
   interviewResult,
@@ -45,51 +39,26 @@ export function classifyMenusTool({
     input: v.object({}),
     harness: true,
     async run({ harness, log }) {
-      const done = (output: ClassifyToolOutput) => ({ output: toJson(output), terminate: true });
-      const startedAt = Date.now();
-      if (!interviewResult) {
-        return done({
-          status: 'no_interview',
-          message: '인터뷰를 먼저 마쳐 주세요.',
-          stats: { seconds: 0, usages: [], neurons: 0 },
-        });
+      const result = await handleClassifyRequest({
+        interviewResult,
+        body: delivery.kind === 'user' ? delivery.body : undefined,
+        classifier: pickClassifier(metered(harness, meter, log)),
+        now: () => new Date(),
+        neurons: (usages) => countNeurons(usages, log),
+      });
+      const { output, save, failure } = result;
+      if (failure) {
+        const { error } = failure;
+        log.error('메뉴 분류 실패', { kind: failure.kind, message: error instanceof Error ? error.message : String(error), seconds: output.stats.seconds });
+      } else if (output.status !== 'no_interview' && output.status !== 'bad_request') {
+        log.info('메뉴 분류 끝', { status: output.status, ...output.stats });
       }
-
-      const request = delivery.kind === 'user' ? parseClassifyRequest(delivery.body) : undefined;
-      const checked = request && validateEvents(interviewResult.meals, request.events);
-      if (!checked || checked.issues.length > 0) {
-        return done({
-          status: 'bad_request',
-          message: BAD_EVENTS_MESSAGE,
-          issues: checked?.issues ?? [],
-          stats: { seconds: 0, usages: [], neurons: 0 },
-        });
+      // 분류가 끝났을 때만 분류와 기간을 저장한다 (T9-5)
+      if (save) {
+        saveClasses(save.classes);
+        savePeriod(save.period);
       }
-      const period: PlanPeriod = { weekStart: nextMondayKst(new Date()), events: checked.events };
-
-      let out: Awaited<ReturnType<typeof runClassification>>;
-      try {
-        out = await runClassification(pickClassifier(metered(harness, meter, log)), interviewResult);
-      } catch (error) {
-        // 던지면 바깥 모델이 이 도구를 다시 부를 수 있다 (리뷰 1번). 결과로 답하고 턴을 끝낸다
-        const kind = failureKind(error);
-        const seconds = Math.round((Date.now() - startedAt) / 1000);
-        log.error('메뉴 분류 실패', { kind, message: error instanceof Error ? error.message : String(error), seconds });
-        const status = kind === 'quota' ? 'quota' : kind === 'timeout' ? 'timeout' : 'error';
-        return done({ status, message: failureMessage(kind), stats: { seconds, usages: [], neurons: 0 } });
-      }
-      const stats = {
-        seconds: Math.round((Date.now() - startedAt) / 1000),
-        usages: out.usages,
-        neurons: countNeurons(out.usages, log),
-      };
-      log.info('메뉴 분류 끝', { kind: out.kind, ...stats });
-
-      if (out.kind === 'quota') return done({ status: 'quota', message: QUOTA_EXCEEDED_MESSAGE, stats });
-      if (out.kind === 'timeout') return done({ status: 'timeout', message: LLM_TIMEOUT_MESSAGE, stats });
-      saveClasses(out.classes);
-      savePeriod(period);
-      return done({ status: 'ok', classes: out.classes, period, stats });
+      return { output: toJson(output), terminate: true };
     },
   });
 }

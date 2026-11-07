@@ -5,9 +5,10 @@ import { useEffect, useId, useState, type FormEvent } from 'react';
 import { nextMondayKst, slotOrder } from '../core/helpers.ts';
 import type { InterviewResult } from '../core/interview.ts';
 import { DAY_LABELS, MEAL_LABELS } from '../core/labels.ts';
-import { EVENT_NOTE_MAX, eventSlotOptions, validateEvents } from '../core/period.ts';
+import { EVENT_NOTE_MAX } from '../core/period.ts';
 import type { PlanEvent, Slot } from '../core/types.ts';
 import { draftKey } from './browser-store.ts';
+import { ALL_TAKEN_MESSAGE, periodFormState } from './period-view-state.ts';
 import { layoutPlan } from './plan-layout.ts';
 
 const slotKey = (s: Slot) => `${s.day}-${s.meal}`;
@@ -30,7 +31,7 @@ export function PeriodView({
   const [events, setEvents] = useState<PlanEvent[]>(() => load(key));
   useEffect(() => save(key, events), [key, events]);
 
-  const options = eventSlotOptions(result.meals).filter((o) => !events.some((e) => slotKey(e) === slotKey(o)));
+  const { options, full, canNext, alert: eventAlert } = periodFormState(result.meals, events);
   const [slot, setSlot] = useState('');
   const [note, setNote] = useState('');
   const slotId = useId();
@@ -38,7 +39,6 @@ export function PeriodView({
 
   const { days } = layoutPlan({ weekStart: nextMondayKst(new Date()), cells: [] });
   const range = `${days[0]!.date}(월) ~ ${days.at(-1)!.date}(일)`;
-  const { issues } = validateEvents(result.meals, events);
 
   function add(e: FormEvent) {
     e.preventDefault();
@@ -90,7 +90,9 @@ export function PeriodView({
           </ul>
         )}
 
-        {options.length > 0 && (
+        {full ? (
+          <p className="status-line">{ALL_TAKEN_MESSAGE}</p>
+        ) : (
           <form className="event-form" onSubmit={add}>
             <label className="field-label" htmlFor={slotId}>
               끼니
@@ -122,12 +124,12 @@ export function PeriodView({
       </div>
 
       <div className="interview-foot class-foot">
-        {(alert || issues.length > 0) && (
+        {(alert || eventAlert) && (
           <p className="chat-alert" role="alert">
-            {alert ?? '일정을 다시 확인해 주세요.'}
+            {alert ?? eventAlert}
           </p>
         )}
-        <button type="button" className="primary" disabled={issues.length > 0} onClick={() => onNext(events)}>
+        <button type="button" className="primary" disabled={!canNext} onClick={() => onNext(events)}>
           다음: 외식 메뉴 분류
         </button>
       </div>

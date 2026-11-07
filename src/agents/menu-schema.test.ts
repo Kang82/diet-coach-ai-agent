@@ -30,6 +30,18 @@ describe('menuClassesSchema', () => {
     expect(toMenuClassifications(res)[1]).toMatchObject({ criterionIds: ['increase_fiber'], orderTips: ['채소 반찬 위주로'] });
   });
 
+  it('메뉴 이름 앞뒤 공백은 떼고 1:1을 본다 (T9-3)', () => {
+    const res = v.safeParse(schema, { classes: [item(' 국밥 '), item('백반\n')] });
+    expect(res.success).toBe(true);
+    expect(toMenuClassifications(res.output as never).map((c) => c.menu)).toEqual(['국밥', '백반']);
+  });
+
+  it('reason이 null이거나 없으면 빈 문자열로 받는다 (T9-3)', () => {
+    const { reason: _omit, ...noReason } = item('백반');
+    const res = v.parse(schema, { classes: [{ ...item('국밥'), reason: null }, noReason] });
+    expect(toMenuClassifications(res).map((c) => c.reason)).toEqual(['', '']);
+  });
+
   it('null 배열을 받아 빈 배열로 바꾼다', () => {
     const res = v.parse(schema, {
       classes: [item('국밥'), { ...item('백반'), criterionIds: null, orderTips: null }],

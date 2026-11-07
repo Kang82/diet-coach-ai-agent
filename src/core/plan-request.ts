@@ -2,8 +2,8 @@
 // 메뉴 분류 요청에는 기간 선택 화면의 일정을 싣는다 (B6). classify_menus가 검증해 기간과 함께 저장한다.
 // 화면이 이 형식으로 보내면 classify_menus, create_week_plan 도구가 useDelivery()로 직접 읽는다.
 // 사용자가 바꾼 분류는 모델이 옮겨 적지 않고 메시지 JSON으로 도구에 넘어간다 (edit-request.ts와 같은 방식).
-import type { MenuClassOverride } from './menu-classification.ts';
-import { DAYS, MEAL_TYPES, MENU_CLASSES, type PlanEvent } from './types.ts';
+import { classesForPlan, type MenuClassOverride } from './menu-classification.ts';
+import { DAYS, MEAL_TYPES, MENU_CLASSES, type MealSetting, type MenuClassification, type PlanEvent } from './types.ts';
 
 export const CLASSIFY_REQUEST = '메뉴 분류 요청';
 export const PLAN_REQUEST_PREFIX = '식단표 만들기:';
@@ -80,4 +80,26 @@ export function parsePlanRequest(body: string): PlanRequest | undefined {
     parsed.push({ menu, class: c as MenuClassOverride['class'] });
   }
   return { overrides: parsed };
+}
+
+export type ResolvedPlanClasses =
+  | { kind: 'ok'; classes: MenuClassification[] }
+  /** `식단표 만들기:`로 시작하는데 형식이 깨짐. 바꾼 분류를 조용히 버리지 않고 알린다 (tasks.md T9-1) */
+  | { kind: 'bad_request' }
+  /** 인터뷰가 없거나 분류가 끝나지 않음 */
+  | { kind: 'no_classes' };
+
+/**
+ * create_week_plan이 쓸 분류. body는 사용자 메시지 본문(사용자 메시지가 아니면 undefined).
+ * 정해진 형식 밖 메시지("식단표 만들어 줘")는 바꾼 분류 없이 저장된 분류를 쓴다.
+ */
+export function resolvePlanClasses(
+  body: string | undefined,
+  meals: readonly MealSetting[] | undefined,
+  stored: readonly MenuClassification[] | undefined,
+): ResolvedPlanClasses {
+  const request = body === undefined ? undefined : parsePlanRequest(body);
+  if (body !== undefined && isPlanRequest(body) && !request) return { kind: 'bad_request' };
+  const classes = meals && classesForPlan(meals, stored, request?.overrides);
+  return classes ? { kind: 'ok', classes } : { kind: 'no_classes' };
 }
