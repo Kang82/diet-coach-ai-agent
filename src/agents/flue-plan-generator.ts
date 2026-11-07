@@ -15,10 +15,15 @@ export type PromptHarness = Pick<FlueHarness, 'prompt'>;
 export interface FluePlanGeneratorOptions {
   /** 식단 생성·다시 추천의 추론 수준. 없으면 Flue 기본값('medium')이다 (models.ts planThinking, tasks.md T8-4) */
   thinkingLevel?: ThinkingLevel;
+  /** 식단 생성·다시 추천 모델. 없으면 에이전트 기본 모델(gemma)이다 (models.ts planModel, tasks.md B14) */
+  model?: string;
 }
 
 export function createFluePlanGenerator(harness: PromptHarness, options: FluePlanGeneratorOptions = {}): PlanGenerator {
-  const extra = options.thinkingLevel ? { thinkingLevel: options.thinkingLevel } : {};
+  const extra = {
+    ...(options.thinkingLevel ? { thinkingLevel: options.thinkingLevel } : {}),
+    ...(options.model ? { model: options.model } : {}),
+  };
   return {
     async generatePlan(input, callOptions) {
       const limitMs = callLimit(LLM_TIME_LIMITS.generatePlan, callOptions?.limitMs);
@@ -39,7 +44,7 @@ type CellsResponse = PromptResultResponse<{ cells: PlanCell[] }>;
 async function call(
   harness: PromptHarness,
   text: string,
-  extra: { thinkingLevel?: ThinkingLevel },
+  extra: { thinkingLevel?: ThinkingLevel; model?: string },
   limitMs: number,
 ): Promise<CellsResponse> {
   // valibot 출력 타입의 tags 등은 PlanCell과 같은 리터럴 유니온이다.

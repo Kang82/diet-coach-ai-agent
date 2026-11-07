@@ -89,7 +89,8 @@ src/app.ts    Hono 라우트 맵. 한도 보호 미들웨어 뒤에 에이전트
 - 트레이싱은 `app.ts`에서 `createCloudflareTracing({ content: false })`로 대화 내용 없이 남긴다(건강 정보). 지우지 않는다.
 - 식단 도구 2개는 durable 도구다(`durable: true`, B12, 스펙 4.4). LLM 호출은 `steppedGenerator`(`core/stepped-generator.ts`)로 `llm:N` step에, 시각·ID는 `start` step에, D1 저장은 `persist` step에 둔다. step 밖 코드는 복구 때 다시 도니 부수 효과를 두지 않고, step 이름은 결정적으로 짓는다. `usePersistentState` 쓰기는 step 밖에 둔다(도구 결과와 함께 커밋). 제출 복구 한도는 `DietCoach.durability`(3회·20분). 조사·확인 기록은 `docs/experiments/2026-11-07-b10c-durable-tools.md`, `2026-11-08-b12-durable-plan-tools.md`.
 - **Flue의 재요청은 최대 33턴이다.** `finish`가 안 오거나 검증이 계속 실패하면 몇 분씩 돌며 한도를 쓴다. `harness.prompt`는 `agents/prompt-call.ts`의 `promptWithLimit`(시간 제한, 한도 초과·시간 초과 에러 변환)으로 부른다. 스키마는 모델이 낼 법한 모양(null, 문자열 하나)을 받아 준다.
-- Flue는 Workers AI 요청에 `max_completion_tokens`를 보내지 않아 모델 기본 출력 상한이 쓰인다. llama-4-scout는 256토큰이라 긴 구조화 출력이 잘린다(목표 메모 확인처럼 짧은 출력에만 쓴다). 새 모델은 출력 상한부터 확인한다 (docs/experiments/2026-11-06-b6-end-to-end.md).
+- Flue는 Workers AI 요청에 `max_completion_tokens`를 보내지 않아 모델 기본 출력 상한이 쓰인다. llama-4-scout·gpt-oss-120b는 256토큰이라 긴 구조화 출력이 잘린다. 새 모델은 Workers AI 스키마의 `max_tokens` 기본값부터 확인하고, 필요하면 `src/agents/output-caps.ts`의 `OUTPUT_CAPS`에 넣는다(`provider.ts`가 공급자를 감싸 등록) (docs/experiments/2026-11-06-b6-end-to-end.md, 2026-11-08-b14-gpt-oss-low.md).
+- 도구 안 `harness.prompt`는 에이전트의 시스템 지시와 도구 목록을 물려받는다. gpt-oss는 그 지시대로 `finish` 대신 바깥 도구를 불렀다(B14). 또 Workers AI gpt-oss는 Flue의 두 번째 턴 메시지 형식(배열·null content)을 400으로 거절한다.
 - Workers AI 모델에서는 `usage.cost`가 항상 0이다. Neuron은 토큰 수 × 모델별 단가로 직접 계산한다 (스펙 11.4).
 - `package.json`의 `overrides`로 `@earendil-works/pi-ai`와 `pi-agent-core`를 1.4.0에 고정했다. 1.5.0은 Flue 2.3.0과 호환되지 않아 빌드가 깨진다. Flue를 올릴 때 이 고정을 풀 수 있는지 확인한다.
 

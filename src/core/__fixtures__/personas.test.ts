@@ -4,13 +4,14 @@ import { buildCriteria } from '../criteria.ts';
 import { validateProfile } from '../profile-validation.ts';
 import type { MenuClassification, Profile } from '../types.ts';
 import { classesA, profileA } from './persona-a.ts';
-import { classesB, classesC, classesD, profileB, profileC, profileD } from './personas.ts';
+import { classesB, classesC, classesD, classesE, profileB, profileC, profileD, profileE } from './personas.ts';
 
 const personas: [string, Profile, MenuClassification[]][] = [
   ['A', profileA, classesA],
   ['B', profileB, classesB],
   ['C', profileC, classesC],
   ['D', profileD, classesD],
+  ['E', profileE, classesE],
 ];
 
 describe.each(personas)('페르소나 %s', (_, profile, classes) => {

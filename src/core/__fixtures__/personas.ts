@@ -157,3 +157,79 @@ export const classesD: MenuClassification[] = [
     orderTips: [],
   },
 ];
+
+// E. 외식 메뉴가 많은 프로필 (tasks.md B14 T8-6). 배포본 사용자처럼 평일 점심·저녁 모두 외식이고, 목표 여러 개 + 피할 음식이 있다.
+// 사용자 실제 프로필은 쓰지 않는다. 사용자 기록은 분류 입력 6,270~7,792토큰, 생성 출력 약 15,000토큰(페르소나 A~D의 약 2배)이었다.
+// 평일 점심 20개(끼니당 상한 MAX_MENUS_PER_MEAL), 평일 저녁 15개(점심과 5개 겹침), 주말은 집밥
+const lunchE = [
+  '김치찌개', '된장찌개', '순두부찌개', '제육볶음', '돈가스', '비빔밥', '김밥', '라면', '칼국수', '쌀국수',
+  '회덮밥', '생선구이 정식', '백반', '닭가슴살 샐러드', '샌드위치', '짜장면', '짬뽕', '볶음밥', '국밥', '포케',
+];
+const dinnerE = [
+  '김치찌개', '된장찌개', '제육볶음', '국밥', '백반', '삼겹살', '치킨', '피자', '떡볶이', '보쌈',
+  '샤브샤브', '연어덮밥', '불고기 정식', '우동', '파스타',
+];
+
+export const profileE: Profile = {
+  userId: 'user-e',
+  version: 1,
+  goals: ['weight_loss', 'blood_glucose'],
+  goalNote: '',
+  medication: 'none',
+  avoid: ['dairy', 'tree_nut'],
+  avoidNote: '',
+  meals: [
+    { dayType: 'weekday', meal: 'breakfast', place: 'skip', companions: 'alone' },
+    { dayType: 'weekday', meal: 'lunch', place: 'eat_out', companions: 'others', menus: lunchE },
+    { dayType: 'weekday', meal: 'dinner', place: 'eat_out', companions: 'others', menus: dinnerE },
+    { dayType: 'weekend', meal: 'breakfast', place: 'skip', companions: 'family' },
+    { dayType: 'weekend', meal: 'lunch', place: 'home', companions: 'family' },
+    { dayType: 'weekend', meal: 'dinner', place: 'home', companions: 'family' },
+  ],
+  consentedAt: CREATED,
+  updatedAt: CREATED,
+};
+
+const P = 'reduce_portion_calories' as const;
+const C = 'reduce_refined_carbs' as const;
+const F = 'increase_fiber' as const;
+const e = (
+  menu: string,
+  cls: MenuClassification['class'],
+  reason: string,
+  criterionIds: MenuClassification['criterionIds'],
+  orderTips: string[],
+): MenuClassification => ({ menu, class: cls, reason, criterionIds, orderTips });
+
+export const classesE: MenuClassification[] = [
+  e('김치찌개', 'often', '국물 위주라 밥 양만 줄이면 열량과 탄수화물을 조절하기 쉬움', [P, C], ['밥 반 공기', '국물은 덜 먹기']),
+  e('된장찌개', 'often', '두부와 채소가 들어가 식이섬유가 있음', [F, C], ['밥 반 공기', '건더기 위주']),
+  e('순두부찌개', 'often', '두부 단백질이 많고 열량이 적당함', [P], ['밥 반 공기', '계란은 빼기']),
+  e('제육볶음', 'weekly_max_1', '기름진 돼지고기와 단 양념이라 열량과 당이 높음', [P, C], ['밥 반 공기', '상추쌈 곁들이기']),
+  e('돈가스', 'avoid', '튀김에 흰 빵가루와 단 소스라 열량과 정제 탄수화물이 많음', [P, C], ['소스 따로', '밥 반 공기']),
+  e('비빔밥', 'often', '나물이 많아 식이섬유가 풍부함', [F, P], ['고추장 절반', '밥 반 공기']),
+  e('김밥', 'weekly_max_1', '흰쌀밥이 대부분이라 정제 탄수화물이 많음', [C], ['한 줄만', '국물 곁들이기']),
+  e('라면', 'avoid', '정제 밀가루 면과 나트륨이 많고 채소가 거의 없음', [C, F], ['면 절반', '채소 추가']),
+  e('칼국수', 'weekly_max_1', '밀가루 면이 주식이라 혈당이 빨리 오름', [C], ['면 절반', '김치 곁들이기']),
+  e('쌀국수', 'weekly_max_1', '쌀면이 주식이라 정제 탄수화물이 많음', [C], ['면 절반', '숙주 많이']),
+  e('회덮밥', 'often', '생선과 채소가 많아 열량이 낮음', [P, F], ['초장 절반', '밥 반 공기']),
+  e('생선구이 정식', 'often', '구운 생선과 반찬이라 열량이 적당함', [P], ['밥 반 공기', '나물 반찬 위주']),
+  e('백반', 'often', '여러 반찬으로 채소를 고루 먹을 수 있음', [F], ['밥 반 공기', '나물 반찬 위주']),
+  e('닭가슴살 샐러드', 'often', '채소와 살코기라 열량이 낮고 식이섬유가 많음', [P, F], ['드레싱 따로', '견과 토핑 빼기']),
+  e('샌드위치', 'weekly_max_1', '흰 빵이라 정제 탄수화물이 많음', [C], ['통밀빵으로', '치즈 빼기']),
+  e('짜장면', 'avoid', '밀가루 면과 단 기름진 소스라 열량과 당이 높음', [P, C], ['면 절반']),
+  e('짬뽕', 'weekly_max_1', '밀가루 면과 기름진 국물이라 열량이 높음', [P, C], ['면 절반', '국물 덜 먹기']),
+  e('볶음밥', 'weekly_max_1', '기름에 볶은 흰쌀밥이라 열량과 정제 탄수화물이 많음', [P, C], ['반 그릇', '채소 추가']),
+  e('국밥', 'often', '국물 위주라 밥을 따로 받아 양을 줄이기 쉬움', [P], ['밥 따로 반만', '깍두기 적게']),
+  e('포케', 'often', '생선과 채소가 많아 열량이 낮고 식이섬유가 있음', [P, F], ['현미밥으로', '소스 절반']),
+  e('삼겹살', 'weekly_max_1', '지방이 많은 부위라 열량이 높음', [P], ['쌈 채소 많이', '밥은 반 공기']),
+  e('치킨', 'avoid', '튀김이라 열량이 높음', [P], ['구운 치킨으로', '반 마리만']),
+  e('피자', 'avoid', '흰 밀가루 도우와 치즈라 열량과 정제 탄수화물이 많음', [P, C], ['한두 조각만']),
+  e('떡볶이', 'avoid', '떡과 단 양념이라 정제 탄수화물과 당이 많음', [C], ['반 인분', '어묵 위주']),
+  e('보쌈', 'weekly_max_1', '삶은 고기라 튀김보다 낫지만 지방이 많음', [P], ['쌈 채소 많이', '살코기 위주']),
+  e('샤브샤브', 'often', '채소를 많이 먹고 기름 없이 익혀 열량이 낮음', [P, F], ['채소 먼저', '칼국수 사리 빼기']),
+  e('연어덮밥', 'often', '생선 단백질이 많고 열량이 적당함', [P], ['밥 반 공기', '소스 절반']),
+  e('불고기 정식', 'weekly_max_1', '단 양념 고기라 당과 열량이 높음', [P, C], ['밥 반 공기', '쌈 채소 곁들이기']),
+  e('우동', 'weekly_max_1', '밀가루 면이 주식이라 정제 탄수화물이 많음', [C], ['면 절반', '튀김 고명 빼기']),
+  e('파스타', 'avoid', '흰 밀가루 면과 크림·치즈 소스라 열량과 정제 탄수화물이 많음', [P, C], ['토마토 소스로', '면 절반']),
+];

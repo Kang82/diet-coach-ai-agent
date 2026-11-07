@@ -695,12 +695,14 @@ LLM 단계는 결과가 매번 다르므로 페르소나별로 여러 번 돌려
 | --- | --- | --- | --- | --- |
 | gemma (기본값) | `cloudflare/@cf/google/gemma-4-26b-a4b-it` | 256K | 지원 | 9,091 / 27,273 |
 | glm | `cloudflare/@cf/zai-org/glm-4.7-flash` | 131K | 지원 | 5,500 / 36,400 |
+| gpt-oss-120b (식단 생성 비교 후보, B14) | `cloudflare/@cf/openai/gpt-oss-120b` | 128K | 지원 | 31,818 / 68,182 |
 
 - 단가는 [Workers AI 가격표](https://developers.cloudflare.com/workers-ai/platform/pricing/)에서 옮겼다 (2026-11-06 확인). 코드의 값은 `src/agents/models.ts`의 `NEURON_PRICES`이고, 11.5 측정 기록과 맞는지 테스트로 확인한다.
 
 - 모델 ID는 `src/agents/models.ts`에만 두고, 에이전트는 이 값을 가져다 쓴다.
 - 8.5 평가 세트로 두 후보를 비교해 최종 모델을 정한다. 비교 기준은 스키마 통과율, `checkPlan` 통과율, 1회 사용 Neuron, 한국어 이유 문장의 자연스러움(사람이 확인)이다.
 - 무료로 쓸 수 없는 모델(Kimi K2.6, GLM-5.x, DeepSeek V4)은 쓰지 않는다.
+- gpt-oss-120b는 기본 출력 상한이 256토큰이라 `OUTPUT_CAPS`(16,384)로 상한을 넣는다. 2026-11-08 시험에서는 두 번째 턴 메시지 형식이 400으로 거절돼 식단 생성에 아직 쓸 수 없다(`experiments/2026-11-08-b14-gpt-oss-low.md`).
 
 ### 11.2 무료 한도와 사용량 예산
 

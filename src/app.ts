@@ -1,3 +1,4 @@
+import './agents/provider.ts';
 import { instrument } from '@flue/runtime';
 import { createCloudflareTracing } from '@flue/runtime/cloudflare';
 import { createAgentRouter } from '@flue/runtime/routing';

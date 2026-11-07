@@ -8,7 +8,7 @@ import { buildGeneratePrompt } from '../core/plan-prompt.ts';
 import { QuotaExceededError } from '../core/quota.ts';
 import type { PlanCell } from '../core/types.ts';
 import { createFluePlanGenerator, type PromptHarness } from './flue-plan-generator.ts';
-import { NEURON_PRICES } from './models.ts';
+import { MODEL_CANDIDATES, NEURON_PRICES } from './models.ts';
 import { PlanCellsResultSchema } from './plan-schema.ts';
 
 const generateInput = () => ({
@@ -30,10 +30,15 @@ const usage = (input: number, output: number) => ({
 
 /** 받은 프롬프트를 기록하고, 정해 둔 칸(또는 에러)을 돌려주는 가짜 harness */
 function fakeHarness(reply: PlanCell[] | Error) {
-  const prompts: { text: string; result: unknown; thinkingLevel?: unknown }[] = [];
+  const prompts: { text: string; result: unknown; thinkingLevel?: unknown; model?: unknown }[] = [];
   const harness = {
-    prompt: (async (text: string, options: { result: unknown; thinkingLevel?: unknown }) => {
-      prompts.push({ text, result: options.result, ...('thinkingLevel' in options ? { thinkingLevel: options.thinkingLevel } : {}) });
+    prompt: (async (text: string, options: { result: unknown; thinkingLevel?: unknown; model?: unknown }) => {
+      prompts.push({
+        text,
+        result: options.result,
+        ...('thinkingLevel' in options ? { thinkingLevel: options.thinkingLevel } : {}),
+        ...('model' in options ? { model: options.model } : {}),
+      });
       if (reply instanceof Error) throw reply;
       return {
         data: { cells: structuredClone(reply) },
@@ -105,6 +110,18 @@ describe('createFluePlanGenerator', () => {
 
     expect(prompts.map((p) => p.thinkingLevel)).toEqual(['low', 'low', undefined]);
     expect(prompts[2]).not.toHaveProperty('thinkingLevel');
+  });
+
+  // B14(T8-7): 식단 생성 모델을 바꿔 시험한다 (models.ts planModel)
+  it('모델을 정하면 생성과 다시 추천 모두에 실어 보내고, 없으면 보내지 않는다', async () => {
+    const { harness, prompts } = fakeHarness(planA.cells);
+    const gen = createFluePlanGenerator(harness, { model: MODEL_CANDIDATES.gptOss120b });
+    await gen.generatePlan(generateInput());
+    await gen.regenerateCells({ ...generateInput(), plan: structuredClone(planA), targets: [{ day: 'tue', meal: 'lunch' }], violations: [] });
+    await createFluePlanGenerator(harness).generatePlan(generateInput());
+
+    expect(prompts.map((p) => p.model)).toEqual([MODEL_CANDIDATES.gptOss120b, MODEL_CANDIDATES.gptOss120b, undefined]);
+    expect(prompts[2]).not.toHaveProperty('model');
   });
 
   it('한도 초과 에러는 QuotaExceededError로 바꾸고 원래 에러를 cause로 둔다', async () => {

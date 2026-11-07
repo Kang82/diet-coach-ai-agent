@@ -10,10 +10,11 @@
 //
 // 회차마다 새 대화에 인터뷰 제출(메모 없음, LLM 없음) → 메뉴 분류 → 식단표 만들기를 보낸다 (support/prepare.ts).
 // 분류는 픽스처 값으로 바꿔 보내므로 점검 기준은 회차마다 같다. 페르소나 B~D는 core/__fixtures__/personas.ts (T1-7).
-// 전부 돌리면 4명 × 2회 = 8회, 약 45~50분, 약 3,600~4,500 Neuron. 메시지 24회가 한 사용자의 하루 30회에 들어간다.
+// 전부 돌리면 5명 × 2회 = 10회, 약 1시간, 약 4,500~6,000 Neuron. 메시지 30회가 한 사용자의 하루 30회를 다 쓰고, 만들기는 종류별 하루 5회(B13)라
+// 같은 토큰으로는 6회째부터 막힌다. 평가 전에 로컬 `usage_daily`를 지운다(CLAUDE.md). 페르소나 E는 생성이 길어 시간 상한에 걸릴 수 있다(T8-6).
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { classesA, profileA } from '../core/__fixtures__/persona-a.ts';
-import { classesB, classesC, classesD, profileB, profileC, profileD } from '../core/__fixtures__/personas.ts';
+import { classesB, classesC, classesD, classesE, profileB, profileC, profileD, profileE } from '../core/__fixtures__/personas.ts';
 import { checkPlan } from '../core/check-plan.ts';
 import { buildCriteria } from '../core/criteria.ts';
 import { isQuotaExceeded } from '../core/quota.ts';
@@ -39,6 +40,7 @@ const personas: Persona[] = [
   { name: '페르소나B', profile: profileB, classes: classesB }, // 감량만
   { name: '페르소나C', profile: profileC, classes: classesC }, // 혈당 관리
   { name: '페르소나D', profile: profileD, classes: classesD }, // 콜레스테롤 + 채식
+  { name: '페르소나E', profile: profileE, classes: classesE }, // 외식 메뉴 많음 + 목표 2개 + 피할 음식 (B14 T8-6)
 ];
 
 let quotaHit = false;

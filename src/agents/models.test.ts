@@ -1,7 +1,7 @@
 // 스펙 11.4. 실제 단가로 계산한 값이 11.5 측정 기록과 맞는지 확인한다.
 import { describe, expect, it } from 'vitest';
 import { estimateNeurons } from '../core/neurons.ts';
-import { goalNoteModel, menuClassModel, MODEL_CANDIDATES, NEURON_PRICES, planThinking } from './models.ts';
+import { goalNoteModel, menuClassModel, MODEL_CANDIDATES, NEURON_PRICES, planModel, planThinking } from './models.ts';
 
 describe('goalNoteModel', () => {
   it('키가 후보에 있으면 그 모델, 아니면 llama-4-scout', () => {
@@ -15,6 +15,18 @@ describe('menuClassModel', () => {
   it('키가 후보에 있으면 그 모델, 아니면 gemma (B6: llama-4-scout는 출력 256토큰에서 잘림)', () => {
     expect(menuClassModel('llamaScout')).toBe(MODEL_CANDIDATES.llamaScout);
     expect(menuClassModel('')).toBe(MODEL_CANDIDATES.gemma);
+  });
+});
+
+describe('planModel (B14, T8-7)', () => {
+  it('키가 후보에 있으면 그 모델, 아니면 undefined(기본 모델 gemma를 그대로 씀)', () => {
+    expect(planModel('gptOss120b')).toBe(MODEL_CANDIDATES.gptOss120b);
+    expect(planModel(undefined)).toBeUndefined();
+    expect(planModel('toString')).toBeUndefined();
+  });
+
+  it('gpt-oss-120b 단가: $0.35 / $0.75 per M, $0.011 = 1,000 Neuron', () => {
+    expect(NEURON_PRICES[MODEL_CANDIDATES.gptOss120b]).toEqual({ inputPerM: 31_818, outputPerM: 68_182 });
   });
 });
 

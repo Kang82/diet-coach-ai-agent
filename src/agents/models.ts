@@ -9,6 +9,8 @@ export const MODEL_CANDIDATES = {
   granite: 'cloudflare/@cf/ibm-granite/granite-4.0-h-micro',
   mistral: 'cloudflare/@cf/mistralai/mistral-small-3.1-24b-instruct',
   llamaScout: 'cloudflare/@cf/meta/llama-4-scout-17b-16e-instruct',
+  // 식단 생성 비교 후보 (tasks.md B14 T8-7). 기본 출력 상한 256토큰이라 output-caps.ts에 상한을 넣어야 쓸 수 있다
+  gptOss120b: 'cloudflare/@cf/openai/gpt-oss-120b',
 } as const;
 
 export const DEFAULT_MODEL = MODEL_CANDIDATES.gemma;
@@ -28,6 +30,14 @@ export const INTERVIEW_THINKING = 'low' as const;
  * (docs/experiments/2026-11-07-b11-thinking-level.md). gemma는 reasoning_effort에 거의 반응하지 않는다.
  * 개발 중 `.dev.vars`의 PLAN_THINKING(low|medium|high)으로 바꿔 시험한다. 'off'는 받지 않는다(위 INTERVIEW_THINKING 주석)
  */
+/**
+ * 식단 생성·다시 추천 모델 (tasks.md B14 T8-7). 기본은 undefined(에이전트 기본 모델 gemma를 그대로 씀).
+ * 개발 중 `.dev.vars`의 PLAN_MODEL(MODEL_CANDIDATES의 키)로 바꿔 시험한다
+ */
+export function planModel(key: string | undefined): ModelId | undefined {
+  return key && Object.hasOwn(MODEL_CANDIDATES, key) ? MODEL_CANDIDATES[key as keyof typeof MODEL_CANDIDATES] : undefined;
+}
+
 export function planThinking(key: string | undefined): 'low' | 'medium' | 'high' | undefined {
   return key === 'low' || key === 'medium' || key === 'high' ? key : undefined;
 }
@@ -67,4 +77,6 @@ export const NEURON_PRICES = {
   [MODEL_CANDIDATES.granite]: { inputPerM: 1_542, outputPerM: 10_158 },
   [MODEL_CANDIDATES.mistral]: { inputPerM: 31_876, outputPerM: 50_488 },
   [MODEL_CANDIDATES.llamaScout]: { inputPerM: 24_545, outputPerM: 77_273 },
+  // 2026-11-08 Workers AI 모델 API 가격 $0.35 / $0.75 per M ($0.011 = 1,000 Neuron)
+  [MODEL_CANDIDATES.gptOss120b]: { inputPerM: 31_818, outputPerM: 68_182 },
 } as const satisfies Record<ModelId, NeuronPriceTable[string]> & NeuronPriceTable;
