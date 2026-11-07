@@ -85,6 +85,9 @@ src/app.ts    Hono 라우트 맵. 한도 보호 미들웨어 뒤에 에이전트
 - 결과를 보장해야 하는 값(시작일, 고칠 칸 등)은 모델이 채우는 도구 입력으로 받지 않는다. 코드가 정하거나, 화면이 정해진 형식으로 보낸 메시지를 도구가 `useDelivery()`로 직접 읽는다(`core/edit-request.ts`). 도구 사이에 넘길 상태는 `usePersistentState`에 둔다.
 - 구조화된 출력은 `harness.prompt(text, { result: valibot 스키마 })`로 받는다. 모델이 프레임워크의 `finish` 도구를 호출하고, 검증 실패 시 Flue가 다시 요청한다. 스키마는 zod가 아니라 valibot이다.
 - **도구는 에러를 던지지 않고 결과로 답한다.** 도구 안에서 던진 에러는 바깥 모델이 보는 에러 결과가 되어 같은 도구를 다시 부를 수 있다(식단 생성이면 몇 분, 수백 Neuron). 실패는 `core/tool-failure.ts`의 `failureKind`로 가려 `status: 'timeout' | 'quota' | 'error'` 결과와 `terminate: true`로 끝낸다(식단 도구는 `plan-tool-support.ts`의 `planFailure`).
+- **식단 도구는 전체 시간 예산이 있다** (만들기 10분, 칸 수정 5분, `core/llm-timeout.ts`의 `PLAN_TOOL_BUDGETS`, 스펙 4.4). 루프가 남은 시간을 호출 제한으로 넘긴다. 새 LLM 호출을 루프에 더하면 `CallOptions.limitMs`를 받게 한다.
+- 트레이싱은 `app.ts`에서 `createCloudflareTracing({ content: false })`로 대화 내용 없이 남긴다(건강 정보). 지우지 않는다.
+- durable 도구(`durable: true`, `step.do`)는 아직 안 쓴다. 조사 결과와 B12 범위는 `docs/experiments/2026-11-07-b10c-durable-tools.md`.
 - **Flue의 재요청은 최대 33턴이다.** `finish`가 안 오거나 검증이 계속 실패하면 몇 분씩 돌며 한도를 쓴다. `harness.prompt`는 `agents/prompt-call.ts`의 `promptWithLimit`(시간 제한, 한도 초과·시간 초과 에러 변환)으로 부른다. 스키마는 모델이 낼 법한 모양(null, 문자열 하나)을 받아 준다.
 - Flue는 Workers AI 요청에 `max_completion_tokens`를 보내지 않아 모델 기본 출력 상한이 쓰인다. llama-4-scout는 256토큰이라 긴 구조화 출력이 잘린다(목표 메모 확인처럼 짧은 출력에만 쓴다). 새 모델은 출력 상한부터 확인한다 (docs/experiments/2026-11-06-b6-end-to-end.md).
 - Workers AI 모델에서는 `usage.cost`가 항상 0이다. Neuron은 토큰 수 × 모델별 단가로 직접 계산한다 (스펙 11.4).
