@@ -9,9 +9,11 @@
 // 한도 초과가 나면 그 실행을 "건너뜀"으로 기록하고 남은 실행도 모두 건너뛴다 (스펙 11.3-5).
 //
 // 회차마다 새 대화에 인터뷰 제출(메모 없음, LLM 없음) → 메뉴 분류 → 식단표 만들기를 보낸다 (support/prepare.ts).
-// 분류는 픽스처 값으로 바꿔 보내므로 점검 기준은 회차마다 같다. 페르소나 2~4는 프로필과 분류 픽스처를 더하면 된다 (T1-7).
+// 분류는 픽스처 값으로 바꿔 보내므로 점검 기준은 회차마다 같다. 페르소나 B~D는 core/__fixtures__/personas.ts (T1-7).
+// 전부 돌리면 4명 × 2회 = 8회, 약 45~50분, 약 3,600~4,500 Neuron. 메시지 24회가 한 사용자의 하루 30회에 들어간다.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { classesA, profileA } from '../core/__fixtures__/persona-a.ts';
+import { classesB, classesC, classesD, profileB, profileC, profileD } from '../core/__fixtures__/personas.ts';
 import { checkPlan } from '../core/check-plan.ts';
 import { buildCriteria } from '../core/criteria.ts';
 import { isQuotaExceeded } from '../core/quota.ts';
@@ -32,10 +34,17 @@ interface Persona {
   classes: MenuClassification[];
 }
 
-const personas: Persona[] = [{ name: '페르소나A', profile: profileA, classes: classesA }];
+const personas: Persona[] = [
+  { name: '페르소나A', profile: profileA, classes: classesA },
+  { name: '페르소나B', profile: profileB, classes: classesB }, // 감량만
+  { name: '페르소나C', profile: profileC, classes: classesC }, // 혈당 관리
+  { name: '페르소나D', profile: profileD, classes: classesD }, // 콜레스테롤 + 채식
+];
 
 let quotaHit = false;
 const records: RunRecord[] = [];
+/** 모든 페르소나의 회차 결과. 스펙 8.5의 "8회 중 7회 이상"은 이 전체로 판정한다 */
+const allResults: ('pass' | 'fail' | 'skip')[] = [];
 
 beforeAll(assertServerUp);
 afterAll(() => writeReport(records));
@@ -90,6 +99,7 @@ for (const persona of personas) {
 
         const result = check.passed ? 'pass' : 'fail';
         results.push(result);
+        allResults.push(result);
         recordRun(records, { persona: persona.name, run, result, res, output, violations: check.violations });
       });
     }
@@ -102,3 +112,13 @@ for (const persona of personas) {
     });
   });
 }
+
+// 페르소나가 둘 이상일 때만 의미가 있다 (-t로 하나만 고르면 위의 페르소나별 판정과 같다)
+describe('전체', () => {
+  it(`통과율 ${Math.round(PASS_RATE * 100)}% 이상 (모든 페르소나, 건너뛴 실행 제외)`, (ctx) => {
+    const done = allResults.filter((r) => r !== 'skip');
+    if (done.length === 0) ctx.skip('실행한 회차가 없음');
+    const passed = done.filter((r) => r === 'pass').length;
+    expect(passed / done.length, `${passed}/${done.length} 통과`).toBeGreaterThanOrEqual(PASS_RATE);
+  });
+});

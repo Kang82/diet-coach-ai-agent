@@ -1,4 +1,4 @@
-// 스펙 2장 기준 테이블. 태그 제한 값은 초안이다 (스펙 열린 질문 1).
+// 스펙 2장 기준 테이블. 태그 제한 값은 2026-11-07 확정(열린 질문 1). 근거는 스펙 2장 표 아래.
 import { CRITERION_IDS, GOAL_IDS, NUTRITION_TAGS } from './types.ts';
 import type { CriteriaRules, CriterionId, GoalId, NutritionTag } from './types.ts';
 

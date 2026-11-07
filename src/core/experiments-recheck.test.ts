@@ -66,3 +66,14 @@ describe('2026-11-06 실제 루프', () => {
     expect(rulesOf(output.plan)).toEqual([]);
   });
 });
+
+describe('2026-11-07 평가 세트 A~D (T1-7)', () => {
+  it('통과한 페르소나 A 2회는 지금 규칙으로도 통과', () => {
+    const { runs } = load<{ runs: { persona: string; result: string; output?: { plan: Plan } }[] }>(
+      '2026-11-07-t1-7-eval-personas.json',
+    );
+    const passed = runs.filter((r) => r.persona === '페르소나A' && r.result === 'pass');
+    expect(passed).toHaveLength(2);
+    for (const r of passed) expect(rulesOf(r.output!.plan)).toEqual([]);
+  });
+});
