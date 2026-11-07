@@ -49,10 +49,17 @@ const RULE_LABELS: Record<RuleId, string> = {
 
 const slotLabel = (slot: Slot) => `${DAY_LABELS[slot.day]} ${MEAL_LABELS[slot.meal]} (${slot.day} ${slot.meal})`;
 
+/**
+ * 도구 안 프롬프트의 첫 줄 (tasks.md B14 T8-7). 도구 안 harness.prompt는 에이전트의 시스템 지시와 도구 목록(create_week_plan 등)을
+ * 그대로 물려받는다. gpt-oss-120b는 그 지시대로 finish 대신 바깥 도구를 불렀다. 결과는 finish로만 보내라고 맨 앞에 적는다
+ */
+export const FINISH_ONLY = '이 요청에서는 다른 도구를 부르지 말고 결과를 finish 도구로만 보내세요.';
+
 /** 1주일 식단표를 한 번에 만드는 프롬프트 (스펙 4.3) */
 export function buildGeneratePrompt(input: GeneratePlanInput): string {
   const slots = requiredSlots(input.profile, input.events);
   return [
+    FINISH_ONLY,
     `${input.weekStart}부터 1주일 식단표의 칸을 만들어 주세요.`,
     `아래 "채워야 할 끼니" ${slots.length}곳에 칸을 하나씩, 모두 ${slots.length}칸 만들어 finish 도구의 cells에 담아 주세요.`,
     '',
@@ -66,6 +73,7 @@ export function buildGeneratePrompt(input: GeneratePlanInput): string {
 /** 일부 칸만 다시 만드는 프롬프트 (스펙 4.4) */
 export function buildRegeneratePrompt(input: RegenerateCellsInput): string {
   const lines = [
+    FINISH_ONLY,
     `1주일 식단표에서 아래 "다시 만들 칸" ${input.targets.length}곳만 새로 만들어 finish 도구의 cells에 담아 주세요.`,
     '다른 칸은 그대로 두니 cells에 넣지 마세요.',
     '',

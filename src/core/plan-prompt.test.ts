@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { classesA, planA, profileA } from './__fixtures__/persona-a.ts';
 import { rulesA } from './__fixtures__/rules-a.ts';
-import { buildGeneratePrompt, buildRegeneratePrompt, normalizeMenuId } from './plan-prompt.ts';
+import { buildGeneratePrompt, buildRegeneratePrompt, FINISH_ONLY, normalizeMenuId } from './plan-prompt.ts';
 import type { GeneratePlanInput, RegenerateCellsInput } from './plan-generator.ts';
 
 function generateInput(patch: Partial<GeneratePlanInput> = {}): GeneratePlanInput {
@@ -21,6 +21,8 @@ describe('buildGeneratePrompt', () => {
     const prompt = buildGeneratePrompt(generateInput());
 
     expect(prompt).toContain('모두 14칸');
+    // B14: 도구 안 프롬프트는 에이전트 지시·도구를 물려받으므로 finish만 부르라고 맨 앞에 적는다
+    expect(prompt.split('\n')[0]).toBe(FINISH_ONLY);
     expect(prompt).toContain('- 평일 점심 (mon, tue, wed, thu, fri의 lunch): 외식 (place: eat_out)');
     expect(prompt).toContain('- 평일 저녁 (mon, tue, wed, thu, fri의 dinner): 집밥 (place: home). 조리 20분 이내');
     expect(prompt).toContain('- 주말 점심 (sat, sun의 lunch): 집밥 (place: home). 조리 시간 제한 없음');
@@ -101,6 +103,7 @@ describe('buildRegeneratePrompt', () => {
   it('다시 만들 칸, 위반 이유, 나머지 칸을 알린다', () => {
     const prompt = buildRegeneratePrompt(regenerateInput());
 
+    expect(prompt.split('\n')[0]).toBe(FINISH_ONLY);
     expect(prompt).toContain('"다시 만들 칸" 1곳만');
     expect(prompt).toContain('- 피할 음식이 들어감 [dairy]: 화요일 점심 (tue lunch)');
     expect(prompt).toContain('- 월요일 점심 (mon lunch): 회덮밥 [fish]');

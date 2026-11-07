@@ -11,6 +11,7 @@ import {
   normalizeClassifications,
   USER_CHOSEN_REASON,
 } from './menu-classification.ts';
+import { FINISH_ONLY } from './plan-prompt.ts';
 import type { MealSetting, MenuClassification } from './types.ts';
 
 const skip = (dayType: MealSetting['dayType'], meal: MealSetting['meal']): MealSetting => ({
@@ -125,6 +126,8 @@ describe('buildClassifyPrompt', () => {
       expect(prompt).toContain(text);
     }
     expect(prompt).not.toContain('reduce_refined_carbs');
+    // B14: 도구 안 프롬프트는 에이전트 지시·도구를 물려받으므로 finish만 부르라고 맨 앞에 적는다
+    expect(prompt.split('\n')[0]).toBe(FINISH_ONLY);
   });
 
   it('피할 음식이 없으면 그 줄을 뺀다', () => {

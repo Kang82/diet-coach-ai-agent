@@ -1,21 +1,20 @@
 'use agent';
 import { type AgentProps, useDelivery, useModel, usePersistentState, useResponseFinish, useTool } from '@flue/runtime';
-import { EDIT_REQUEST_PREFIX } from '../core/edit-request.ts';
 import type { InterviewResult } from '../core/interview.ts';
 import { INTERVIEW_SUBMIT_PREFIX } from '../core/interview-form.ts';
 import { SUBMISSION_DURABILITY } from '../core/llm-timeout.ts';
-import { messageKind, type MessageKind } from '../core/message-kind.ts';
+import { messageKind } from '../core/message-kind.ts';
 import { estimateNeurons } from '../core/neurons.ts';
 import { createToolGate } from '../core/tool-gate.ts';
-import { CLASSIFY_REQUEST, PLAN_REQUEST_PREFIX } from '../core/plan-request.ts';
 import type { PlanPeriod } from '../core/period.ts';
 import type { MenuClassification, Plan } from '../core/types.ts';
-import { CLASSIFY_TOOL, classifyMenusTool } from './classify-menus-tool.ts';
-import { CREATE_PLAN_TOOL, createWeekPlanTool } from './create-plan-tool.ts';
-import { EDIT_PLAN_TOOL, editPlanCellsTool } from './edit-plan-tool.ts';
+import { classifyMenusTool } from './classify-menus-tool.ts';
+import { createWeekPlanTool } from './create-plan-tool.ts';
+import { editPlanCellsTool } from './edit-plan-tool.ts';
 import { INTERVIEW_TOOL, submitInterviewTool } from './interview-tool.ts';
 import { DEFAULT_MODEL, INTERVIEW_THINKING, NEURON_PRICES } from './models.ts';
 import { reservationRelease, usageMeter } from './usage-meter.ts';
+import { AFTER_INTERVIEW_STEPS } from './agent-instructions.ts';
 import { userIdFromConversation } from '../core/profile-store.ts';
 import type { UserStore } from './plan-tool-support.ts';
 import { agentStorage } from './storage-binding.ts';
@@ -104,15 +103,6 @@ export function DietCoach({ id }: AgentProps) {
   }
   return [...intro, AFTER_INTERVIEW_STEPS[kind]].join('\n');
 }
-
-/** 인터뷰 뒤 메시지 종류마다 할 일. 그 종류에 마운트한 도구 하나만 안내한다 (T10-2) */
-const AFTER_INTERVIEW_STEPS: Record<MessageKind, string> = {
-  edit: `${EDIT_PLAN_TOOL} 도구를 한 번 부르세요. 칸과 요청은 도구가 메시지에서 직접 읽으므로 입력은 비워 두세요.`,
-  classify: `${CLASSIFY_TOOL} 도구를 한 번 부르세요. 메뉴와 일정은 도구가 직접 읽으므로 입력은 비워 두세요.`,
-  plan: `${CREATE_PLAN_TOOL} 도구를 한 번 부르세요. 바꾼 분류는 도구가 메시지에서 직접 읽으므로 입력은 비워 두세요.`,
-  interview: '인터뷰는 이미 끝났습니다. 화면에서 다음 단계로 진행해 달라고 한 문장으로만 답하세요.',
-  chat: `식단표 만들기, 칸 바꾸기, 메뉴 분류는 화면의 버튼으로 합니다("${PLAN_REQUEST_PREFIX}", "${EDIT_REQUEST_PREFIX}", "${CLASSIFY_REQUEST}"로 시작하는 메시지). 화면의 버튼을 눌러 달라고 한 문장으로만 답하세요.`,
-};
 
 // 제출 하나의 복구 한도: 3회, 20분 (B12, core/llm-timeout.ts). Flue 기본(10회·1시간)이면 복구가 되풀이될 때 Neuron을 많이 쓴다
 DietCoach.durability = { ...SUBMISSION_DURABILITY };

@@ -66,7 +66,7 @@ function candidateOr(key: string | undefined, fallback: ModelId): ModelId {
   return key && Object.hasOwn(MODEL_CANDIDATES, key) ? MODEL_CANDIDATES[key as keyof typeof MODEL_CANDIDATES] : fallback;
 }
 
-type ModelId = (typeof MODEL_CANDIDATES)[keyof typeof MODEL_CANDIDATES];
+export type ModelId = (typeof MODEL_CANDIDATES)[keyof typeof MODEL_CANDIDATES];
 
 // 스펙 11.4. 100만 토큰당 Neuron. Workers AI 가격표에서 옮겨 적었다 (2026-11-06 확인).
 // https://developers.cloudflare.com/workers-ai/platform/pricing/

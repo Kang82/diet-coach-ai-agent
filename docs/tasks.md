@@ -412,6 +412,11 @@
     - 막힌 것 1: 도구 안 `harness.prompt`가 에이전트 시스템 지시("create_week_plan 도구를 한 번 부르세요")와 도구 목록을 물려받아 gpt-oss가 `finish` 대신 `create_week_plan`을 불렀다(Flue가 재귀 차단). gemma도 같은 지시를 받고 있어 잠재 위험
     - 막힌 것 2: 두 번째 턴부터 Workers AI gpt-oss가 Flue 메시지 형식(사용자 `content` 배열, 도구 부른 assistant `content: null`)을 400(`5006 Bad input`)으로 거절
     - 다음(새 계획 필요): 공급자 감싸기에서 gpt-oss 요청의 `onPayload`로 `content`를 문자열로 맞추기, 도구 안 프롬프트가 `finish`만 부르게 하기. mistral-small도 같은 형식 문제가 있는지 짧은 2턴 호출로 먼저 확인
+  - 진행 2차(2026-11-08, 사용자가 정한 순서 ①→②→③): ([기록](experiments/2026-11-08-b14-payload-check.md)) 약 22 Neuron
+    - ① 직접 2턴 호출: mistral-small은 Flue 모양 그대로 200(보정 불필요, 출력 상한 256만 넣음). gpt-oss는 Flue 모양 400 재현, 문자열 content로 맞추면 200이고 `finish`를 제대로 부름
+    - ② 결정: 식단 생성·다시 추천·메뉴 분류 프롬프트 첫 줄 `FINISH_ONLY`("이 요청에서는 다른 도구를 부르지 말고 결과를 finish 도구로만 보내세요."), 바깥 지시는 접두어 조건을 되살림(`agents/agent-instructions.ts`). `harness.prompt`에 지시·도구를 바꾸는 옵션이 없어 문구로 막는다
+    - ③ 결정: `output-caps.ts`가 후보 모델 전체에 상한 또는 `null`을 명시(타입으로 강제), gpt-oss만 `PAYLOAD_FIXES`(`onPayload`로 문자열 content). 자기 키만 보고 숫자만 쓴다(커밋 뒤 자동 보안 리뷰 2건 반영)
+    - 남은 것: 페르소나 E로 gemma·gpt-oss-120b(low)·mistral-small 실제 비교(한도가 풀린 날, 약 2,500~4,000 Neuron). mistral은 `PLAN_MODEL=mistral`로 바로 시험할 수 있다(후보와 상한 등록됨). 바깥 턴 지시가 바뀌었으니 바깥 턴이 도구를 제대로 부르는지도 함께 본다
 
 ### T9. B5·B6 리뷰 남은 버그 (B10b, Neuron 없음)
 

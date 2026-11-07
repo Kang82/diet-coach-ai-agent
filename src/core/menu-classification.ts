@@ -3,6 +3,7 @@
 // - 사용자가 화면에서 바꾼 분류를 반영한다 ("사용자가 분류를 고치면 그 값을 그대로 쓴다")
 import { mealKeyOrder } from './helpers.ts';
 import { AVOID_TAG_LABELS, CRITERION_LABELS } from './labels.ts';
+import { FINISH_ONLY } from './plan-prompt.ts';
 import type { AvoidTag, CriteriaRules, MealSetting, MenuClass, MenuClassification } from './types.ts';
 
 /** 사용자가 분류를 바꾼 메뉴의 이유. LLM이 쓴 이유는 바뀐 분류와 어긋날 수 있어 바꾼다 */
@@ -121,6 +122,7 @@ export function classesForPlan(
 
 export function buildClassifyPrompt({ menus, rules, avoid }: ClassifyInput): string {
   const lines = [
+    FINISH_ONLY,
     '식단 코치 앱 사용자가 외식으로 고를 수 있는 메뉴를 사용자의 식단 기준에 맞춰 분류하세요.',
     `식단 기준: ${rules.criteria.map((id) => `${id}(${CRITERION_LABELS[id]})`).join(', ')}`,
   ];
