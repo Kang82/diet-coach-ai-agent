@@ -74,4 +74,19 @@ B12(T8-3, 긴 LLM 호출 결과 유실 막기)를 할지, 한다면 범위를 �
 
 1. **durable 동작**: 임시 브랜치에서 `create_week_plan`을 `durable: true` + `steppedGenerator`로 감싸고 데모 생성기 지연을 60초로 늘린다(`PLAN_GENERATOR=demo`). 만들기를 보내고 (a) 생성 step이 끝나기 전, (b) 끝난 뒤 다시 추천 전에 node(vite) → `workerd` 순서로 끄고 다시 띄운다. Durable Object 저장소(`flue_conversation_stream_batches`)에서 `tool_step_settled`, 생성기 호출 수(로그), 도구 결과가 이어지는지 본다. 데모 생성기는 다시 추천이 없으므로 (b)는 위반 칸을 넣은 가짜로 바꿔 본다
 2. **보통 도구 끊김 뒤 바깥 모델**: 같은 방법으로 지금 도구(durable 아님)를 끊고, 복구 뒤 바깥 모델이 `create_week_plan`을 다시 부르는지 본다. 다시 부르면 B12 전까지 바깥 턴 지시문에 "끊김 에러여도 다시 부르지 말 것"을 더한다
+### 결과 (같은 날 23:45~23:56 KST, 로컬)
+
+방법은 위 1·2대로. 임시 브랜치에서 데모 생성기 지연을 `DEMO_DELAY_MS=60000`으로 늘리고, `create_week_plan`에 `durable: true` + `step.do('start')`·`step.do('llm:N')`를 넣었다(임시 코드는 버림). 도구가 도는 중 node(vite) → `workerd`를 강제 종료하고 다시 띄웠다. 바깥 턴만 실제 모델, 대화 4개(인터뷰·분류는 데모), 약 30~40 Neuron.
+
+| 경우 | 끊은 시점 | 복구 | 결과 |
+| --- | --- | --- | --- |
+| 2. 보통 도구 | 생성 중(시작 30초 뒤) | 서버가 뜬 지 7초 만에 저절로(대화를 읽지 않아도) | 도구는 `output-error` `{"type":"interrupted","message":"Tool execution was interrupted before completion. The outcome is unknown."}`. 바깥 모델은 **다시 부르지 않았다**. 추론에 지시문 "도구 결과가 실패여도 같은 도구를 다시 부르지 마세요"를 인용했고 "다시 입력해 달라"는 문장으로 끝냈다 |
+| 1(a). durable | `start` 끝, `llm:1` 도중 | 서버가 뜬 직후 새 시도(attempt)로 | `start`는 기록값을 돌려줌(planId 같음). `llm:1`만 처음부터 다시 돌아 60초 뒤 `ok`. 도구 결과는 복구 커밋(`tool_repair_commit`)으로 남고 바깥 턴은 더 돌지 않음(`terminate`) |
+| 1(b). durable | `llm:1` 끝(위반 1칸), `llm:2`(다시 추천) 도중 | 같음 | `llm:1`은 다시 부르지 않고 `llm:2`만 다시 돌아 `ok`, 다시 추천 1회 |
+
+- durable로 감싸면 11-06 2차처럼 끝나기 직전 재시작돼도 **끝난 LLM 호출을 버리지 않는다.** 끊긴 호출 하나만 다시 든다
+- (b)의 도구 `stats.seconds`가 60이었다. 시작 시각을 step 밖 `Date.now()`로 재서 복구 뒤 처음부터 다시 잰 것이다. B12 범위 초안대로 시작 시각·예산 시작을 `start` step에 넣어야 한다
+- 보통 도구 끊김 뒤 다시 부르지 않은 것은 1회 관찰이다. 지시문은 그대로 두고, B12로 durable이 되면 이 경로는 줄어든다
+- 처음 (b)는 일요일 저녁 조리 시간 999분으로 위반을 만들려 했는데 통과했다. 페르소나 A는 주말 저녁 조리 시간 제한이 없어서다. 같은 메뉴 연속(화요일 저녁 = 월요일 저녁)으로 바꿨다
+
 3. **알람 15분 가설**: 배포본 Workers Logs(Durable Objects → FlueDietCoachAgent → Observability)에서 B11 실측 동안 alarm 호출의 시간과 끝난 이유(`outcome`)를 본다. 15분 근처에서 끊기면 Flue 이슈로 남기고, 다시 시도가 앞 제출과 이어지지 않게 막는 방법을 찾는다

@@ -23,7 +23,9 @@ export const INTERVIEW_THINKING = 'low' as const;
 
 /**
  * 식단 생성·다시 추천의 추론 수준 (tasks.md T8-4). 기본은 undefined(Flue 기본값 'medium')로 지금까지와 같다.
- * 11-06 배포본에서 생성 1회 출력이 평소의 약 2배(14,832토큰, 5분 46초)였다. 낮췄을 때의 비교는 B11(T8-2)에서 한다.
+ * 11-06 배포본에서 생성 1회 출력이 평소의 약 2배(14,832토큰, 5분 46초)였다.
+ * B11(T8-2, 2026-11-07)에서 'low'를 평가 세트 8회로 재 보니 medium 대비 출력 토큰 중앙값 -7%, 시간은 같아 기본값을 바꾸지 않았다
+ * (docs/experiments/2026-11-07-b11-thinking-level.md). gemma는 reasoning_effort에 거의 반응하지 않는다.
  * 개발 중 `.dev.vars`의 PLAN_THINKING(low|medium|high)으로 바꿔 시험한다. 'off'는 받지 않는다(위 INTERVIEW_THINKING 주석)
  */
 export function planThinking(key: string | undefined): 'low' | 'medium' | 'high' | undefined {

@@ -94,3 +94,20 @@ describe('2026-11-07 평가 세트 A~D (T1-7)', () => {
     expect(checkPlan(r.output.plan, profile, classes, buildCriteria(profile.goals)).violations).toEqual([]);
   });
 });
+
+describe('2026-11-07 B11 추론 수준 low (T8-2)', () => {
+  const personas: Record<string, { profile: Profile; classes: MenuClassification[] }> = {
+    페르소나A: { profile: profileA, classes: classesA },
+    페르소나B: { profile: profileB, classes: classesB },
+    페르소나C: { profile: profileC, classes: classesC },
+    페르소나D: { profile: profileD, classes: classesD },
+  };
+  const { runs } = load<{ runs: { persona: string; run: number; result: string; output: { plan: Plan } }[] }>(
+    '2026-11-07-b11-thinking-low.json',
+  );
+  it.each(runs.map((r) => [r.persona, r.run, r] as const))('%s %i회차는 지금 규칙으로도 통과', (persona, _run, r) => {
+    const { profile, classes } = personas[persona]!;
+    expect(r.result).toBe('pass');
+    expect(checkPlan(r.output.plan, profile, classes, buildCriteria(profile.goals)).violations).toEqual([]);
+  });
+});
