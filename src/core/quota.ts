@@ -9,8 +9,10 @@ export class QuotaExceededError extends Error {
   }
 }
 
-/** 사용자에게 보여 줄 안내 (스펙 11.3-3) */
-export const QUOTA_EXCEEDED_MESSAGE = '오늘 사용할 수 있는 양을 다 썼어요. 오전 9시 이후에 이어서 할 수 있어요.';
+/**
+ * 사용자에게 보여 줄 안내 (스펙 11.3-3). Workers AI 한도와 안전선이 최근 24시간 합계로 풀리므로 시각을 말하지 않는다 (tasks.md T7-5)
+ */
+export const QUOTA_EXCEEDED_MESSAGE = '오늘 사용할 수 있는 양을 다 썼어요. 몇 시간 뒤에 다시 해 주세요.';
 
 // 임시 판별 (열린 질문 6). Workers AI 무료 한도 초과는 코드 4006,
 // "you have used up your daily free allocation of 10,000 neurons" 문구로 알려져 있다.

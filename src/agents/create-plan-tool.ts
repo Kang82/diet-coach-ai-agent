@@ -12,6 +12,7 @@ import type { PlanPeriod } from '../core/period.ts';
 import { parsePlanRequest } from '../core/plan-request.ts';
 import type { PlanToolOutput } from '../core/plan-tool-output.ts';
 import type { MenuClassification } from '../core/types.ts';
+import { PLAN_TOOL_BUDGETS } from '../core/llm-timeout.ts';
 import { createPlan } from '../core/plan-loop.ts';
 import { buildPlanNotices } from '../core/plan-notices.ts';
 import { QUOTA_EXCEEDED_MESSAGE } from '../core/quota.ts';
@@ -71,6 +72,8 @@ export function createWeekPlanTool({
           createdAt: new Date().toISOString(),
           weekStart: period?.weekStart ?? nextMondayKst(new Date()),
           events: structuredClone(period?.events ?? []),
+          // 도구 전체 시간 상한 (tasks.md T8-4)
+          budget: { totalMs: PLAN_TOOL_BUDGETS.createPlan, now: Date.now },
         });
         const stats = toolStats(startedAt, result, log);
         log.info('식단표 생성 끝', { ok: result.ok, ...stats });

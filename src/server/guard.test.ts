@@ -115,14 +115,20 @@ describe('사용자별 하루 제한 (11.4-2)', () => {
   });
 });
 
-describe('전체 하루 Neuron 안전선 (11.4-3)', () => {
+describe('전체 Neuron 안전선, 최근 24시간 합계 (11.4-3, tasks.md T7-5)', () => {
   it('안전선 바로 아래면 통과', async () => {
-    store.setNeurons('2026-11-06', GLOBAL_DAILY_NEURON_LIMIT - 1);
+    store.setNeurons('2026-11-06T12', GLOBAL_DAILY_NEURON_LIMIT - 1);
     expect((await call('POST', `${MOUNT}/abc-1`, TOKEN_A)).status).toBe(202);
   });
 
+  it('여러 시간 칸을 합쳐 안전선에 닿으면 막는다', async () => {
+    store.setNeurons('2026-11-05T13', GLOBAL_DAILY_NEURON_LIMIT / 2);
+    store.setNeurons('2026-11-06T11', GLOBAL_DAILY_NEURON_LIMIT / 2);
+    expect((await call('POST', `${MOUNT}/abc-1`, TOKEN_A)).status).toBe(429);
+  });
+
   it('안전선에 닿으면 새 메시지는 429, 진행 중인 대화 읽기와 abort는 통과', async () => {
-    store.setNeurons('2026-11-06', GLOBAL_DAILY_NEURON_LIMIT);
+    store.setNeurons('2026-11-06T12', GLOBAL_DAILY_NEURON_LIMIT);
     const res = await call('POST', `${MOUNT}/abc-1`, TOKEN_A);
     expect(res.status).toBe(429);
     expect(await errorType(res)).toBe('global_daily_limit');
@@ -131,16 +137,24 @@ describe('전체 하루 Neuron 안전선 (11.4-3)', () => {
   });
 
   it('안전선에 막힌 메시지는 사용자 횟수를 쓰지 않는다', async () => {
-    store.setNeurons('2026-11-06', GLOBAL_DAILY_NEURON_LIMIT);
+    store.setNeurons('2026-11-06T12', GLOBAL_DAILY_NEURON_LIMIT);
     for (let i = 0; i < USER_DAILY_MESSAGE_LIMIT; i++) await call('POST', `${MOUNT}/abc-1`, TOKEN_A);
     now = new Date('2026-11-06T23:59:59Z');
-    store.setNeurons('2026-11-06', 0);
+    store.setNeurons('2026-11-06T12', 0);
     expect((await call('POST', `${MOUNT}/abc-1`, TOKEN_A)).status).toBe(202);
   });
 
-  it('다음 날이면 안전선이 풀린다', async () => {
-    store.setNeurons('2026-11-06', GLOBAL_DAILY_NEURON_LIMIT);
-    now = new Date('2026-11-07T00:00:00Z');
+  it('UTC 날짜가 바뀌어도 24시간 안에 쓴 양이면 계속 막는다', async () => {
+    store.setNeurons('2026-11-06T23', GLOBAL_DAILY_NEURON_LIMIT);
+    now = new Date('2026-11-07T01:00:00Z');
+    expect((await call('POST', `${MOUNT}/abc-1`, TOKEN_A)).status).toBe(429);
+  });
+
+  it('그 칸이 창(24시간 전 시각이 속한 칸부터)을 벗어나면 풀린다', async () => {
+    store.setNeurons('2026-11-06T12', GLOBAL_DAILY_NEURON_LIMIT);
+    now = new Date('2026-11-07T12:59:59Z'); // 창 시작 2026-11-06T12: 아직 막힘
+    expect((await call('POST', `${MOUNT}/abc-1`, TOKEN_A)).status).toBe(429);
+    now = new Date('2026-11-07T13:00:00Z'); // 창 시작 2026-11-06T13
     expect((await call('POST', `${MOUNT}/abc-1`, TOKEN_A)).status).toBe(202);
   });
 });

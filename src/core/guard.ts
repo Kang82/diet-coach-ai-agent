@@ -5,7 +5,10 @@ import { QUOTA_EXCEEDED_MESSAGE } from './quota.ts';
 /** 사용자 하나가 하루에 보낼 수 있는 메시지(에이전트 POST) 수 (11.4-2) */
 export const USER_DAILY_MESSAGE_LIMIT = 30;
 
-/** Worker 전체 하루 Neuron 안전선 (11.4-3). 무료 한도 10,000의 80%. 넘으면 새 메시지를 모두 막는다 */
+/**
+ * Worker 전체 Neuron 안전선 (11.4-3). 무료 한도 10,000의 80%. 넘으면 새 메시지를 모두 막는다.
+ * 최근 24시간 합계(neuronWindowStart부터)와 비교한다 (tasks.md T7-5)
+ */
 export const GLOBAL_DAILY_NEURON_LIMIT = 8_000;
 
 /** 실패하거나 시간이 지나 사용량을 모르는 LLM 호출을 걸린 초당 이만큼으로 센다 (실측 1.5~1.9/초보다 크게) */
@@ -33,9 +36,24 @@ export async function hashToken(token: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** 카운터 날짜. Workers AI 한도처럼 00:00 UTC(한국 오전 9시)에 바뀐다 */
+/** 사용자 메시지 수 카운터의 날짜. 00:00 UTC(한국 오전 9시)에 바뀐다 */
 export function utcDay(now: Date): string {
   return now.toISOString().slice(0, 10);
+}
+
+/** Neuron 카운터의 시간 칸 (UTC 'YYYY-MM-DDTHH'). 글자 순서가 시간 순서다 */
+export function utcHour(now: Date): string {
+  return now.toISOString().slice(0, 13);
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * 안전선이 합산하는 첫 시간 칸 (tasks.md T7-5). Workers AI 한도가 최근 24시간 합계처럼 동작해서 날짜가 아니라 창으로 센다.
+ * 24시간 전 시각이 속한 칸부터 지금 칸까지 25칸(24~25시간)을 더한다. 시간 단위로 자른 오차는 더 막는 쪽으로 둔다
+ */
+export function neuronWindowStart(now: Date): string {
+  return utcHour(new Date(now.getTime() - DAY_MS));
 }
 
 /** 대화 ID는 "<userId>-<무작위>"다. 접두어가 정확히 맞고 뒤가 비지 않아야 그 사용자의 대화다 */

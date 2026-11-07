@@ -23,3 +23,21 @@ export const LLM_TIME_LIMITS = {
   /** 칸 다시 추천: 약 1분 */
   regenerateCells: 4 * 60_000,
 } as const;
+
+/**
+ * 식단 도구 전체 시간 예산 (ms, tasks.md T8-4). 호출별 제한만으로는 생성 8분 + 다시 추천 4분 × 3회로 20분 가까이 걸릴 수 있다.
+ * 루프가 남은 시간을 각 호출 제한으로 넘기고, 남은 시간이 MIN_REGENERATE_MS보다 적으면 다시 추천을 멈춘다.
+ * 값은 11-06 배포본 지연(생성 5분 46초) 기준 초안이다. B11(T8-2) 실측 뒤 다시 맞춘다.
+ */
+export const PLAN_TOOL_BUDGETS = {
+  createPlan: 10 * 60_000,
+  editPlanCells: 5 * 60_000,
+} as const;
+
+/** 다시 추천을 새로 시작하는 데 필요한 남은 시간. 칸 다시 추천 실측 약 1분 (스펙 11.5) */
+export const MIN_REGENERATE_MS = 60_000;
+
+/** 호출별 상한과 루프가 넘긴 남은 시간 중 짧은 쪽 */
+export function callLimit(callMaxMs: number, limitMs: number | undefined): number {
+  return limitMs === undefined ? callMaxMs : Math.max(0, Math.min(callMaxMs, limitMs));
+}

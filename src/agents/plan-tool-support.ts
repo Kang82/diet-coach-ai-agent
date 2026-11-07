@@ -14,7 +14,7 @@ import type { MenuClassification, Plan } from '../core/types.ts';
 import { createDemoPlanGenerator } from './demo-plan-generator.ts';
 import { createFluePlanGenerator, type PromptHarness } from './flue-plan-generator.ts';
 import { meteredHarness, type NeuronMeter } from './metered-harness.ts';
-import { NEURON_PRICES } from './models.ts';
+import { NEURON_PRICES, planThinking } from './models.ts';
 import type { Storage } from '../storage/storage.ts';
 
 /** 에이전트가 들고 있는 지금 식단표 (usePersistentState 'plan'). 칸 수정이 이것을 고친다. */
@@ -29,9 +29,12 @@ export function planContext(result: InterviewResult, classes: readonly MenuClass
 /**
  * 개발용 가짜 생성 모드: `.dev.vars`의 PLAN_GENERATOR=demo (demo-plan-generator.ts).
  * nodejs_compat에서는 Worker의 vars가 process.env로도 들어온다. 값이 없으면 실제 모델을 쓴다.
+ * 추론 수준은 PLAN_THINKING(models.ts planThinking). 없으면 Flue 기본값
  */
 export function pickGenerator(harness: PromptHarness): PlanGenerator {
-  return process.env.PLAN_GENERATOR === 'demo' ? createDemoPlanGenerator() : createFluePlanGenerator(harness);
+  if (process.env.PLAN_GENERATOR === 'demo') return createDemoPlanGenerator();
+  const thinkingLevel = planThinking(process.env.PLAN_THINKING);
+  return createFluePlanGenerator(harness, thinkingLevel ? { thinkingLevel } : {});
 }
 
 /** 서버 저장(T6-2)에 쓰는 저장소와 사용자. 사용자를 모르는 대화(flue run 등)면 없다 */
@@ -69,7 +72,7 @@ export function countNeurons(usages: TokenUsage[], log: Pick<FlueLogger, 'warn'>
 
 export function toolStats(
   startedAt: number,
-  loop: { usages: TokenUsage[]; regenerations: number },
+  loop: { usages: TokenUsage[]; regenerations: number; stoppedForTime?: true },
   log: Pick<FlueLogger, 'warn'>,
 ): PlanToolStats {
   return {
@@ -77,6 +80,7 @@ export function toolStats(
     regenerations: loop.regenerations,
     usages: loop.usages,
     neurons: countNeurons(loop.usages, log),
+    ...(loop.stoppedForTime ? { stoppedForTime: true as const } : {}),
   };
 }
 

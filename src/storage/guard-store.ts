@@ -1,18 +1,18 @@
-// 스펙 11.4 한도 보호의 저장소: 토큰 해시 → 사용자, 날짜별 메시지 수와 Neuron 추정치.
-// 테이블은 migrations/0002_guard.sql. 계약 테스트는 guard-store-contract.ts.
+// 스펙 11.4 한도 보호의 저장소: 토큰 해시 → 사용자, 날짜별 사용자 메시지 수, 시간별 Worker 전체 Neuron 추정치.
+// 테이블은 migrations/0002_guard.sql(users, usage_daily), 0003_usage_hourly.sql. 계약 테스트는 guard-store-contract.ts.
 import type { D1Like } from './d1-storage.ts';
 
 export interface GuardStore {
   /** 토큰 해시로 사용자 ID를 찾는다. 없으면 null */
   findUserByTokenHash(tokenHash: string): Promise<string | null>;
-  /** 그날 메시지 수를 하나 늘린다. 이미 limit이면 늘리지 않고 false */
+  /** 그날(UTC 'YYYY-MM-DD') 메시지 수를 하나 늘린다. 이미 limit이면 늘리지 않고 false */
   tryCountMessage(userId: string, day: string, limit: number): Promise<boolean>;
-  /** 그날 Worker 전체 Neuron 추정치 */
-  neuronsOn(day: string): Promise<number>;
-  addNeurons(day: string, neurons: number): Promise<void>;
+  /** fromHour(UTC 'YYYY-MM-DDTHH') 칸부터 지금까지 Worker 전체 Neuron 추정치 합계 (tasks.md T7-5) */
+  neuronsSince(fromHour: string): Promise<number>;
+  /** 그 시간 칸에 Neuron을 더한다 */
+  addNeurons(hour: string, neurons: number): Promise<void>;
 }
 
-const ALL = 'all';
 const userKey = (userId: string) => `user:${userId}`;
 
 export class MemoryGuardStore implements GuardStore {
@@ -36,17 +36,19 @@ export class MemoryGuardStore implements GuardStore {
     return true;
   }
 
-  async neuronsOn(day: string): Promise<number> {
-    return this.neurons.get(day) ?? 0;
+  async neuronsSince(fromHour: string): Promise<number> {
+    let sum = 0;
+    for (const [hour, neurons] of this.neurons) if (hour >= fromHour) sum += neurons;
+    return sum;
   }
 
-  async addNeurons(day: string, neurons: number): Promise<void> {
-    this.neurons.set(day, (this.neurons.get(day) ?? 0) + neurons);
+  async addNeurons(hour: string, neurons: number): Promise<void> {
+    this.neurons.set(hour, (this.neurons.get(hour) ?? 0) + neurons);
   }
 
-  /** 테스트용: 그날 Neuron을 정해 둔다 */
-  setNeurons(day: string, neurons: number): void {
-    this.neurons.set(day, neurons);
+  /** 테스트용: 그 시간 칸의 Neuron을 정해 둔다 */
+  setNeurons(hour: string, neurons: number): void {
+    this.neurons.set(hour, neurons);
   }
 }
 
@@ -75,21 +77,21 @@ export class D1GuardStore implements GuardStore {
     return row !== null && row.calls <= limit;
   }
 
-  async neuronsOn(day: string): Promise<number> {
+  async neuronsSince(fromHour: string): Promise<number> {
     const row = await this.db
-      .prepare('SELECT neurons FROM usage_daily WHERE day = ? AND key = ?')
-      .bind(day, ALL)
+      .prepare('SELECT COALESCE(SUM(neurons), 0) AS neurons FROM usage_hourly WHERE hour >= ?')
+      .bind(fromHour)
       .first<{ neurons: number }>();
     return row?.neurons ?? 0;
   }
 
-  async addNeurons(day: string, neurons: number): Promise<void> {
+  async addNeurons(hour: string, neurons: number): Promise<void> {
     await this.db
       .prepare(
-        `INSERT INTO usage_daily (day, key, neurons) VALUES (?1, ?2, ?3)
-         ON CONFLICT (day, key) DO UPDATE SET neurons = usage_daily.neurons + excluded.neurons`,
+        `INSERT INTO usage_hourly (hour, neurons) VALUES (?1, ?2)
+         ON CONFLICT (hour) DO UPDATE SET neurons = usage_hourly.neurons + excluded.neurons`,
       )
-      .bind(day, ALL, neurons)
+      .bind(hour, neurons)
       .run();
   }
 }

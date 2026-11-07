@@ -29,21 +29,30 @@ export function guardStoreContract(
       expect(await store.tryCountMessage('u1', '2026-11-07', 1)).toBe(true);
     });
 
-    it('Neuron은 날짜마다 쌓이고 기록이 없으면 0', async () => {
+    it('Neuron은 기록이 없으면 0, 같은 시간 칸에 쌓인다', async () => {
       const store = await create([]);
-      expect(await store.neuronsOn('2026-11-06')).toBe(0);
-      await store.addNeurons('2026-11-06', 12.5);
-      await store.addNeurons('2026-11-06', 100);
-      await store.addNeurons('2026-11-07', 7);
-      expect(await store.neuronsOn('2026-11-06')).toBeCloseTo(112.5);
-      expect(await store.neuronsOn('2026-11-07')).toBeCloseTo(7);
+      expect(await store.neuronsSince('2026-11-06T00')).toBe(0);
+      await store.addNeurons('2026-11-06T12', 12.5);
+      await store.addNeurons('2026-11-06T12', 100);
+      expect(await store.neuronsSince('2026-11-06T12')).toBeCloseTo(112.5);
+    });
+
+    it('fromHour 칸부터 뒤 칸만 더한다 (날짜가 바뀌어도 이어서)', async () => {
+      const store = await create([]);
+      await store.addNeurons('2026-11-06T09', 1);
+      await store.addNeurons('2026-11-06T10', 20);
+      await store.addNeurons('2026-11-06T23', 300);
+      await store.addNeurons('2026-11-07T00', 4_000);
+      expect(await store.neuronsSince('2026-11-06T10')).toBeCloseTo(4_320);
+      expect(await store.neuronsSince('2026-11-07T00')).toBeCloseTo(4_000);
+      expect(await store.neuronsSince('2026-11-07T01')).toBe(0);
     });
 
     it('메시지 수와 Neuron은 서로 영향을 주지 않는다', async () => {
       const store = await create([]);
-      await store.addNeurons('2026-11-06', 50);
+      await store.addNeurons('2026-11-06T12', 50);
       expect(await store.tryCountMessage('u1', '2026-11-06', 1)).toBe(true);
-      expect(await store.neuronsOn('2026-11-06')).toBeCloseTo(50);
+      expect(await store.neuronsSince('2026-11-06T00')).toBeCloseTo(50);
     });
   });
 }

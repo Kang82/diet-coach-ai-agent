@@ -2,7 +2,8 @@
 // LLM은 PlanGenerator 포트로만 부른다. 입력 식단표는 고치지 않고 새 객체를 만든다.
 import { checkPlan, requiredSlots } from './check-plan.ts';
 import { compareSlots, menuKey, sameSlot, slotOrder, toSlot } from './helpers.ts';
-import type { PlanGenerator, TokenUsage } from './plan-generator.ts';
+import { MIN_REGENERATE_MS } from './llm-timeout.ts';
+import type { CallOptions, PlanGenerator, TokenUsage } from './plan-generator.ts';
 import { QuotaExceededError } from './quota.ts';
 import type {
   CheckResult,
@@ -29,6 +30,18 @@ export interface LoopStats {
   usages: TokenUsage[];
   /** regenerateCells를 부른 횟수. 실패한 호출은 세지 않는다. */
   regenerations: number;
+  /** 시간 예산이 모자라 다시 추천을 멈췄으면 true (tasks.md T8-4). 그렇지 않으면 키가 없다 */
+  stoppedForTime?: true;
+}
+
+/**
+ * 도구 전체 시간 예산 (tasks.md T8-4). 루프는 순수 로직이라 시계를 받는다.
+ * 각 호출에는 남은 시간을 limitMs로 넘기고, 남은 시간이 MIN_REGENERATE_MS보다 적으면 다시 추천을 새로 부르지 않는다.
+ * 없으면 시간 제한 없이 돈다(호출별 제한은 구현이 건다).
+ */
+export interface TimeBudget {
+  totalMs: number;
+  now: () => number;
 }
 
 export interface CreatePlanInput {
@@ -37,6 +50,7 @@ export interface CreatePlanInput {
   createdAt: string;
   weekStart: string;
   events: PlanEvent[];
+  budget?: TimeBudget;
 }
 
 export type CreatePlanResult =
@@ -94,8 +108,9 @@ export async function createPlan(
   input: CreatePlanInput,
 ): Promise<CreatePlanResult> {
   const stats: LoopStats = { usages: [], regenerations: 0 };
+  const clock = deadline(input.budget);
   try {
-    const generated = await generator.generatePlan({ ...ctx, weekStart: input.weekStart, events: input.events });
+    const generated = await generator.generatePlan({ ...ctx, weekStart: input.weekStart, events: input.events }, clock.options());
     stats.usages.push(generated.usage);
 
     // LLM에는 칸만 받는다. 일정과 날짜는 입력 값을 쓴다.
@@ -109,7 +124,7 @@ export async function createPlan(
       createdAt: input.createdAt,
     };
 
-    const result = await repair(generator, ctx, plan, stats);
+    const result = await repair(generator, ctx, plan, stats, clock);
     if (result.ok) return { ok: true, plan: result.plan, check: result.check, ...stats };
     return { ok: false, reason: 'violations', check: result.check, lastPlan: result.plan, ...stats };
   } catch (error) {
@@ -126,7 +141,7 @@ export async function editPlanCells(
   generator: PlanGenerator,
   ctx: PlanContext,
   plan: Plan,
-  input: { targets: Slot[]; userRequest: string },
+  input: { targets: Slot[]; userRequest: string; budget?: TimeBudget },
 ): Promise<EditPlanResult> {
   const original = structuredClone(plan);
   const targets = uniqueSlots(input.targets);
@@ -142,6 +157,7 @@ export async function editPlanCells(
   if (!before.passed) return { ok: false, reason: 'stale_plan', plan: original, check: before, ...stats };
 
   const request = { slots: targets, text: input.userRequest };
+  const clock = deadline(input.budget);
   try {
     const first = await generator.regenerateCells({
       ...ctx,
@@ -149,11 +165,11 @@ export async function editPlanCells(
       targets,
       violations: [],
       userRequest: input.userRequest,
-    });
+    }, clock.options()); // 사용자가 요청한 호출이라 남은 시간과 관계없이 부른다
     stats.usages.push(first.usage);
     stats.regenerations++;
 
-    const result = await repair(generator, ctx, applyCells(plan, targets, first.value), stats, request);
+    const result = await repair(generator, ctx, applyCells(plan, targets, first.value), stats, clock, request);
     if (!result.ok) return { ok: false, reason: 'violations', plan: original, check: result.check, ...stats };
     return {
       ok: true,
@@ -179,6 +195,7 @@ async function repair(
   ctx: PlanContext,
   start: Plan,
   stats: LoopStats,
+  clock: Deadline,
   request?: { slots: Slot[]; text: string },
 ): Promise<{ ok: boolean; plan: Plan; check: CheckResult }> {
   let plan = start;
@@ -194,6 +211,10 @@ async function repair(
     // 규칙이 늘어 regenerate가 빈 위반이 남으면 LLM으로 고칠 수 없으므로 회차가 남아도 실패로 끝낸다.
     const targets = uniqueSlots(check.violations.flatMap((v) => v.regenerate));
     if (stats.regenerations >= MAX_REGENERATIONS || targets.length === 0) return { ok: false, plan, check };
+    if (clock.remaining() < MIN_REGENERATE_MS) {
+      stats.stoppedForTime = true;
+      return { ok: false, plan, check };
+    }
 
     const res = await generator.regenerateCells({
       ...ctx,
@@ -201,11 +222,25 @@ async function repair(
       targets,
       violations: check.violations,
       ...(request && targets.some((t) => request.slots.some((r) => sameSlot(r, t))) ? { userRequest: request.text } : {}),
-    });
+    }, clock.options());
     stats.usages.push(res.usage);
     stats.regenerations++;
     plan = applyCells(plan, targets, res.value);
   }
+}
+
+interface Deadline {
+  /** 남은 시간(ms). 예산이 없으면 Infinity */
+  remaining(): number;
+  /** 다음 호출 옵션. 예산이 없으면 undefined(옵션 없이 부른다) */
+  options(): CallOptions | undefined;
+}
+
+function deadline(budget: TimeBudget | undefined): Deadline {
+  if (!budget) return { remaining: () => Infinity, options: () => undefined };
+  const end = budget.now() + budget.totalMs;
+  const remaining = () => Math.max(0, end - budget.now());
+  return { remaining, options: () => ({ limitMs: remaining() }) };
 }
 
 /**

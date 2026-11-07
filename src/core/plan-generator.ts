@@ -44,12 +44,17 @@ export interface RegenerateCellsInput {
   classes: MenuClassification[];
 }
 
+/** 호출 하나의 옵션. limitMs는 루프가 도구 전체 예산에서 남은 시간으로 정한다 (tasks.md T8-4). 구현은 호출별 상한과 비교해 짧은 쪽을 쓴다 */
+export interface CallOptions {
+  limitMs?: number;
+}
+
 export interface PlanGenerator {
   /**
    * 1주일 칸 전체를 한 번의 호출로 만든다 (스펙 4.3).
    * 칸만 돌려준다. planId, weekStart, events 같은 Plan의 나머지는 LLM에 맡기지 않고 루프가 입력으로 채운다.
    */
-  generatePlan(input: GeneratePlanInput): Promise<LlmResult<PlanCell[]>>;
+  generatePlan(input: GeneratePlanInput, options?: CallOptions): Promise<LlmResult<PlanCell[]>>;
   /** targets 칸만 다시 만든다 (스펙 4.4). */
-  regenerateCells(input: RegenerateCellsInput): Promise<LlmResult<PlanCell[]>>;
+  regenerateCells(input: RegenerateCellsInput, options?: CallOptions): Promise<LlmResult<PlanCell[]>>;
 }

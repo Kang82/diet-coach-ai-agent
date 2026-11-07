@@ -1,6 +1,7 @@
 // 테스트용 가짜 PlanGenerator.
 // 응답을 미리 순서대로 정해 두고, 받은 호출을 순서대로 기록한다.
 import type {
+  CallOptions,
   GeneratePlanInput,
   LlmResult,
   PlanGenerator,
@@ -13,8 +14,8 @@ import type { PlanCell } from '../types.ts';
 export type FakeStep<I, T> = T | Error | ((input: I) => T);
 
 export type FakeCall =
-  | { method: 'generatePlan'; input: GeneratePlanInput }
-  | { method: 'regenerateCells'; input: RegenerateCellsInput };
+  | { method: 'generatePlan'; input: GeneratePlanInput; options?: CallOptions }
+  | { method: 'regenerateCells'; input: RegenerateCellsInput; options?: CallOptions };
 
 export const FAKE_USAGE: TokenUsage = { model: 'fake', input: 100, output: 200 };
 
@@ -36,13 +37,13 @@ export class FakePlanGenerator implements PlanGenerator {
     this.usage = options.usage ?? FAKE_USAGE;
   }
 
-  async generatePlan(input: GeneratePlanInput): Promise<LlmResult<PlanCell[]>> {
-    this.calls.push({ method: 'generatePlan', input: structuredClone(input) });
+  async generatePlan(input: GeneratePlanInput, options?: CallOptions): Promise<LlmResult<PlanCell[]>> {
+    this.calls.push({ method: 'generatePlan', input: structuredClone(input), ...(options ? { options: { ...options } } : {}) });
     return this.respond('generatePlan', this.plans, input);
   }
 
-  async regenerateCells(input: RegenerateCellsInput): Promise<LlmResult<PlanCell[]>> {
-    this.calls.push({ method: 'regenerateCells', input: structuredClone(input) });
+  async regenerateCells(input: RegenerateCellsInput, options?: CallOptions): Promise<LlmResult<PlanCell[]>> {
+    this.calls.push({ method: 'regenerateCells', input: structuredClone(input), ...(options ? { options: { ...options } } : {}) });
     return this.respond('regenerateCells', this.regenerations, input);
   }
 

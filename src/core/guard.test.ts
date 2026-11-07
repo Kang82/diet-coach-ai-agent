@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { errorBody, hashToken, isMessagePost, ownsConversation, utcDay } from './guard.ts';
+import { errorBody, hashToken, isMessagePost, neuronWindowStart, ownsConversation, utcDay, utcHour } from './guard.ts';
 
 describe('hashToken', () => {
   it('원문과 다른 64자리 hex이고, 같은 입력은 같은 해시', async () => {
@@ -15,6 +15,20 @@ describe('utcDay', () => {
   it('한국 오전 8:59까지는 전날, 9:00부터 새 날 (00:00 UTC 초기화)', () => {
     expect(utcDay(new Date('2026-11-07T08:59:59+09:00'))).toBe('2026-11-06');
     expect(utcDay(new Date('2026-11-07T09:00:00+09:00'))).toBe('2026-11-07');
+  });
+});
+
+describe('utcHour', () => {
+  it('UTC 시간 칸. 한국 오전 8:59는 전날 23시 칸', () => {
+    expect(utcHour(new Date('2026-11-07T08:59:59+09:00'))).toBe('2026-11-06T23');
+    expect(utcHour(new Date('2026-11-07T09:00:00+09:00'))).toBe('2026-11-07T00');
+  });
+});
+
+describe('neuronWindowStart', () => {
+  it('24시간 전 시각이 속한 칸 (지금 칸 포함 25칸)', () => {
+    expect(neuronWindowStart(new Date('2026-11-07T01:30:00Z'))).toBe('2026-11-06T01');
+    expect(neuronWindowStart(new Date('2026-11-07T00:00:00Z'))).toBe('2026-11-06T00');
   });
 });
 

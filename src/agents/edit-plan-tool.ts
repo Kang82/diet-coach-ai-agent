@@ -5,6 +5,7 @@ import { defineTool, type DeliveredMessage } from '@flue/runtime';
 import * as v from 'valibot';
 import { parseEditRequest } from '../core/edit-request.ts';
 import { formatCheckSummary } from '../core/format-summary.ts';
+import { PLAN_TOOL_BUDGETS } from '../core/llm-timeout.ts';
 import { editPlanCells } from '../core/plan-loop.ts';
 import { buildPlanNotices } from '../core/plan-notices.ts';
 import type { EditToolOutput } from '../core/plan-tool-output.ts';
@@ -55,7 +56,12 @@ export function editPlanCellsTool({
       const ctx = planContext(interviewResult, menuClasses);
       const startedAt = Date.now();
       try {
-        const result = await editPlanCells(pickGenerator(metered(harness, meter, log)), ctx, plan, { targets, userRequest: parsed.request });
+        const result = await editPlanCells(pickGenerator(metered(harness, meter, log)), ctx, plan, {
+          targets,
+          userRequest: parsed.request,
+          // 도구 전체 시간 상한 (tasks.md T8-4)
+          budget: { totalMs: PLAN_TOOL_BUDGETS.editPlanCells, now: Date.now },
+        });
         const stats = toolStats(startedAt, result, log);
         log.info('칸 다시 추천 끝', { ok: result.ok, reason: result.ok ? undefined : result.reason, ...stats });
 

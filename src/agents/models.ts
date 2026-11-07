@@ -22,6 +22,15 @@ export const DEFAULT_MODEL = MODEL_CANDIDATES.gemma;
 export const INTERVIEW_THINKING = 'low' as const;
 
 /**
+ * 식단 생성·다시 추천의 추론 수준 (tasks.md T8-4). 기본은 undefined(Flue 기본값 'medium')로 지금까지와 같다.
+ * 11-06 배포본에서 생성 1회 출력이 평소의 약 2배(14,832토큰, 5분 46초)였다. 낮췄을 때의 비교는 B11(T8-2)에서 한다.
+ * 개발 중 `.dev.vars`의 PLAN_THINKING(low|medium|high)으로 바꿔 시험한다. 'off'는 받지 않는다(위 INTERVIEW_THINKING 주석)
+ */
+export function planThinking(key: string | undefined): 'low' | 'medium' | 'high' | undefined {
+  return key === 'low' || key === 'medium' || key === 'high' ? key : undefined;
+}
+
+/**
  * 목표 메모 확인 모델 (tasks.md B4). 기본은 llama-4-scout(추론하지 않아 5초 안팎).
  * gemma는 짧은 추출에도 출력 수천 토큰을 썼다 (docs/experiments/2026-11-06-b4-interview-real-run.md).
  * 개발 중 `.dev.vars`의 INTERVIEW_MODEL(MODEL_CANDIDATES의 키)로 바꿔 시험할 수 있다.

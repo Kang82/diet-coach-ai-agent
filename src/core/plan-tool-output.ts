@@ -8,6 +8,8 @@ export interface PlanToolStats {
   regenerations: number;
   usages: TokenUsage[];
   neurons: number;
+  /** 도구 전체 시간 예산이 모자라 다시 추천을 멈췄음 (tasks.md T8-4). 로그와 평가 기록용 */
+  stoppedForTime?: true;
 }
 
 export type PlanToolOutput =

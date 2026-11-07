@@ -13,7 +13,9 @@ import {
   type PlanContext,
 } from './plan-loop.ts';
 import type { RegenerateCellsInput } from './plan-generator.ts';
+import { LlmTimeoutError, MIN_REGENERATE_MS } from './llm-timeout.ts';
 import { QuotaExceededError } from './quota.ts';
+import { failureKind } from './tool-failure.ts';
 import type { Day, MealType, Plan, PlanCell, PlanEvent, Slot } from './types.ts';
 
 const s = (day: Day, meal: MealType): Slot => ({ day, meal });
@@ -502,5 +504,109 @@ describe('한도 초과', () => {
     });
 
     expect(result).toEqual({ ok: false, reason: 'quota', plan: planA, usages: [], regenerations: 0 });
+  });
+});
+
+// tasks.md T8-4: 도구 전체 시간 예산. 가짜 시계를 생성기 응답 안에서 앞으로 돌린다.
+describe('시간 예산', () => {
+  const MIN = 60_000;
+  function clock() {
+    let t = 0;
+    return {
+      now: () => t,
+      /** 응답하기 전에 ms만큼 시간이 흐르는 응답 */
+      after: <I, T>(ms: number, value: T) => (_input: I) => {
+        t += ms;
+        return value;
+      },
+    };
+  }
+  const limits = (fake: FakePlanGenerator) => fake.calls.map((c) => c.options?.limitMs);
+
+  it('예산이 없으면 호출에 시간 제한을 보내지 않는다', async () => {
+    const fake = new FakePlanGenerator({ plans: [planWith(dairyLunch()).cells], regenerations: [[cellOf(planA, 'tue', 'lunch')]] });
+
+    await createPlan(fake, ctx(), weekInput());
+
+    expect(limits(fake)).toEqual([undefined, undefined]);
+  });
+
+  it('호출마다 남은 시간을 제한으로 보낸다', async () => {
+    const c = clock();
+    const fake = new FakePlanGenerator({
+      plans: [c.after(7 * MIN, planWith(dairyLunch()).cells)],
+      regenerations: [c.after(MIN, [cellOf(planA, 'tue', 'lunch')])],
+    });
+
+    const result = await createPlan(fake, ctx(), { ...weekInput(), budget: { totalMs: 10 * MIN, now: c.now } });
+
+    expect(limits(fake)).toEqual([10 * MIN, 3 * MIN]);
+    expect(result).toMatchObject({ ok: true, regenerations: 1 });
+    expect(result).not.toHaveProperty('stoppedForTime');
+  });
+
+  it('남은 시간이 다시 추천 최소 시간보다 적으면 부르지 않고 위반으로 끝낸다', async () => {
+    const c = clock();
+    const fake = new FakePlanGenerator({ plans: [c.after(9.5 * MIN, planWith(dairyLunch()).cells)] });
+
+    const result = await createPlan(fake, ctx(), { ...weekInput(), budget: { totalMs: 10 * MIN, now: c.now } });
+
+    expect(MIN_REGENERATE_MS).toBe(MIN);
+    expect(fake.methods).toEqual(['generatePlan']);
+    expect(result).toEqual({
+      ok: false,
+      reason: 'violations',
+      check: checkPlan(planWith(dairyLunch()), profileA, classesA, rulesA),
+      lastPlan: planWith(dairyLunch()),
+      usages: [FAKE_USAGE],
+      regenerations: 0,
+      stoppedForTime: true,
+    });
+  });
+
+  it('다시 추천 1회 뒤 시간이 모자라면 2회차를 부르지 않는다', async () => {
+    const c = clock();
+    const fake = new FakePlanGenerator({
+      plans: [c.after(6 * MIN, planWith(dairyLunch()).cells)],
+      regenerations: [c.after(3.5 * MIN, [dairyLunch()])],
+    });
+
+    const result = await createPlan(fake, ctx(), { ...weekInput(), budget: { totalMs: 10 * MIN, now: c.now } });
+
+    expect(fake.methods).toEqual(['generatePlan', 'regenerateCells']);
+    expect(result).toMatchObject({ ok: false, reason: 'violations', regenerations: 1, stoppedForTime: true });
+  });
+
+  it('시간이 모자라도 위반이 없으면 성공이다', async () => {
+    const c = clock();
+    const fake = new FakePlanGenerator({ plans: [c.after(9.9 * MIN, planA.cells)] });
+
+    const result = await createPlan(fake, ctx(), { ...weekInput(), budget: { totalMs: 10 * MIN, now: c.now } });
+
+    expect(result).toMatchObject({ ok: true, regenerations: 0 });
+    expect(result).not.toHaveProperty('stoppedForTime');
+  });
+
+  it('칸 수정: 첫 호출은 남은 시간 전체, 시간이 모자라면 수정 전 식단표로 위반', async () => {
+    const c = clock();
+    const fake = new FakePlanGenerator({ regenerations: [c.after(4.5 * MIN, [dairyLunch()])] });
+
+    const result = await editPlanCells(fake, ctx(), structuredClone(planA), {
+      targets: [s('tue', 'lunch')],
+      userRequest: '점심을 다른 걸로 바꿔 줘',
+      budget: { totalMs: 5 * MIN, now: c.now },
+    });
+
+    expect(limits(fake)).toEqual([5 * MIN]);
+    expect(result).toMatchObject({ ok: false, reason: 'violations', plan: planA, regenerations: 1, stoppedForTime: true });
+  });
+
+  it('호출이 시간 초과로 실패하면 PlanLoopError로 던지고 원인은 timeout이다', async () => {
+    const fake = new FakePlanGenerator({ plans: [new LlmTimeoutError(10 * MIN)] });
+
+    const error = await createPlan(fake, ctx(), weekInput()).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(PlanLoopError);
+    expect(failureKind(error)).toBe('timeout');
   });
 });

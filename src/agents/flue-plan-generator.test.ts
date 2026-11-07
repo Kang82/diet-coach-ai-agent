@@ -30,10 +30,10 @@ const usage = (input: number, output: number) => ({
 
 /** 받은 프롬프트를 기록하고, 정해 둔 칸(또는 에러)을 돌려주는 가짜 harness */
 function fakeHarness(reply: PlanCell[] | Error) {
-  const prompts: { text: string; result: unknown }[] = [];
+  const prompts: { text: string; result: unknown; thinkingLevel?: unknown }[] = [];
   const harness = {
-    prompt: (async (text: string, options: { result: unknown }) => {
-      prompts.push({ text, result: options.result });
+    prompt: (async (text: string, options: { result: unknown; thinkingLevel?: unknown }) => {
+      prompts.push({ text, result: options.result, ...('thinkingLevel' in options ? { thinkingLevel: options.thinkingLevel } : {}) });
       if (reply instanceof Error) throw reply;
       return {
         data: { cells: structuredClone(reply) },
@@ -90,6 +90,21 @@ describe('createFluePlanGenerator', () => {
     expect(prompts[0]!.text).toContain('"다시 만들 칸" 1곳만');
     expect(prompts[0]!.text).toContain('생선 말고');
     expect(res.value).toEqual([planA.cells[2]]);
+  });
+
+  it('추론 수준을 정하면 생성과 다시 추천 모두에 실어 보내고, 없으면 보내지 않는다', async () => {
+    const { harness, prompts } = fakeHarness(planA.cells);
+    await createFluePlanGenerator(harness, { thinkingLevel: 'low' }).generatePlan(generateInput());
+    await createFluePlanGenerator(harness, { thinkingLevel: 'low' }).regenerateCells({
+      ...generateInput(),
+      plan: structuredClone(planA),
+      targets: [{ day: 'tue', meal: 'lunch' }],
+      violations: [],
+    });
+    await createFluePlanGenerator(harness).generatePlan(generateInput());
+
+    expect(prompts.map((p) => p.thinkingLevel)).toEqual(['low', 'low', undefined]);
+    expect(prompts[2]).not.toHaveProperty('thinkingLevel');
   });
 
   it('한도 초과 에러는 QuotaExceededError로 바꾸고 원래 에러를 cause로 둔다', async () => {

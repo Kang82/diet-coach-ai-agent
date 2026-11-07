@@ -8,6 +8,7 @@ import {
   GLOBAL_DAILY_NEURON_LIMIT,
   hashToken,
   isMessagePost,
+  neuronWindowStart,
   ownsConversation,
   USER_DAILY_MESSAGE_LIMIT,
   utcDay,
@@ -37,11 +38,12 @@ export function guardAgentRoutes(mount: string, options: GuardOptions): Middlewa
     if (!ownsConversation(userId, safeDecode(conversationId))) return c.json(errorBody('forbidden'), 403);
 
     if (isMessagePost(c.req.method, rest)) {
-      const day = utcDay(now());
-      if ((await store.neuronsOn(day)) >= GLOBAL_DAILY_NEURON_LIMIT) {
+      const at = now();
+      // 전체 안전선은 최근 24시간 합계, 사용자 횟수는 날짜(UTC) 기준 (tasks.md T7-5)
+      if ((await store.neuronsSince(neuronWindowStart(at))) >= GLOBAL_DAILY_NEURON_LIMIT) {
         return c.json(errorBody('global_daily_limit'), 429);
       }
-      if (!(await store.tryCountMessage(userId, day, USER_DAILY_MESSAGE_LIMIT))) {
+      if (!(await store.tryCountMessage(userId, utcDay(at), USER_DAILY_MESSAGE_LIMIT))) {
         return c.json(errorBody('user_daily_limit'), 429);
       }
     }
