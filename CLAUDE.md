@@ -46,6 +46,7 @@ npm run issue-token -- --local             # 로컬 사용자 토큰 발급. 링
 - 화면 개발 중에는 `.dev.vars`에 `PLAN_GENERATOR=demo`를 넣으면 식단 생성이 실제 모델 대신 페르소나 A 칸을 5초 뒤 돌려준다(바깥 턴만 실제 호출, 약 2 Neuron). `MENU_CLASSIFIER=demo`면 메뉴 분류가 페르소나 A 분류(`classesA`, 모르는 메뉴는 often)를 2초 뒤 돌려준다. 가짜 식단은 페르소나 A 칸이라 인터뷰도 페르소나 A 답으로 해야 점검을 통과한다. `.dev.vars`를 바꾸면 개발 서버를 다시 띄운다. 평가 세트와 실제 확인은 이 줄을 지우거나 주석 처리한다.
 - 에이전트 경로(`/agents/diet-coach/*`)와 `/api/me`에는 사용자 링크 토큰이 필요하다(스펙 11.4, `server/guard.ts`). 개발 서버도 같다. 브라우저는 `issue-token`이 출력한 링크(`/?t=…`)로 열고, curl은 `-H "authorization: Bearer <토큰>"`을 붙이며 대화 ID는 `<userId>-…`로 시작해야 한다(`GET /api/me`로 확인). 메시지 POST는 사용자당 하루 30회이고 Worker 전체 Neuron이 8,000이면 막힌다. 로컬에서 막히면 `npx wrangler d1 execute diet-coach --local --command "DELETE FROM usage_daily"`.
 - 배포 주소는 https://diet-coach.jjangyeesoo1.workers.dev (B9). `npm run deploy`는 외부 공개라 사용자에게 확인받고 쓴다. 배포 직후 몇 초는 404나 에러 1042가 날 수 있다.
+- 배포본 로그(B10): 대시보드 Workers → diet-coach → Observability(요청·Durable Object·D1 스팬), Durable Objects → FlueDietCoachAgent → Observability. 실시간은 `npx wrangler tail`. 요청 헤더는 이름만 남고 토큰 값은 남지 않는다(확인함). 모델 호출 시각·토큰 수·상태는 AI Gateway(`default` 게이트웨이) 로그가 가장 정확하다. 이 둘로 11-06 생성 지연을 찾았다(tasks.md T8).
 - 원격 사용자 토큰: `npm run issue-token -- --remote --origin https://diet-coach.jjangyeesoo1.workers.dev`. 테이블을 바꾸면 `npx wrangler d1 migrations apply diet-coach --remote`도 한다.
 - 평가 세트를 배포본에 돌리려면 `DIET_COACH_URL=https://diet-coach.jjangyeesoo1.workers.dev/agents/diet-coach`와 원격 토큰을 준다. 배포본의 하루 한도도 같은 계정 10,000 Neuron이다.
 

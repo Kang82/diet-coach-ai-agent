@@ -10,8 +10,9 @@ Workers AI 무료 티어(하루 10,000 Neuron, 넘으면 호출 실패, 자동 �
 | 안전선에 닿았을 때 막는 범위 | 새 메시지 POST 전부(인터뷰 제출, 분류, 만들기, 칸 수정, 다시 시도). 대화 읽기와 abort는 막지 않음 | 무료 티어는 한도를 넘으면 모든 사용자의 호출이 실패하므로, 그 전에 새 일을 받지 않는다 | `src/server/guard.ts` `guardAgentRoutes` |
 | 사용자 하루 메시지 수 | 30 | 1회 사용이 메시지 3~8번이라 하루 4~6회 사용. 한 사람이 하루 한도를 다 쓰지 못하게 한다 | `src/core/guard.ts` `USER_DAILY_MESSAGE_LIMIT` |
 | 사용량을 모르는 호출의 추정 | 걸린 초 × 2 Neuron | 실패·시간 초과 호출은 토큰 수를 받지 못한다. 실측(식단 약 1.5/초, 분류 약 1.9/초)보다 크게 잡아 안전선이 덜 세지 않게 한다 | `src/core/guard.ts` `FAILED_CALL_NEURONS_PER_SECOND` |
-| 카운터 초기화 | 00:00 UTC(한국 오전 9시) | Workers AI 무료 한도가 초기화되는 시각에 맞춤 | `src/core/guard.ts` `utcDay` |
+| 카운터 초기화 | 00:00 UTC(한국 오전 9시) | Workers AI 무료 한도가 초기화되는 시각에 맞춤. **주의(2026-11-07):** 실제 한도는 최근 24시간 합계로 세는 것처럼 동작했다(초기화 직후 1,099 Neuron에서 막힘, `experiments/2026-11-07-t1-7-eval-personas.md`). 그렇다면 날짜 기준 안전선 8,000은 전날 늦게 쓴 양을 못 본다. 확인되면 카운터를 최근 24시간 합계로 바꾼다 | `src/core/guard.ts` `utcDay` |
 | 안내 문구 | 안전선: "오늘 사용할 수 있는 양을 다 썼어요. 오전 9시 이후에…" / 사용자: "오늘 이용 횟수를 다 썼어요. 오전 9시 이후에…" | 무료 한도 초기화 시각 기준 | `src/core/quota.ts`, `src/core/guard.ts` |
+| Workers Logs (B10) | 전부 수집(sampling 1), 무료 하루 20만 건·3일 보관. 2026-12-01부터 하루 0.5GB·7일 보관이고 넘으면 그날 수집 중단 | 사용자가 적어 전부 남긴다. 트래픽이 늘면 `head_sampling_rate`를 낮춘다 | `wrangler.jsonc` `observability` |
 | 모델 선택 | 기본 gemma, 목표 메모 llama-4-scout | 무료 한도 안에서 1회 사용 예산(스펙 11.2)을 맞추려고 | `src/agents/models.ts` |
 
 ## Workers Paid로 올릴 때

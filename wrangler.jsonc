@@ -5,6 +5,13 @@
   "compatibility_flags": ["nodejs_compat"],
   // Workers AI. Flue의 cloudflare/... 모델이 이 바인딩을 쓴다. 로컬 개발에서도 원격 호출이라 무료 한도에서 차감된다.
   "ai": { "binding": "AI" },
+  // 배포본 로그 (B10, T8-1). 대시보드 Workers → diet-coach → Observability와 Durable Objects → Observability 탭에서 본다.
+  // 무료 플랜 한도는 docs/plan-upgrade.md. 사용자가 적어 전부 남긴다(sampling 1).
+  "observability": {
+    "enabled": true,
+    "logs": { "head_sampling_rate": 1, "invocation_logs": true },
+    "traces": { "enabled": true, "head_sampling_rate": 1 }
+  },
   // D1: 한도 보호 카운터·사용자 토큰 해시(B8), 프로필·식단표(T6-2). 테이블은 migrations/.
   // 원격 DB는 B9에서 `wrangler d1 create diet-coach`로 만들었다(APAC). 로컬(vite dev)은 .wrangler/state의 로컬 DB를 쓴다.
   // 테이블을 바꾸면 migrations/에 파일을 덧붙이고 `wrangler d1 migrations apply diet-coach --local`과 `--remote`를 둘 다 한다.
