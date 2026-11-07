@@ -34,8 +34,12 @@ export const PLAN_TOOL_BUDGETS = {
   editPlanCells: 5 * 60_000,
 } as const;
 
-/** 다시 추천을 새로 시작하는 데 필요한 남은 시간. 칸 다시 추천 실측 약 1분 (스펙 11.5) */
-export const MIN_REGENERATE_MS = 60_000;
+/**
+ * 다시 추천을 새로 시작하는 데 필요한 남은 시간. 칸 하나 다시 추천 실측 약 1분이지만 2칸도 1분을 넘고,
+ * 11-06에는 4칸이 4분을 넘겼다 (스펙 11.5, T8). 1분이면 시작해도 대개 못 끝내 Neuron만 써서 2분으로 둔다(배포 전 코드 리뷰 2번).
+ * B11 실측 뒤 다시 맞춘다
+ */
+export const MIN_REGENERATE_MS = 2 * 60_000;
 
 /** 호출별 상한과 루프가 넘긴 남은 시간 중 짧은 쪽 */
 export function callLimit(callMaxMs: number, limitMs: number | undefined): number {

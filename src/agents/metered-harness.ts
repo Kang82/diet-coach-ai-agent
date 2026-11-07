@@ -38,12 +38,17 @@ export function meteredHarness(harness: PromptHarness, meter: NeuronMeter, optio
       await record(((now() - started) / 1000) * FAILED_CALL_NEURONS_PER_SECOND);
       throw error;
     }
-    await record(
-      estimateNeurons(toTokenUsage(res), NEURON_PRICES, {
-        unknownModel: 'max-price',
-        onUnknownModel: (model) => options.onMeterError?.(new Error(`단가를 모르는 모델: ${model}`)),
-      }),
-    );
+    const estimated = estimateNeurons(toTokenUsage(res), NEURON_PRICES, {
+      unknownModel: 'max-price',
+      onUnknownModel: (model) => options.onMeterError?.(new Error(`단가를 모르는 모델: ${model}`)),
+    });
+    // 사용량이 비거나 이상하면(NaN, Infinity, 음수) 덜 세지도 영원히 막지도 않게 실패한 호출처럼 걸린 시간으로 센다 (배포 전 보안 리뷰)
+    if (Number.isFinite(estimated) && estimated >= 0) {
+      await record(estimated);
+    } else {
+      options.onMeterError?.(new Error(`사용량을 계산하지 못해 걸린 시간으로 셈: ${String(estimated)}`));
+      await record(((now() - started) / 1000) * FAILED_CALL_NEURONS_PER_SECOND);
+    }
     return res;
   };
   return { prompt: prompt as unknown as PromptHarness['prompt'] };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { errorBody, hashToken, isMessagePost, neuronWindowStart, ownsConversation, utcDay, utcHour } from './guard.ts';
+import { checkMessageBody, errorBody, hashToken, MESSAGE_BODY_MAX_BYTES, isMessagePost, neuronWindowStart, ownsConversation, utcDay, utcHour } from './guard.ts';
 
 describe('hashToken', () => {
   it('원문과 다른 64자리 hex이고, 같은 입력은 같은 해시', async () => {
@@ -55,5 +55,32 @@ describe('errorBody', () => {
     expect(errorBody('unauthorized')).toEqual({
       error: { type: 'unauthorized', message: expect.any(String), details: '' },
     });
+  });
+});
+
+// 배포 전 보안 리뷰 (2026-11-07): 메시지 하나가 입력 토큰을 크게 키우지 못하게 한다
+describe('checkMessageBody', () => {
+  it('화면이 보내는 모양(kind user, body)은 통과', () => {
+    expect(checkMessageBody(JSON.stringify({ kind: 'user', body: '식단표 만들기:\n{"overrides":[]}' }))).toBe('ok');
+    expect(checkMessageBody(JSON.stringify({ kind: 'user', body: 'x', attachments: [] }))).toBe('ok');
+  });
+
+  it('빈 본문이나 JSON이 아닌 본문은 Flue가 400으로 거절하게 둔다', () => {
+    expect(checkMessageBody('')).toBe('ok');
+    expect(checkMessageBody('not json')).toBe('ok');
+  });
+
+  it(`${MESSAGE_BODY_MAX_BYTES}바이트를 넘으면 too_large (UTF-8 바이트로 잰다)`, () => {
+    const body = (n: number) => JSON.stringify({ kind: 'user', body: '가'.repeat(n) });
+    const overhead = new TextEncoder().encode(body(0)).length;
+    const fits = Math.floor((MESSAGE_BODY_MAX_BYTES - overhead) / 3);
+    expect(checkMessageBody(body(fits))).toBe('ok');
+    expect(checkMessageBody(body(fits + 1))).toBe('too_large');
+  });
+
+  it('첨부, signal, initialData는 쓰지 않으므로 거절', () => {
+    expect(checkMessageBody(JSON.stringify({ kind: 'user', body: 'x', attachments: [{ type: 'image' }] }))).toBe('unsupported');
+    expect(checkMessageBody(JSON.stringify({ kind: 'signal', type: 't', body: 'x' }))).toBe('unsupported');
+    expect(checkMessageBody(JSON.stringify({ kind: 'user', body: 'x', initialData: {} }))).toBe('unsupported');
   });
 });

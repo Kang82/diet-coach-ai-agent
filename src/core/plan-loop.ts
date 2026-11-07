@@ -2,7 +2,7 @@
 // LLM은 PlanGenerator 포트로만 부른다. 입력 식단표는 고치지 않고 새 객체를 만든다.
 import { checkPlan, requiredSlots } from './check-plan.ts';
 import { compareSlots, menuKey, sameSlot, slotOrder, toSlot } from './helpers.ts';
-import { MIN_REGENERATE_MS } from './llm-timeout.ts';
+import { LlmTimeoutError, MIN_REGENERATE_MS } from './llm-timeout.ts';
 import type { CallOptions, PlanGenerator, TokenUsage } from './plan-generator.ts';
 import { QuotaExceededError } from './quota.ts';
 import type {
@@ -216,13 +216,24 @@ async function repair(
       return { ok: false, plan, check };
     }
 
-    const res = await generator.regenerateCells({
-      ...ctx,
-      plan: structuredClone(plan),
-      targets,
-      violations: check.violations,
-      ...(request && targets.some((t) => request.slots.some((r) => sameSlot(r, t))) ? { userRequest: request.text } : {}),
-    }, clock.options());
+    let res: Awaited<ReturnType<PlanGenerator['regenerateCells']>>;
+    try {
+      res = await generator.regenerateCells({
+        ...ctx,
+        plan: structuredClone(plan),
+        targets,
+        violations: check.violations,
+        ...(request && targets.some((t) => request.slots.some((r) => sameSlot(r, t))) ? { userRequest: request.text } : {}),
+      }, clock.options());
+    } catch (error) {
+      // 남은 예산으로 줄여 건 호출이 예산을 다 써서 멈췄으면, 예산이 모자라 멈춘 것과 같게 지금 결과로 끝낸다
+      // (배포 전 코드 리뷰 2번). 호출별 상한에 걸린 시간 초과(예산은 남음)와 그 밖의 에러는 그대로 던진다
+      if (error instanceof LlmTimeoutError && clock.remaining() < MIN_REGENERATE_MS) {
+        stats.stoppedForTime = true;
+        return { ok: false, plan, check };
+      }
+      throw error;
+    }
     stats.usages.push(res.usage);
     stats.regenerations++;
     plan = applyCells(plan, targets, res.value);

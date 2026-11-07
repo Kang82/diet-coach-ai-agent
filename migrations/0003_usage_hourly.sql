@@ -7,7 +7,10 @@ CREATE TABLE usage_hourly (
   neurons REAL NOT NULL DEFAULT 0
 );
 
--- 지금까지 날짜별로 센 양을 그날 00시 칸으로 옮긴다. 시각을 모르므로 가장 이른 칸에 두어
--- 배포 직후 카운터가 0에서 시작하지 않게 한다(그날 양은 다음 날 00시 UTC까지 창 안에 남는다).
+-- 오늘과 어제(UTC) 날짜별로 센 양을 마이그레이션을 적용한 시각의 칸으로 옮긴다. 시각을 모르므로 가장 보수적으로
+-- 지금 칸에 두어 앞으로 24시간 동안 창 안에 남게 한다. 그날 00시 칸에 두면 어제 값이 곧바로 창 밖이 된다(배포 전 코드 리뷰 3번).
+-- 그보다 오래된 날짜는 창 밖이라 옮기지 않는다.
 INSERT INTO usage_hourly (hour, neurons)
-SELECT day || 'T00', neurons FROM usage_daily WHERE key = 'all' AND neurons > 0;
+SELECT strftime('%Y-%m-%dT%H', 'now'), SUM(neurons) FROM usage_daily
+WHERE key = 'all' AND neurons > 0 AND day >= date('now', '-1 day')
+HAVING SUM(neurons) > 0;

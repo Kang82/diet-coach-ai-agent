@@ -22,7 +22,7 @@ export const CREATE_PLAN_TOOL = 'create_week_plan';
 
 export const NO_CLASSES_MESSAGE = '메뉴 분류를 먼저 확인해 주세요.';
 
-export const BAD_PLAN_REQUEST_MESSAGE = '식단표 요청을 읽지 못했어요. 분류 확인 화면에서 다시 눌러 주세요.';
+export const BAD_PLAN_REQUEST_MESSAGE = '식단표 요청을 읽지 못했어요. "처음부터 다시"를 눌러 주세요.';
 
 export function createWeekPlanTool({
   interviewResult,

@@ -20,6 +20,18 @@ describe('parseInterviewSubmission', () => {
     expect(parseInterviewSubmission(submission)).toEqual(submission);
   });
 
+  it('끼니 하나의 메뉴가 20개를 넘으면 거절한다 (배포 전 보안 리뷰)', () => {
+    const meal = (n: number) => ({
+      dayType: 'weekday',
+      meal: 'lunch',
+      place: 'eat_out',
+      companions: 'others',
+      menus: Array.from({ length: n }, (_, i) => `메뉴${i}`),
+    });
+    expect(parseInterviewSubmission({ draft: { meals: [meal(20)] }, stopFlags: [] })).toBeDefined();
+    expect(parseInterviewSubmission({ draft: { meals: [meal(21)] }, stopFlags: [] })).toBeUndefined();
+  });
+
   it('저장 동의는 true일 때만 남긴다 (B6)', () => {
     expect(parseInterviewSubmission({ draft: {}, stopFlags: [], consent: true })).toEqual({ draft: {}, stopFlags: [], consent: true });
     expect(parseInterviewSubmission({ draft: {}, stopFlags: [], consent: false })).toEqual({ draft: {}, stopFlags: [] });

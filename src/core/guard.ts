@@ -16,9 +16,10 @@ export const FAILED_CALL_NEURONS_PER_SECOND = 2;
 
 export const USER_LIMIT_MESSAGE = '오늘 이용 횟수를 다 썼어요. 오전 9시 이후에 다시 할 수 있어요.';
 
-export type GuardErrorType = 'unauthorized' | 'forbidden' | 'user_daily_limit' | 'global_daily_limit';
+export type GuardErrorType = 'unauthorized' | 'forbidden' | 'user_daily_limit' | 'global_daily_limit' | 'message_rejected';
 
 const MESSAGES: Record<GuardErrorType, string> = {
+  message_rejected: '보낼 수 없는 메시지예요. 너무 길거나 첨부가 있어요.',
   unauthorized: '받은 링크로 들어와 주세요.',
   forbidden: '이 대화를 볼 수 없어요.',
   user_daily_limit: USER_LIMIT_MESSAGE,
@@ -60,6 +61,33 @@ export function neuronWindowStart(now: Date): string {
 export function ownsConversation(userId: string, conversationId: string): boolean {
   const prefix = `${userId}-`;
   return conversationId.startsWith(prefix) && conversationId.length > prefix.length;
+}
+
+/**
+ * 메시지 POST 본문 상한 (UTF-8 바이트). 화면이 보내는 가장 긴 메시지(인터뷰 제출: 메모 500자 2개, 외식 메뉴 입력 500자 × 끼니)도
+ * 15KB 안쪽이라 넉넉히 둔다. 본문은 바깥 모델 맥락에 그대로 들어가 입력 토큰이 된다 (배포 전 보안 리뷰, 2026-11-07)
+ */
+export const MESSAGE_BODY_MAX_BYTES = 32 * 1024;
+
+export type MessageBodyCheck = 'ok' | 'too_large' | 'unsupported';
+
+/**
+ * 메시지 POST 본문 검사. 화면은 `{ kind: 'user', body }`만 보낸다.
+ * 첨부(이미지·PDF), signal, initialData는 쓰지 않으므로 받지 않는다. JSON이 아니거나 모양이 틀린 본문은 Flue가 400으로 거절한다
+ */
+export function checkMessageBody(raw: string): MessageBodyCheck {
+  if (new TextEncoder().encode(raw).length > MESSAGE_BODY_MAX_BYTES) return 'too_large';
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return 'ok';
+  }
+  if (typeof json !== 'object' || json === null) return 'ok';
+  const { kind, attachments, initialData } = json as Record<string, unknown>;
+  if (kind === 'signal' || initialData !== undefined) return 'unsupported';
+  if (attachments !== undefined && !(Array.isArray(attachments) && attachments.length === 0)) return 'unsupported';
+  return 'ok';
 }
 
 /** 대화 주소 뒤 경로(rest)를 보고 새 메시지 전송인지. abort와 읽기는 세지도 막지도 않는다 */

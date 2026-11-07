@@ -1,8 +1,13 @@
 // 칸 다시 추천 메시지 (tasks.md B2). 화면이 만들고 edit_plan_cells 도구가 해석한다. 모델은 내용을 옮겨 적지 않는다.
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_EDIT_REQUEST, formatEditRequest, isEditRequest, parseEditRequest } from './edit-request.ts';
+import { DEFAULT_EDIT_REQUEST, EDIT_REQUEST_MAX, formatEditRequest, isEditRequest, parseEditRequest } from './edit-request.ts';
 
 describe('formatEditRequest / parseEditRequest', () => {
+  it(`원하는 점은 ${EDIT_REQUEST_MAX}자에서 자른다 (배포 전 보안 리뷰)`, () => {
+    const parsed = parseEditRequest(`칸 다시 추천: 화요일 점심\n원하는 점: ${'가'.repeat(EDIT_REQUEST_MAX + 50)}`);
+    expect(parsed?.request).toBe('가'.repeat(EDIT_REQUEST_MAX));
+  });
+
   it('사람이 읽을 수 있는 형식으로 만들고 그대로 되읽는다', () => {
     const body = formatEditRequest({ target: { day: 'tue', meal: 'lunch' }, request: '생선 말고' });
 

@@ -52,14 +52,20 @@ export function mealsUpdate(rows: readonly MealRow[]): InterviewUpdate {
   });
 }
 
-/** 쉼표·줄바꿈·가운뎃점으로 나눈다. 공백만 다른 메뉴(menuKey가 같은 메뉴)는 처음 것만 남긴다 */
+/**
+ * 끼니 하나의 외식 메뉴 최대 개수. 메뉴 목록은 분류·식단 프롬프트에 들어가 입력 토큰이 된다 (배포 전 보안 리뷰, 2026-11-07).
+ * 서버 스키마(agents/interview-schema.ts)도 같은 값으로 막는다
+ */
+export const MAX_MENUS_PER_MEAL = 20;
+
+/** 쉼표·줄바꿈·가운뎃점으로 나눈다. 공백만 다른 메뉴(menuKey가 같은 메뉴)는 처음 것만 남긴다. 앞의 MAX_MENUS_PER_MEAL개까지 */
 export function parseMenus(text: string): string[] {
   const menus: string[] = [];
   for (const raw of text.split(/[,\n·、]/)) {
     const menu = raw.trim().replace(/\s+/g, ' ');
     if (menu && !menus.some((m) => menuKey(m) === menuKey(menu))) menus.push(menu);
   }
-  return menus;
+  return menus.slice(0, MAX_MENUS_PER_MEAL);
 }
 
 /** existing: 이미 받은 메뉴. 한 번 더 물었을 때(분기 6) 합친다 */

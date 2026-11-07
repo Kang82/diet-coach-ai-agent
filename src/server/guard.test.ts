@@ -1,7 +1,7 @@
 // 스펙 11.4 마지막 문단: 토큰 없음·틀림 → 401, 사용자 제한 초과 → 429, 안전선 초과 → 새 요청 차단·진행 중 요청 허용.
 import { Hono } from 'hono';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { GLOBAL_DAILY_NEURON_LIMIT, hashToken, USER_DAILY_MESSAGE_LIMIT } from '../core/guard.ts';
+import { GLOBAL_DAILY_NEURON_LIMIT, hashToken, MESSAGE_BODY_MAX_BYTES, USER_DAILY_MESSAGE_LIMIT } from '../core/guard.ts';
 import { MemoryGuardStore } from '../storage/guard-store.ts';
 import { guardAgentRoutes, meHandler } from './guard.ts';
 
@@ -84,6 +84,40 @@ describe('토큰 확인 (11.4-1)', () => {
     const res = await call('GET', '/api/me', TOKEN_A);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ userId: 'abc' });
+  });
+});
+
+describe('메시지 본문 검사 (배포 전 보안 리뷰)', () => {
+  const post = (body: string) =>
+    app.request(`${MOUNT}/abc-1`, { method: 'POST', headers: { authorization: `Bearer ${TOKEN_A}` }, body });
+
+  it('보통 메시지는 통과하고 에이전트가 본문을 그대로 읽는다', async () => {
+    let seen = '';
+    app = new Hono();
+    app.use(`${MOUNT}/*`, guardAgentRoutes(MOUNT, { getStore: () => store, now: () => now }));
+    app.post(`${MOUNT}/*`, async (c) => {
+      seen = await c.req.text();
+      return c.text('agent', 202);
+    });
+    const body = JSON.stringify({ kind: 'user', body: '식단표 만들기:\n{"overrides":[]}' });
+    expect((await post(body)).status).toBe(202);
+    expect(seen).toBe(body);
+  });
+
+  it('상한을 넘으면 413, 첨부·signal은 400. 둘 다 횟수를 쓰지 않는다', async () => {
+    const big = await post(JSON.stringify({ kind: 'user', body: 'x'.repeat(MESSAGE_BODY_MAX_BYTES) }));
+    expect(big.status).toBe(413);
+    expect(await errorType(big)).toBe('message_rejected');
+    const attached = await post(JSON.stringify({ kind: 'user', body: 'x', attachments: [{ type: 'image', data: 'AA', mimeType: 'image/png' }] }));
+    expect(attached.status).toBe(400);
+    expect((await post(JSON.stringify({ kind: 'signal', type: 't', body: 'x' }))).status).toBe(400);
+    expect(reached).toEqual([]);
+    for (let i = 0; i < USER_DAILY_MESSAGE_LIMIT; i++) expect((await call('POST', `${MOUNT}/abc-1`, TOKEN_A)).status).toBe(202);
+  });
+
+  it('읽기와 abort는 본문을 보지 않는다', async () => {
+    expect((await call('GET', `${MOUNT}/abc-1`, TOKEN_A)).status).toBe(202);
+    expect((await call('POST', `${MOUNT}/abc-1/abort`, TOKEN_A)).status).toBe(202);
   });
 });
 

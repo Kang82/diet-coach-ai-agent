@@ -551,7 +551,7 @@ describe('시간 예산', () => {
 
     const result = await createPlan(fake, ctx(), { ...weekInput(), budget: { totalMs: 10 * MIN, now: c.now } });
 
-    expect(MIN_REGENERATE_MS).toBe(MIN);
+    expect(MIN_REGENERATE_MS).toBe(2 * MIN);
     expect(fake.methods).toEqual(['generatePlan']);
     expect(result).toEqual({
       ok: false,
@@ -599,6 +599,49 @@ describe('시간 예산', () => {
 
     expect(limits(fake)).toEqual([5 * MIN]);
     expect(result).toMatchObject({ ok: false, reason: 'violations', plan: planA, regenerations: 1, stoppedForTime: true });
+  });
+
+  it('남은 예산으로 줄여 건 다시 추천이 시간 초과면 timeout이 아니라 지금 결과로 위반 (배포 전 코드 리뷰 2번)', async () => {
+    const c = clock();
+    const fake = new FakePlanGenerator({
+      plans: [c.after(7 * MIN, planWith(dairyLunch()).cells)],
+      regenerations: [
+        () => {
+          c.after(3 * MIN, undefined)(undefined);
+          throw new LlmTimeoutError(3 * MIN);
+        },
+      ],
+    });
+
+    const result = await createPlan(fake, ctx(), { ...weekInput(), budget: { totalMs: 10 * MIN, now: c.now } });
+
+    expect(limits(fake)).toEqual([10 * MIN, 3 * MIN]);
+    expect(result).toMatchObject({
+      ok: false,
+      reason: 'violations',
+      lastPlan: planWith(dairyLunch()),
+      usages: [FAKE_USAGE],
+      regenerations: 0,
+      stoppedForTime: true,
+    });
+  });
+
+  it('예산이 남았는데 다시 추천이 시간 초과면(호출별 상한) 그대로 timeout', async () => {
+    const c = clock();
+    const fake = new FakePlanGenerator({
+      plans: [c.after(MIN, planWith(dairyLunch()).cells)],
+      regenerations: [
+        () => {
+          c.after(4 * MIN, undefined)(undefined);
+          throw new LlmTimeoutError(4 * MIN);
+        },
+      ],
+    });
+
+    const error = await createPlan(fake, ctx(), { ...weekInput(), budget: { totalMs: 10 * MIN, now: c.now } }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(PlanLoopError);
+    expect(failureKind(error)).toBe('timeout');
   });
 
   it('호출이 시간 초과로 실패하면 PlanLoopError로 던지고 원인은 timeout이다', async () => {

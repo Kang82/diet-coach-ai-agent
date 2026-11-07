@@ -4,7 +4,7 @@
 // 형식만 본다. 인터뷰가 끝났는지, 다음에 무엇을 할지는 applyTurn이 정한다.
 import * as v from 'valibot';
 import type { GoalNoteCheck } from '../core/interview-note.ts';
-import type { InterviewSubmission } from '../core/interview-form.ts';
+import { MAX_MENUS_PER_MEAL, type InterviewSubmission } from '../core/interview-form.ts';
 import type { DraftMealSetting, InterviewDraft } from '../core/types.ts';
 import { AVOID_TAGS, GOAL_IDS, MEAL_TYPES, STOP_FLAGS } from '../core/types.ts';
 
@@ -15,7 +15,7 @@ const DraftMealSchema = v.strictObject({
   meal: v.picklist(MEAL_TYPES),
   place: v.optional(v.picklist(['skip', 'eat_out', 'home'])),
   companions: v.optional(v.picklist(['alone', 'family', 'others'])),
-  menus: v.optional(v.array(v.pipe(v.string(), v.maxLength(100)))),
+  menus: v.optional(v.pipe(v.array(v.pipe(v.string(), v.maxLength(100))), v.maxLength(MAX_MENUS_PER_MEAL))),
   /** null은 "상관없다" */
   cookMinutes: v.optional(v.nullable(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(600)))),
 });

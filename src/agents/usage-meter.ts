@@ -9,7 +9,8 @@ import type { NeuronMeter } from './metered-harness.ts';
 
 export const usageMeter: NeuronMeter = {
   async add(neurons) {
-    if (!(neurons > 0)) return;
+    // Infinity가 저장되면 24시간 동안 모두 막힌다. 이상한 값은 부르는 쪽(metered-harness)이 시간 추정으로 바꿔 넘긴다
+    if (!Number.isFinite(neurons) || neurons <= 0) return;
     await new D1GuardStore(env.DB as D1Like).addNeurons(utcHour(new Date()), neurons);
   },
 };

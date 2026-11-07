@@ -22,6 +22,15 @@ describe('toSendFailure', () => {
     expect(toSendFailure(apiError(403, '')).kind).toBe('auth');
   });
 
+  it('가드가 본문을 거절하면(413, 400 message_rejected) 그 안내', () => {
+    expect(toSendFailure(apiError(413, errorBody('message_rejected')))).toEqual({
+      kind: 'rejected',
+      message: errorBody('message_rejected').error.message,
+    });
+    expect(toSendFailure(apiError(400, errorBody('message_rejected'))).kind).toBe('rejected');
+    expect(toSendFailure(apiError(400, { error: { type: 'invalid_request' } })).kind).toBe('other');
+  });
+
   it('그 밖의 실패(모양이 다른 429, 네트워크)는 다시 시도 안내', () => {
     expect(toSendFailure(apiError(429, 'Too Many Requests')).kind).toBe('other');
     expect(toSendFailure(new TypeError('Failed to fetch')).kind).toBe('other');

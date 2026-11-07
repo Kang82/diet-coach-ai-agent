@@ -7,6 +7,8 @@ import { DAYS, MEAL_TYPES, type Slot } from './types.ts';
 export const EDIT_REQUEST_PREFIX = '칸 다시 추천:';
 const REQUEST_PREFIX = '원하는 점:';
 export const DEFAULT_EDIT_REQUEST = '다른 메뉴로 바꿔 주세요';
+/** 원하는 점 최대 길이(글자). 화면은 100자로 막는다. 다시 추천 프롬프트에 들어가므로 서버도 자른다 (배포 전 보안 리뷰, 2026-11-07) */
+export const EDIT_REQUEST_MAX = 200;
 
 export interface EditRequest {
   target: Slot;
@@ -35,7 +37,8 @@ export function parseEditRequest(body: string): EditRequest | undefined {
   if (!day || !meal) return undefined;
 
   const requestLine = lines.find((line) => line.startsWith(REQUEST_PREFIX));
-  const request = oneLine(requestLine?.slice(REQUEST_PREFIX.length) ?? '') || DEFAULT_EDIT_REQUEST;
+  const text = [...oneLine(requestLine?.slice(REQUEST_PREFIX.length) ?? '')].slice(0, EDIT_REQUEST_MAX).join('');
+  const request = text || DEFAULT_EDIT_REQUEST;
   return { target: { day, meal }, request };
 }
 

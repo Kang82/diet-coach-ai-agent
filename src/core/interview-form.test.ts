@@ -10,6 +10,7 @@ import {
   mealsUpdate,
   medicationUpdate,
   menusUpdate,
+  MAX_MENUS_PER_MEAL,
   parseMenus,
   submissionJson,
 } from './interview-form.ts';
@@ -20,6 +21,13 @@ import type { InterviewState, InterviewUpdate, MealKey } from './types.ts';
 const LUNCH: MealKey = { dayType: 'weekday', meal: 'lunch' };
 
 describe('parseMenus', () => {
+  it(`앞의 ${MAX_MENUS_PER_MEAL}개까지만 받는다 (배포 전 보안 리뷰)`, () => {
+    const many = Array.from({ length: MAX_MENUS_PER_MEAL + 5 }, (_, i) => `메뉴${i}`).join(',');
+    const menus = parseMenus(many);
+    expect(menus).toHaveLength(MAX_MENUS_PER_MEAL);
+    expect(menus[0]).toBe('메뉴0');
+  });
+
   it('쉼표·줄바꿈·가운뎃점으로 나누고 공백과 빈 값을 정리한다', () => {
     expect(parseMenus(' 국밥, 백반\n돈가스 · 쌀국수,, ')).toEqual(['국밥', '백반', '돈가스', '쌀국수']);
   });

@@ -742,6 +742,8 @@ isQuotaExceeded(error: unknown): boolean   // Workers AI 에러를 판별 (열�
 2. **사용자별 하루 호출 제한:** 사용자 하나가 하루에 보낼 수 있는 메시지(에이전트 POST) 수를 하루 30회로 제한한다. 미들웨어는 요청 앞단이라 LLM 호출 수를 미리 알 수 없어서 메시지 수로 센다(B4 이후 1회 사용은 메시지 3~8번). 넘으면 429 `user_daily_limit`와 "오늘 이용 횟수를 다 썼어요. 오전 9시 이후에 다시 할 수 있어요."를 돌려준다. 대화 읽기와 abort는 세지 않는다. SDK는 대화 읽기(GET 스트림)가 429를 받으면 끝없이 다시 시도하기 때문이다.
 3. **전체 사용량 안전선:** Worker 전체의 최근 24시간 Neuron 사용량 추정치를 센다. 8,000 Neuron에 닿으면 새 메시지 POST를 모두(인터뷰 제출, 분류, 만들기, 칸 수정) 막고 429 `global_daily_limit`와 11.3 안내를 보여 준다. 분류와 칸 수정도 한도를 쓰므로 함께 막는다. 이미 진행 중인 요청은 끝까지 처리한다. 추정치는 호출마다 입출력 토큰 수와 11.1 모델의 토큰당 Neuron 값으로 계산한다.
    - 구현(B8): 바깥 턴은 `useResponseFinish`에서, 도구 안 LLM 호출은 `agents/metered-harness.ts`가 감싼 harness에서 더한다. 실패하거나 시간이 지나 사용량을 모르는 호출은 걸린 초 × 2 Neuron으로 센다. 안전선에 막힌 메시지는 사용자 횟수를 쓰지 않는다.
+4. **메시지 본문 제한 (배포 전 보안 리뷰, 2026-11-07):** 메시지 본문은 바깥 모델 맥락에 그대로 들어가 입력 토큰이 된다. 미들웨어가 새 메시지 POST의 본문을 32KB까지만 읽어 넘으면 413, 첨부·`signal`·`initialData`가 있으면 400 `message_rejected`로 막는다(횟수를 쓰기 전). 도구가 읽는 값도 자른다: 칸 수정 원하는 점 200자, 끼니당 외식 메뉴 20개.
+5. **트레이스 내용 끄기 (같은 리뷰):** Flue 기본 트레이싱은 대화 내용(인터뷰 답, 복용약, 프롬프트, 식단표)을 Workers Traces span에 담는다. `app.ts`에서 `createCloudflareTracing({ content: false })`로 내용 없이 남긴다.
 
 Flue가 돌려주는 `usage.cost`는 Workers AI 모델에서 항상 0이다(11.5). 그래서 Neuron은 `usage.input`, `usage.output` 토큰 수에 11.1 모델의 토큰당 Neuron 값을 곱해 직접 계산한다.
 

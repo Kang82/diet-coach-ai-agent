@@ -56,6 +56,24 @@ describe('meteredHarness', () => {
     expect(added).toEqual([90 * FAILED_CALL_NEURONS_PER_SECOND]);
   });
 
+  it('사용량이 비어 계산이 NaN이면 0으로 넘기지 않고 걸린 시간으로 세고 알린다 (배포 전 보안 리뷰)', async () => {
+    const { added, meter } = recorder();
+    const warned: unknown[] = [];
+    let t = 0;
+    const empty = { ...gemmaResponse, usage: { input: undefined, output: undefined } };
+    const h = meteredHarness(
+      harnessOf(async () => {
+        t += 30_000;
+        return empty;
+      }),
+      meter,
+      { now: () => t, onMeterError: (e) => warned.push(e) },
+    );
+    expect(await h.prompt('x', {} as never)).toBe(empty);
+    expect(added).toEqual([30 * FAILED_CALL_NEURONS_PER_SECOND]);
+    expect(warned).toHaveLength(1);
+  });
+
   it('기록이 실패해도 응답은 돌려주고 알린다', async () => {
     const warned: unknown[] = [];
     const meter = {

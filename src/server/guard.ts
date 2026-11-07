@@ -4,7 +4,9 @@
 // send(POST)는 다시 시도하지 않기 때문이다. 읽기와 abort는 진행 중인 요청이라 막지 않는다.
 import type { Context, MiddlewareHandler } from 'hono';
 import {
+  checkMessageBody,
   errorBody,
+  MESSAGE_BODY_MAX_BYTES,
   GLOBAL_DAILY_NEURON_LIMIT,
   hashToken,
   isMessagePost,
@@ -38,6 +40,11 @@ export function guardAgentRoutes(mount: string, options: GuardOptions): Middlewa
     if (!ownsConversation(userId, safeDecode(conversationId))) return c.json(errorBody('forbidden'), 403);
 
     if (isMessagePost(c.req.method, rest)) {
+      // 본문 검사는 횟수를 쓰기 전에 한다. 원본 요청은 에이전트 라우터가 읽으므로 복사본을 상한까지만 읽는다
+      const raw = await readLimited(c.req.raw, MESSAGE_BODY_MAX_BYTES);
+      if (raw === undefined || checkMessageBody(raw) !== 'ok') {
+        return c.json(errorBody('message_rejected'), raw === undefined ? 413 : 400);
+      }
       const at = now();
       // 전체 안전선은 최근 24시간 합계, 사용자 횟수는 날짜(UTC) 기준 (tasks.md T7-5)
       if ((await store.neuronsSince(neuronWindowStart(at))) >= GLOBAL_DAILY_NEURON_LIMIT) {
@@ -49,6 +56,35 @@ export function guardAgentRoutes(mount: string, options: GuardOptions): Middlewa
     }
     await next();
   };
+}
+
+/** 요청 본문 복사본을 maxBytes까지만 읽는다. 넘으면 undefined (본문 전체를 메모리에 올리지 않는다) */
+async function readLimited(request: Request, maxBytes: number): Promise<string | undefined> {
+  const declared = Number(request.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > maxBytes) return undefined;
+  const body = request.clone().body;
+  if (!body) return '';
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > maxBytes) {
+      // clone()은 tee라서 한쪽 cancel은 다른 쪽(원본)도 끝나야 풀린다. 기다리지 않는다
+      reader.cancel().catch(() => {});
+      return undefined;
+    }
+    chunks.push(value);
+  }
+  const all = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    all.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(all);
 }
 
 /** 잘못된 %인코딩이면 빈 문자열(→ 403)로 본다 */

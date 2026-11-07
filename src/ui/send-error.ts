@@ -4,7 +4,8 @@
 import { errorBody, type GuardErrorType } from '../core/guard.ts';
 
 export interface SendFailure {
-  kind: 'limit' | 'auth' | 'other';
+  /** rejected: 본문이 너무 크거나 첨부가 있어 가드가 거절함 (다시 보내도 같다) */
+  kind: 'limit' | 'auth' | 'rejected' | 'other';
   message: string;
 }
 
@@ -15,6 +16,9 @@ export function toSendFailure(error: unknown): SendFailure {
   const type = guardType(error);
   if (status === 429 && (type === 'user_daily_limit' || type === 'global_daily_limit')) {
     return { kind: 'limit', message: errorBody(type).error.message };
+  }
+  if ((status === 400 || status === 413) && type === 'message_rejected') {
+    return { kind: 'rejected', message: errorBody(type).error.message };
   }
   if (status === 401 || status === 403) {
     return { kind: 'auth', message: errorBody(status === 401 ? 'unauthorized' : 'forbidden').error.message };
