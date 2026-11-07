@@ -5,8 +5,10 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { classesA, profileA } from './__fixtures__/persona-a.ts';
 import { rulesA } from './__fixtures__/rules-a.ts';
+import { classesB, classesC, classesD, profileB, profileC, profileD } from './__fixtures__/personas.ts';
 import { checkPlan } from './check-plan.ts';
-import type { Plan, PlanCell } from './types.ts';
+import { buildCriteria } from './criteria.ts';
+import type { MenuClassification, Plan, PlanCell, Profile } from './types.ts';
 
 const DATA = new URL('../../docs/experiments/data/', import.meta.url);
 const load = <T>(name: string): T => JSON.parse(readFileSync(new URL(name, DATA), 'utf8')) as T;
@@ -75,5 +77,20 @@ describe('2026-11-07 평가 세트 A~D (T1-7)', () => {
     const passed = runs.filter((r) => r.persona === '페르소나A' && r.result === 'pass');
     expect(passed).toHaveLength(2);
     for (const r of passed) expect(rulesOf(r.output!.plan)).toEqual([]);
+  });
+
+  // 같은 날 저녁 B~D 재실행. 평가 세트와 같이 buildCriteria(goals)로 점검한다
+  const personas: Record<string, { profile: Profile; classes: MenuClassification[] }> = {
+    페르소나B: { profile: profileB, classes: classesB },
+    페르소나C: { profile: profileC, classes: classesC },
+    페르소나D: { profile: profileD, classes: classesD },
+  };
+  const { runs } = load<{ runs: { persona: string; run: number; result: string; output: { plan: Plan } }[] }>(
+    '2026-11-07-t1-7-eval-personas-bcd.json',
+  );
+  it.each(runs.map((r) => [r.persona, r.run, r] as const))('%s %i회차는 지금 규칙으로도 통과', (persona, _run, r) => {
+    const { profile, classes } = personas[persona]!;
+    expect(r.result).toBe('pass');
+    expect(checkPlan(r.output.plan, profile, classes, buildCriteria(profile.goals)).violations).toEqual([]);
   });
 });
