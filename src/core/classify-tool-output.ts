@@ -10,7 +10,8 @@ export interface ClassifyToolStats {
   neurons: number;
 }
 
-export type ClassifyToolOutput =
+/** 분류를 실제로 돌린 결과 (core/classify-runner.ts). 모두 stats가 있다 */
+export type ClassifyRunOutput =
   /** classes: 분류 대상 순서. 외식 끼니가 없으면 빈 배열. period: 이 요청으로 정한 기간과 일정 (B6) */
   | { status: 'ok'; classes: MenuClassification[]; period: PlanPeriod; stats: ClassifyToolStats }
   | { status: 'quota'; message: string; stats: ClassifyToolStats }
@@ -22,3 +23,8 @@ export type ClassifyToolOutput =
   | { status: 'no_interview'; message: string; stats: ClassifyToolStats }
   /** 요청 형식이 틀렸거나 일정이 맞지 않음. LLM을 부르지 않는다 */
   | { status: 'bad_request'; message: string; issues: EventIssue[]; stats: ClassifyToolStats };
+
+export type ClassifyToolOutput =
+  | ClassifyRunOutput
+  /** 모델이 한 응답에서 이 도구를 여러 번 불러 게이트에 진 호출 (tasks.md T10-2). 화면은 건너뛴다 */
+  | { status: 'duplicate'; message: string };

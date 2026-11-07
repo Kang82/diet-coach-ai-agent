@@ -48,6 +48,33 @@ export function guardStoreContract(
       expect(await store.neuronsSince('2026-11-07T01')).toBe(0);
     });
 
+    // B13(T10-3): 종류별 하루 횟수
+    it('종류별 횟수는 종류·사용자·날짜마다 따로, 메시지 수와도 따로 센다', async () => {
+      const store = await create([]);
+      expect(await store.tryCountKind('u1', 'plan', '2026-11-06', 1)).toBe(true);
+      expect(await store.tryCountKind('u1', 'plan', '2026-11-06', 1)).toBe(false);
+      expect(await store.tryCountKind('u1', 'edit', '2026-11-06', 1)).toBe(true);
+      expect(await store.tryCountKind('u2', 'plan', '2026-11-06', 1)).toBe(true);
+      expect(await store.tryCountKind('u1', 'plan', '2026-11-07', 1)).toBe(true);
+      expect(await store.tryCountMessage('u1', '2026-11-06', 1)).toBe(true);
+    });
+
+    // B13(T10-4): 진행 중 예약
+    it('예약은 만료 전까지만 더하고, 같은 키면 덮어쓰며, 지우면 빠진다', async () => {
+      const store = await create([]);
+      expect(await store.reservedNeurons('2026-11-06T12:00:00.000Z')).toBe(0);
+      await store.reserve('c1', 1_200, '2026-11-06T12:20:00.000Z');
+      await store.reserve('c2', 600, '2026-11-06T12:05:00.000Z');
+      expect(await store.reservedNeurons('2026-11-06T12:00:00.000Z')).toBeCloseTo(1_800);
+      expect(await store.reservedNeurons('2026-11-06T12:05:00.000Z')).toBeCloseTo(1_200);
+      expect(await store.reservedNeurons('2026-11-06T12:00:00.000Z', 'c1')).toBeCloseTo(600);
+      await store.reserve('c1', 360, '2026-11-06T12:30:00.000Z');
+      expect(await store.reservedNeurons('2026-11-06T12:00:00.000Z')).toBeCloseTo(960);
+      await store.release('c1');
+      await store.release('없는키');
+      expect(await store.reservedNeurons('2026-11-06T12:00:00.000Z')).toBeCloseTo(600);
+    });
+
     it('메시지 수와 Neuron은 서로 영향을 주지 않는다', async () => {
       const store = await create([]);
       await store.addNeurons('2026-11-06T12', 50);

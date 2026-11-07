@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { errorBody, USER_LIMIT_MESSAGE } from '../core/guard.ts';
+import { errorBody, kindLimitMessage, USER_LIMIT_MESSAGE } from '../core/guard.ts';
 import { QUOTA_EXCEEDED_MESSAGE } from '../core/quota.ts';
 import { toSendFailure, withSendAlert, withSendPlanFailure } from './send-error.ts';
 
@@ -14,6 +14,18 @@ describe('toSendFailure', () => {
     expect(toSendFailure(apiError(429, errorBody('global_daily_limit')))).toEqual({
       kind: 'limit',
       message: QUOTA_EXCEEDED_MESSAGE,
+    });
+  });
+
+  it('종류별 하루 제한(T10-3)은 서버가 보낸 종류 문구 그대로 한도 안내', () => {
+    expect(toSendFailure(apiError(429, errorBody('user_kind_limit', 'plan')))).toEqual({
+      kind: 'limit',
+      message: kindLimitMessage('plan'),
+    });
+    // 문구가 없으면 일반 한도 문구
+    expect(toSendFailure(apiError(429, { error: { type: 'user_kind_limit' } }))).toEqual({
+      kind: 'limit',
+      message: errorBody('user_kind_limit').error.message,
     });
   });
 

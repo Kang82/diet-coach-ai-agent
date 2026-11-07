@@ -1,5 +1,7 @@
 // 스펙 11.4 한도 보호의 순수 로직. 미들웨어는 src/server/guard.ts.
 // 아래 값은 Workers AI 무료 티어(하루 10,000 Neuron)를 전제로 정했다. 요금제를 바꾸면 docs/plan-upgrade.md를 본다.
+import { LLM_TIME_LIMITS, PLAN_TOOL_BUDGETS, SUBMISSION_DURABILITY } from './llm-timeout.ts';
+import { messageKind, type ExpensiveKind, type MessageKind } from './message-kind.ts';
 import { QUOTA_EXCEEDED_MESSAGE } from './quota.ts';
 
 /** 사용자 하나가 하루에 보낼 수 있는 메시지(에이전트 POST) 수 (11.4-2) */
@@ -16,19 +18,55 @@ export const FAILED_CALL_NEURONS_PER_SECOND = 2;
 
 export const USER_LIMIT_MESSAGE = '오늘 이용 횟수를 다 썼어요. 오전 9시 이후에 다시 할 수 있어요.';
 
-export type GuardErrorType = 'unauthorized' | 'forbidden' | 'user_daily_limit' | 'global_daily_limit' | 'message_rejected';
+/**
+ * 사용자 하나가 하루(UTC 날짜)에 보낼 수 있는 비싼 메시지 수 (tasks.md T10-3, 사용자 결정 2026-11-08).
+ * 30회만으로는 만들기 27번(약 6,750~8,100 Neuron)으로 혼자 안전선에 닿는다. 보통 하루 약 3,500 Neuron 안쪽
+ */
+export const USER_DAILY_KIND_LIMITS: Record<ExpensiveKind, number> = { classify: 5, plan: 5, edit: 15 };
+
+const KIND_LABELS: Record<ExpensiveKind, string> = { classify: '메뉴 분류', plan: '식단표 만들기', edit: '칸 다시 추천' };
+
+export function kindLimitMessage(kind: ExpensiveKind): string {
+  return `오늘 ${KIND_LABELS[kind]}는 ${USER_DAILY_KIND_LIMITS[kind]}번까지예요. 오전 9시 이후에 다시 할 수 있어요.`;
+}
+
+/**
+ * 비싼 메시지가 진행 중일 때 안전선에 미리 더해 두는 양 (tasks.md T10-4). 사용량을 모를 때처럼 최악을 잡는다:
+ * 도구 시간 예산(분류는 호출 상한) × FAILED_CALL_NEURONS_PER_SECOND. 만들기 1,200, 칸 수정 600, 분류 360
+ */
+export const RESERVE_NEURONS: Record<ExpensiveKind, number> = {
+  classify: (LLM_TIME_LIMITS.menuClass / 1000) * FAILED_CALL_NEURONS_PER_SECOND,
+  plan: (PLAN_TOOL_BUDGETS.createPlan / 1000) * FAILED_CALL_NEURONS_PER_SECOND,
+  edit: (PLAN_TOOL_BUDGETS.editPlanCells / 1000) * FAILED_CALL_NEURONS_PER_SECOND,
+};
+
+/** 예약이 저절로 풀리는 시간. 제출 복구 한도(20분)와 같게 두어 복구가 길어져도 먼저 사라지지 않게 한다 */
+export const RESERVATION_TTL_MS = SUBMISSION_DURABILITY.timeoutMs;
+
+export type GuardErrorType =
+  | 'unauthorized'
+  | 'forbidden'
+  | 'user_daily_limit'
+  | 'user_kind_limit'
+  | 'global_daily_limit'
+  | 'message_rejected';
 
 const MESSAGES: Record<GuardErrorType, string> = {
   message_rejected: '보낼 수 없는 메시지예요. 너무 길거나 첨부가 있어요.',
   unauthorized: '받은 링크로 들어와 주세요.',
   forbidden: '이 대화를 볼 수 없어요.',
   user_daily_limit: USER_LIMIT_MESSAGE,
+  user_kind_limit: USER_LIMIT_MESSAGE,
   global_daily_limit: QUOTA_EXCEEDED_MESSAGE,
 };
 
-/** Flue 에러 봉투와 같은 모양 (`{ error: { type, message, details } }`). 화면은 type으로 가린다 */
-export function errorBody(type: GuardErrorType) {
-  return { error: { type, message: MESSAGES[type], details: '' } };
+/**
+ * Flue 에러 봉투와 같은 모양 (`{ error: { type, message, details } }`). 화면은 type으로 가리고,
+ * user_kind_limit은 종류마다 문구가 달라 message를 그대로 보여 준다
+ */
+export function errorBody(type: GuardErrorType, kind?: ExpensiveKind) {
+  const message = type === 'user_kind_limit' && kind ? kindLimitMessage(kind) : MESSAGES[type];
+  return { error: { type, message, details: '' } };
 }
 
 /** 토큰의 SHA-256 hex. 저장소에는 이 값만 둔다 */
@@ -88,6 +126,16 @@ export function checkMessageBody(raw: string): MessageBodyCheck {
   if (kind === 'signal' || initialData !== undefined) return 'unsupported';
   if (attachments !== undefined && !(Array.isArray(attachments) && attachments.length === 0)) return 'unsupported';
   return 'ok';
+}
+
+/** 메시지 POST 본문(`{ kind: 'user', body }`)의 종류. JSON이 아니거나 body가 문자열이 아니면 chat (Flue가 거절한다) */
+export function messageKindOfRaw(raw: string): MessageKind {
+  try {
+    const body = (JSON.parse(raw) as { body?: unknown } | null)?.body;
+    return typeof body === 'string' ? messageKind(body) : 'chat';
+  } catch {
+    return 'chat';
+  }
 }
 
 /** 대화 주소 뒤 경로(rest)를 보고 새 메시지 전송인지. abort와 읽기는 세지도 막지도 않는다 */

@@ -5,6 +5,7 @@ import type { FlueConversationMessage } from '@flue/sdk';
 import type { ClassifyToolOutput } from '../core/classify-tool-output.ts';
 import { isClassifyRequest } from '../core/plan-request.ts';
 import type { PlanPeriod } from '../core/period.ts';
+import { isDuplicateOutput } from '../core/tool-gate.ts';
 import type { MenuClassification } from '../core/types.ts';
 import type { PlanViewInput } from './plan-view-state.ts';
 
@@ -63,8 +64,13 @@ export function toMenuClassViewState({ historyReady, status, messages, settlemen
   return alert ? { kind: 'idle', alert } : { kind: 'idle' };
 }
 
+/** 분류 도구 호출. 같은 응답에서 여러 번 불러 게이트에 진 호출(duplicate, T10-2)은 없는 것으로 본다 */
 function isClassifyTool(part: FlueConversationMessage['parts'][number]): part is ToolPart {
-  return part.type === 'dynamic-tool' && part.toolName === CLASSIFY_TOOL;
+  return (
+    part.type === 'dynamic-tool' &&
+    part.toolName === CLASSIFY_TOOL &&
+    !(part.state === 'output-available' && isDuplicateOutput(part.output))
+  );
 }
 
 function textOf(message: FlueConversationMessage): string {

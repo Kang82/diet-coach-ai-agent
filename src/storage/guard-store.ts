@@ -1,5 +1,6 @@
 // 스펙 11.4 한도 보호의 저장소: 토큰 해시 → 사용자, 날짜별 사용자 메시지 수, 시간별 Worker 전체 Neuron 추정치.
-// 테이블은 migrations/0002_guard.sql(users, usage_daily), 0003_usage_hourly.sql. 계약 테스트는 guard-store-contract.ts.
+// 테이블은 migrations/0002_guard.sql(users, usage_daily), 0003_usage_hourly.sql, 0004_usage_reservations.sql. 계약 테스트는 guard-store-contract.ts.
+import type { ExpensiveKind } from '../core/message-kind.ts';
 import type { D1Like } from './d1-storage.ts';
 
 export interface GuardStore {
@@ -11,14 +12,24 @@ export interface GuardStore {
   neuronsSince(fromHour: string): Promise<number>;
   /** 그 시간 칸에 Neuron을 더한다 */
   addNeurons(hour: string, neurons: number): Promise<void>;
+  /** 그날 그 종류(분류·만들기·칸 수정) 횟수를 하나 늘린다. 이미 limit이면 false (T10-3) */
+  tryCountKind(userId: string, kind: ExpensiveKind, day: string, limit: number): Promise<boolean>;
+  /** 진행 중 예약을 둔다. 같은 key면 덮어쓴다 (T10-4) */
+  reserve(key: string, neurons: number, expiresAt: string): Promise<void>;
+  /** now(ISO)보다 늦게 만료되는 예약의 합계. exceptKey의 예약은 뺀다(같은 대화가 예약을 덮어쓸 때) */
+  reservedNeurons(now: string, exceptKey?: string): Promise<number>;
+  /** 예약을 지운다. 없으면 아무 일도 없다 */
+  release(key: string): Promise<void>;
 }
 
 const userKey = (userId: string) => `user:${userId}`;
+const kindKey = (userId: string, kind: ExpensiveKind) => `${kind}:${userId}`;
 
 export class MemoryGuardStore implements GuardStore {
   private readonly users: Map<string, string>;
   private readonly calls = new Map<string, number>();
   private readonly neurons = new Map<string, number>();
+  private readonly reservations = new Map<string, { neurons: number; expiresAt: string }>();
 
   constructor(users: readonly { userId: string; tokenHash: string }[] = []) {
     this.users = new Map(users.map((u) => [u.tokenHash, u.userId]));
@@ -29,11 +40,37 @@ export class MemoryGuardStore implements GuardStore {
   }
 
   async tryCountMessage(userId: string, day: string, limit: number): Promise<boolean> {
-    const key = `${day}|${userKey(userId)}`;
+    return this.tryCount(`${day}|${userKey(userId)}`, limit);
+  }
+
+  async tryCountKind(userId: string, kind: ExpensiveKind, day: string, limit: number): Promise<boolean> {
+    return this.tryCount(`${day}|${kindKey(userId, kind)}`, limit);
+  }
+
+  private tryCount(key: string, limit: number): boolean {
     const count = this.calls.get(key) ?? 0;
     if (count >= limit) return false;
     this.calls.set(key, count + 1);
     return true;
+  }
+
+  async reserve(key: string, neurons: number, expiresAt: string): Promise<void> {
+    this.reservations.set(key, { neurons, expiresAt });
+  }
+
+  async reservedNeurons(now: string, exceptKey?: string): Promise<number> {
+    let sum = 0;
+    for (const [key, r] of this.reservations) if (r.expiresAt > now && key !== exceptKey) sum += r.neurons;
+    return sum;
+  }
+
+  async release(key: string): Promise<void> {
+    this.reservations.delete(key);
+  }
+
+  /** 테스트용: 지금 예약 */
+  reservationOf(key: string): { neurons: number; expiresAt: string } | undefined {
+    return this.reservations.get(key);
   }
 
   async neuronsSince(fromHour: string): Promise<number> {
@@ -64,6 +101,14 @@ export class D1GuardStore implements GuardStore {
   }
 
   async tryCountMessage(userId: string, day: string, limit: number): Promise<boolean> {
+    return this.tryCount(day, userKey(userId), limit);
+  }
+
+  async tryCountKind(userId: string, kind: ExpensiveKind, day: string, limit: number): Promise<boolean> {
+    return this.tryCount(day, kindKey(userId, kind), limit);
+  }
+
+  private async tryCount(day: string, key: string, limit: number): Promise<boolean> {
     // 한 문장으로 확인과 증가를 해서 동시 요청이 와도 limit을 넘지 않는다. 상한이면 갱신되지 않아 행이 안 나온다
     const row = await this.db
       .prepare(
@@ -71,7 +116,7 @@ export class D1GuardStore implements GuardStore {
          ON CONFLICT (day, key) DO UPDATE SET calls = usage_daily.calls + 1 WHERE usage_daily.calls < ?3
          RETURNING calls`,
       )
-      .bind(day, userKey(userId), limit)
+      .bind(day, key, limit)
       .first<{ calls: number }>();
     // limit이 0이면 첫 INSERT도 막아야 한다
     return row !== null && row.calls <= limit;
@@ -93,5 +138,28 @@ export class D1GuardStore implements GuardStore {
       )
       .bind(hour, neurons)
       .run();
+  }
+
+  async reserve(key: string, neurons: number, expiresAt: string): Promise<void> {
+    await this.db
+      .prepare(
+        `INSERT INTO usage_reservations (key, neurons, expires_at) VALUES (?1, ?2, ?3)
+         ON CONFLICT (key) DO UPDATE SET neurons = excluded.neurons, expires_at = excluded.expires_at`,
+      )
+      .bind(key, neurons, expiresAt)
+      .run();
+  }
+
+  async reservedNeurons(now: string, exceptKey?: string): Promise<number> {
+    // 빈 문자열 키는 쓰지 않는다(대화 ID는 비지 않음)
+    const row = await this.db
+      .prepare('SELECT COALESCE(SUM(neurons), 0) AS neurons FROM usage_reservations WHERE expires_at > ?1 AND key != ?2')
+      .bind(now, exceptKey ?? '')
+      .first<{ neurons: number }>();
+    return row?.neurons ?? 0;
+  }
+
+  async release(key: string): Promise<void> {
+    await this.db.prepare('DELETE FROM usage_reservations WHERE key = ?').bind(key).run();
   }
 }

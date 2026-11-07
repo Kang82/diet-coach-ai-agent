@@ -104,3 +104,39 @@ export function planFailure(
 export function toJson(value: PlanToolOutput | EditToolOutput | InterviewToolOutput | ClassifyToolOutput): JsonValue {
   return JSON.parse(JSON.stringify(value)) as JsonValue;
 }
+
+/**
+ * 비싼 도구(분류, 만들기, 칸 수정)의 앞뒤 (tasks.md T10-2, T10-4).
+ * - claim: 이 응답에서 처음 불린 호출인지(ToolGate). 지면 일도 예약 정산도 하지 않고 duplicate로 끝낸다. 이긴 호출이 아직 돌고 있다
+ * - 이기면 일을 하고, 끝나면(성공·실패·조기 반환 모두) 미들웨어가 둔 진행 중 예약을 지운다. 실패해도 만료로 풀리니 경고만
+ * durable 도구는 claim과 release를 step으로 감싸 넘긴다(복구 때 같은 호출이 이기고, 정산 기록이 남는다)
+ */
+export async function runGuarded<T>(
+  options: {
+    claim: () => Promise<boolean>;
+    /** 정산을 감싸는 방법. durable이면 step.do('release', fn), 아니면 fn() */
+    release: (fn: () => Promise<boolean>) => Promise<boolean>;
+    releaseReservation: () => Promise<void>;
+    log: Pick<FlueLogger, 'warn' | 'info'>;
+    duplicate: () => T;
+  },
+  work: () => Promise<T>,
+): Promise<T> {
+  if (!(await options.claim())) {
+    options.log.info('같은 응답의 중복 호출이라 건너뜀');
+    return options.duplicate();
+  }
+  try {
+    return await work();
+  } finally {
+    await options.release(async () => {
+      try {
+        await options.releaseReservation();
+        return true;
+      } catch (error) {
+        options.log.warn('예약 정산 실패', { message: error instanceof Error ? error.message : String(error) });
+        return false;
+      }
+    });
+  }
+}

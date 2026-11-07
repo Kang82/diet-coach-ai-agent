@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { classesA } from '../core/__fixtures__/persona-a.ts';
 import type { ClassifyToolOutput } from '../core/classify-tool-output.ts';
+import { DUPLICATE_TOOL_MESSAGE } from '../core/tool-gate.ts';
 import { CLASSIFY_REQUEST, formatClassifyRequest, formatPlanRequest } from '../core/plan-request.ts';
 import {
   assistantMsg,
@@ -45,6 +46,14 @@ describe('toMenuClassViewState', () => {
       period,
       planMessages: after,
     });
+  });
+
+  it('같은 응답에서 두 번 불러 막힌 호출(duplicate, T10-2)은 건너뛴다', () => {
+    const dup: ClassifyToolOutput = { status: 'duplicate', message: DUPLICATE_TOOL_MESSAGE };
+    for (const parts of [[out(ok), out(dup)], [out(dup), out(ok)]]) {
+      const messages = [userMsg(CLASSIFY_REQUEST, 's1'), assistantMsg('s1', ...parts)];
+      expect(toMenuClassViewState(viewInput({ messages, settlements: [settledSub('s1')] }))).toMatchObject({ kind: 'classified' });
+    }
   });
 
   it('한도 초과면 idle과 안내 (다시 요청할 수 있다)', () => {

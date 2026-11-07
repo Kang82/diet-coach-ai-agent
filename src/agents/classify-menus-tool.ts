@@ -9,13 +9,16 @@ import { handleClassifyRequest } from '../core/classify-runner.ts';
 import type { InterviewResult } from '../core/interview.ts';
 import type { MenuClassifier } from '../core/menu-classifier.ts';
 import type { PlanPeriod } from '../core/period.ts';
+import type { ToolGate } from '../core/tool-gate.ts';
+import { DUPLICATE_TOOL_MESSAGE } from '../core/tool-gate.ts';
+import type { ClassifyToolOutput } from '../core/classify-tool-output.ts';
 import type { MenuClassification } from '../core/types.ts';
 import { createDemoMenuClassifier } from './demo-menu-classifier.ts';
 import { createFlueMenuClassifier } from './flue-menu-classifier.ts';
 import type { PromptHarness } from './flue-plan-generator.ts';
 import { menuClassModel } from './models.ts';
 import type { NeuronMeter } from './metered-harness.ts';
-import { countNeurons, metered, toJson } from './plan-tool-support.ts';
+import { countNeurons, metered, runGuarded, toJson } from './plan-tool-support.ts';
 
 export const CLASSIFY_TOOL = 'classify_menus';
 
@@ -25,6 +28,8 @@ export function classifyMenusTool({
   savePeriod,
   delivery,
   meter,
+  gate,
+  releaseReservation,
 }: {
   interviewResult: InterviewResult | undefined;
   saveClasses: (classes: MenuClassification[]) => void;
@@ -32,6 +37,10 @@ export function classifyMenusTool({
   delivery: DeliveredMessage;
   /** LLM 사용량을 전체 안전선 카운터에 더한다 (스펙 11.4-3) */
   meter: NeuronMeter;
+  /** 이 응답에서 비싼 도구는 한 번만 (T10-2) */
+  gate: ToolGate;
+  /** 끝나면 진행 중 예약을 지운다 (T10-4) */
+  releaseReservation: () => Promise<void>;
 }) {
   return defineTool({
     name: CLASSIFY_TOOL,
@@ -39,26 +48,38 @@ export function classifyMenusTool({
     input: v.object({}),
     harness: true,
     async run({ harness, log }) {
-      const result = await handleClassifyRequest({
-        interviewResult,
-        body: delivery.kind === 'user' ? delivery.body : undefined,
-        classifier: pickClassifier(metered(harness, meter, log)),
-        now: () => new Date(),
-        neurons: (usages) => countNeurons(usages, log),
-      });
-      const { output, save, failure } = result;
-      if (failure) {
-        const { error } = failure;
-        log.error('메뉴 분류 실패', { kind: failure.kind, message: error instanceof Error ? error.message : String(error), seconds: output.stats.seconds });
-      } else if (output.status !== 'no_interview' && output.status !== 'bad_request') {
-        log.info('메뉴 분류 끝', { status: output.status, ...output.stats });
-      }
-      // 분류가 끝났을 때만 분류와 기간을 저장한다 (T9-5)
-      if (save) {
-        saveClasses(save.classes);
-        savePeriod(save.period);
-      }
-      return { output: toJson(output), terminate: true };
+      const duplicate: ClassifyToolOutput = { status: 'duplicate', message: DUPLICATE_TOOL_MESSAGE };
+      return runGuarded(
+        {
+          claim: async () => gate.claim(),
+          release: (fn) => fn(),
+          releaseReservation,
+          log,
+          duplicate: () => ({ output: toJson(duplicate), terminate: true }),
+        },
+        async () => {
+          const result = await handleClassifyRequest({
+            interviewResult,
+            body: delivery.kind === 'user' ? delivery.body : undefined,
+            classifier: pickClassifier(metered(harness, meter, log)),
+            now: () => new Date(),
+            neurons: (usages) => countNeurons(usages, log),
+          });
+          const { output, save, failure } = result;
+          if (failure) {
+            const { error } = failure;
+            log.error('메뉴 분류 실패', { kind: failure.kind, message: error instanceof Error ? error.message : String(error), seconds: output.stats.seconds });
+          } else if (output.status !== 'no_interview' && output.status !== 'bad_request') {
+            log.info('메뉴 분류 끝', { status: output.status, ...output.stats });
+          }
+          // 분류가 끝났을 때만 분류와 기간을 저장한다 (T9-5)
+          if (save) {
+            saveClasses(save.classes);
+            savePeriod(save.period);
+          }
+          return { output: toJson(output), terminate: true };
+        },
+      );
     },
   });
 }

@@ -17,6 +17,10 @@ export function toSendFailure(error: unknown): SendFailure {
   if (status === 429 && (type === 'user_daily_limit' || type === 'global_daily_limit')) {
     return { kind: 'limit', message: errorBody(type).error.message };
   }
+  // 종류별 하루 제한(T10-3)은 종류마다 문구가 달라 서버 문구를 쓴다
+  if (status === 429 && type === 'user_kind_limit') {
+    return { kind: 'limit', message: guardMessage(error) ?? errorBody(type).error.message };
+  }
   if ((status === 400 || status === 413) && type === 'message_rejected') {
     return { kind: 'rejected', message: errorBody(type).error.message };
   }
@@ -24,6 +28,12 @@ export function toSendFailure(error: unknown): SendFailure {
     return { kind: 'auth', message: errorBody(status === 401 ? 'unauthorized' : 'forbidden').error.message };
   }
   return { kind: 'other', message: OTHER_MESSAGE };
+}
+
+function guardMessage(error: unknown): string | undefined {
+  const body = typeof error === 'object' && error !== null ? (error as { body?: unknown }).body : undefined;
+  const message = typeof body === 'object' && body !== null ? (body as { error?: { message?: unknown } }).error?.message : undefined;
+  return typeof message === 'string' && message !== '' ? message : undefined;
 }
 
 function guardType(error: unknown): GuardErrorType | undefined {

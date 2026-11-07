@@ -4,7 +4,9 @@ import { EDIT_REQUEST_PREFIX } from '../core/edit-request.ts';
 import type { InterviewResult } from '../core/interview.ts';
 import { INTERVIEW_SUBMIT_PREFIX } from '../core/interview-form.ts';
 import { SUBMISSION_DURABILITY } from '../core/llm-timeout.ts';
+import { messageKind, type MessageKind } from '../core/message-kind.ts';
 import { estimateNeurons } from '../core/neurons.ts';
+import { createToolGate } from '../core/tool-gate.ts';
 import { CLASSIFY_REQUEST, PLAN_REQUEST_PREFIX } from '../core/plan-request.ts';
 import type { PlanPeriod } from '../core/period.ts';
 import type { MenuClassification, Plan } from '../core/types.ts';
@@ -13,14 +15,15 @@ import { CREATE_PLAN_TOOL, createWeekPlanTool } from './create-plan-tool.ts';
 import { EDIT_PLAN_TOOL, editPlanCellsTool } from './edit-plan-tool.ts';
 import { INTERVIEW_TOOL, submitInterviewTool } from './interview-tool.ts';
 import { DEFAULT_MODEL, INTERVIEW_THINKING, NEURON_PRICES } from './models.ts';
-import { usageMeter } from './usage-meter.ts';
+import { reservationRelease, usageMeter } from './usage-meter.ts';
 import { userIdFromConversation } from '../core/profile-store.ts';
 import type { UserStore } from './plan-tool-support.ts';
 import { agentStorage } from './storage-binding.ts';
 
 // 인터뷰는 화면에서 진행하고 끝나면 제출 메시지를 한 번 보낸다 (tasks.md B4).
-// 인터뷰가 끝나기 전에는 submit_interview만, 끝난 뒤에는 메뉴 분류·식단표 도구를 마운트한다.
-// 어느 도구를 부를지는 화면이 보낸 메시지의 접두어로 정해 모델이 판단할 일이 거의 없게 한다.
+// 인터뷰가 끝나기 전에는 submit_interview만, 끝난 뒤에는 메시지 종류(접두어)에 맞는 도구 하나만 마운트한다 (T10-2).
+// 한도 보호 미들웨어도 같은 함수(core/message-kind.ts)로 종류를 가려 하루 횟수를 세고 예약을 둔다. 자유 문장에는 도구가 없다.
+// 비싼 도구는 렌더마다 만드는 게이트를 함께 받아, 모델이 한 응답에서 여러 번 불러도 하나만 돈다.
 // 식단표는 끝난 인터뷰와 확인된 메뉴 분류로 만든다 (tasks.md B5).
 export function DietCoach({ id }: AgentProps) {
   const delivery = useDelivery();
@@ -42,12 +45,17 @@ export function DietCoach({ id }: AgentProps) {
   const interviewing = interviewResult === undefined;
   // 인터뷰 중 바깥 턴은 도구를 부르기만 하면 되므로 추론을 줄인다. 식단표 단계는 Flue 기본값('medium') 그대로
   useModel(DEFAULT_MODEL, interviewing ? { thinkingLevel: INTERVIEW_THINKING } : undefined);
+  // 화면이 보낸 메시지 종류. 같은 제출 안에서는 렌더가 몇 번이든 같다
+  const kind = delivery.kind === 'user' ? messageKind(delivery.body) : 'chat';
+  // 비싼 도구 공통: 이 렌더(모델 호출 하나)에서 한 번만, 끝나면 진행 중 예약 정산 (T10-2, T10-4)
+  const guard = { gate: createToolGate(), releaseReservation: reservationRelease(id) };
   if (interviewing) {
     useTool(submitInterviewTool({ saveResult: setInterviewResult, delivery, meter: usageMeter, store }));
-  } else {
+  } else if (kind === 'classify') {
     useTool(
-      classifyMenusTool({ interviewResult, saveClasses: setMenuClasses, savePeriod: setPeriod, delivery, meter: usageMeter }),
+      classifyMenusTool({ interviewResult, saveClasses: setMenuClasses, savePeriod: setPeriod, delivery, meter: usageMeter, ...guard }),
     );
+  } else if (kind === 'plan') {
     useTool(
       createWeekPlanTool({
         interviewResult,
@@ -58,10 +66,12 @@ export function DietCoach({ id }: AgentProps) {
         delivery,
         meter: usageMeter,
         store,
+        ...guard,
       }),
     );
+  } else if (kind === 'edit') {
     useTool(
-      editPlanCellsTool({ interviewResult, menuClasses, plan, savePlan: setPlan, delivery, meter: usageMeter, store }),
+      editPlanCellsTool({ interviewResult, menuClasses, plan, period, savePlan: setPlan, delivery, meter: usageMeter, store, ...guard }),
     );
   }
 
@@ -92,13 +102,17 @@ export function DietCoach({ id }: AgentProps) {
       '그 밖의 메시지에는 화면에서 인터뷰를 마쳐 달라고 한 문장으로만 답하세요. 도구가 실패해도 직접 질문하거나 답하지 말고 그대로 끝내세요.',
     ].join('\n');
   }
-  return [
-    ...intro,
-    `사용자 메시지가 "${EDIT_REQUEST_PREFIX}"로 시작하면 ${EDIT_PLAN_TOOL} 도구를 한 번 부르세요. 칸과 요청은 도구가 메시지에서 직접 읽으므로 입력은 비워 두세요.`,
-    `사용자 메시지가 "${CLASSIFY_REQUEST}"로 시작하면 ${CLASSIFY_TOOL} 도구를 한 번 부르세요. 메뉴와 일정은 도구가 직접 읽으므로 입력은 비워 두세요.`,
-    `사용자 메시지가 "${PLAN_REQUEST_PREFIX}"로 시작하거나 식단표를 만들어 달라고 하면 ${CREATE_PLAN_TOOL} 도구를 한 번 부르세요. 바꾼 분류는 도구가 메시지에서 직접 읽으므로 입력은 비워 두세요.`,
-  ].join('\n');
+  return [...intro, AFTER_INTERVIEW_STEPS[kind]].join('\n');
 }
+
+/** 인터뷰 뒤 메시지 종류마다 할 일. 그 종류에 마운트한 도구 하나만 안내한다 (T10-2) */
+const AFTER_INTERVIEW_STEPS: Record<MessageKind, string> = {
+  edit: `${EDIT_PLAN_TOOL} 도구를 한 번 부르세요. 칸과 요청은 도구가 메시지에서 직접 읽으므로 입력은 비워 두세요.`,
+  classify: `${CLASSIFY_TOOL} 도구를 한 번 부르세요. 메뉴와 일정은 도구가 직접 읽으므로 입력은 비워 두세요.`,
+  plan: `${CREATE_PLAN_TOOL} 도구를 한 번 부르세요. 바꾼 분류는 도구가 메시지에서 직접 읽으므로 입력은 비워 두세요.`,
+  interview: '인터뷰는 이미 끝났습니다. 화면에서 다음 단계로 진행해 달라고 한 문장으로만 답하세요.',
+  chat: `식단표 만들기, 칸 바꾸기, 메뉴 분류는 화면의 버튼으로 합니다("${PLAN_REQUEST_PREFIX}", "${EDIT_REQUEST_PREFIX}", "${CLASSIFY_REQUEST}"로 시작하는 메시지). 화면의 버튼을 눌러 달라고 한 문장으로만 답하세요.`,
+};
 
 // 제출 하나의 복구 한도: 3회, 20분 (B12, core/llm-timeout.ts). Flue 기본(10회·1시간)이면 복구가 되풀이될 때 Neuron을 많이 쓴다
 DietCoach.durability = { ...SUBMISSION_DURABILITY };

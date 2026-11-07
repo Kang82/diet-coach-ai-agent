@@ -13,11 +13,23 @@ import type { MenuClassification } from '../core/types.ts';
 import { PLAN_TOOL_BUDGETS } from '../core/llm-timeout.ts';
 import { createPlan } from '../core/plan-loop.ts';
 import { steppedGenerator } from '../core/stepped-generator.ts';
+import { DUPLICATE_TOOL_MESSAGE, type ToolGate } from '../core/tool-gate.ts';
 import { buildPlanNotices } from '../core/plan-notices.ts';
 import { QUOTA_EXCEEDED_MESSAGE } from '../core/quota.ts';
 import type { NeuronMeter } from './metered-harness.ts';
 import { persistPlan } from '../storage/persist.ts';
-import { metered, persistQuietly, pickGenerator, planContext, planFailure, toJson, toolStats, type SavePlan, type UserStore } from './plan-tool-support.ts';
+import {
+  metered,
+  persistQuietly,
+  pickGenerator,
+  planContext,
+  planFailure,
+  runGuarded,
+  toJson,
+  toolStats,
+  type SavePlan,
+  type UserStore,
+} from './plan-tool-support.ts';
 
 export const CREATE_PLAN_TOOL = 'create_week_plan';
 
@@ -34,6 +46,8 @@ export function createWeekPlanTool({
   delivery,
   meter,
   store,
+  gate,
+  releaseReservation,
 }: {
   interviewResult: InterviewResult | undefined;
   menuClasses: MenuClassification[] | undefined;
@@ -46,6 +60,10 @@ export function createWeekPlanTool({
   meter: NeuronMeter;
   /** 동의한 프로필이 있으면 식단표를 서버에 저장한다 (T6-2) */
   store?: UserStore;
+  /** 이 응답에서 비싼 도구는 한 번만 (T10-2) */
+  gate: ToolGate;
+  /** 끝나면 진행 중 예약을 지운다 (T10-4) */
+  releaseReservation: () => Promise<void>;
 }) {
   return defineTool({
     name: CREATE_PLAN_TOOL,
@@ -57,80 +75,98 @@ export function createWeekPlanTool({
     // Durable Object가 재시작돼도 끝난 LLM 호출을 버리지 않고 이어 간다 (B12, tasks.md T8-3)
     durable: true,
     async run({ harness, log, step }) {
-      // 정해진 형식이 아닌 메시지("식단표 만들어 줘" 등)면 바꾼 분류 없이 저장된 분류를 그대로 쓴다.
-      // `식단표 만들기:`인데 형식이 깨졌으면 바꾼 분류를 버리지 않고 bad_request로 답한다 (T9-1)
-      const resolved = resolvePlanClasses(delivery.kind === 'user' ? delivery.body : undefined, interviewResult?.meals, menuClasses);
-      if (resolved.kind === 'bad_request') {
-        const output: PlanToolOutput = { status: 'bad_request', message: BAD_PLAN_REQUEST_MESSAGE };
-        return { output: toJson(output), terminate: true };
-      }
-      if (!interviewResult || resolved.kind === 'no_classes') {
-        const output: PlanToolOutput = { status: 'no_classes', message: NO_CLASSES_MESSAGE };
-        return { output: toJson(output), terminate: true };
-      }
-      const { classes } = resolved;
-      const ctx = planContext(interviewResult, classes);
-      // durable(B12): 복구 뒤 다시 돌아도 ID·시각·주 시작·예산 시작이 처음 값 그대로다
-      const start = await step.do('start', () => ({
-        planId: crypto.randomUUID(),
-        createdAt: new Date().toISOString(),
-        startedAt: Date.now(),
-        weekStart: planWeekStart(period?.weekStart, new Date()),
-      }));
-      const { startedAt } = start;
-
-      try {
-        // LLM 호출(사용량 기록 포함)은 llm:N step 안에서 돈다. 끝난 호출은 복구 때 다시 부르지 않는다
-        const generator = steppedGenerator(pickGenerator(metered(harness, meter, log)), step);
-        const result = await createPlan(generator, ctx, {
-          planId: start.planId,
-          createdAt: start.createdAt,
-          weekStart: start.weekStart,
-          events: structuredClone(period?.events ?? []),
-          // 도구 전체 시간 상한 (tasks.md T8-4)
-          budget: { totalMs: PLAN_TOOL_BUDGETS.createPlan, now: Date.now, startedAt },
-        });
-        const stats = toolStats(startedAt, result, log);
-        log.info('식단표 생성 끝', { ok: result.ok, ...stats });
-
-        if (result.ok) {
-          // 칸 수정이 같은 분류로 점검하도록 사용자가 바꾼 분류를 저장한다. 실패하면 저장된 분류는 그대로 둔다 (T9-2)
-          // 에이전트 상태 쓰기는 도구 결과와 함께 커밋되므로 step 밖에 둔다 (B10c 조사)
-          saveClasses(classes);
-          savePlan(result.plan);
-          if (store) {
-            const plan = result.plan;
-            await persistQuietly(log, '식단표', () => step.do('persist', () => persistPlan(store.storage, store.userId, plan)));
+      const duplicate: PlanToolOutput = { status: 'duplicate', message: DUPLICATE_TOOL_MESSAGE };
+      return runGuarded(
+        {
+          // durable: 복구 때도 같은 호출이 이기고, 정산 기록이 남는다
+          claim: () => step.do('gate', () => gate.claim()),
+          release: (fn) => step.do('release', fn),
+          releaseReservation,
+          log,
+          duplicate: () => ({ output: toJson(duplicate), terminate: true }),
+        },
+        async () => {
+          // 정해진 형식이 아닌 메시지("식단표 만들어 줘" 등)면 바꾼 분류 없이 저장된 분류를 그대로 쓴다.
+          // `식단표 만들기:`인데 형식이 깨졌으면 바꾼 분류를 버리지 않고 bad_request로 답한다 (T9-1)
+          const resolved = resolvePlanClasses(delivery.kind === 'user' ? delivery.body : undefined, interviewResult?.meals, menuClasses);
+          if (resolved.kind === 'bad_request') {
+            const output: PlanToolOutput = { status: 'bad_request', message: BAD_PLAN_REQUEST_MESSAGE };
+            return { output: toJson(output), terminate: true };
           }
-          return {
-            output: toJson({
-              status: 'ok',
-              plan: result.plan,
-              summary: formatCheckSummary(result.check.stats, ctx.profile),
-              notices: buildPlanNotices(ctx.profile),
-              stats,
-            }),
-            // 식단표는 도구 결과로 화면에 보여 준다. 모델이 14칸을 다시 풀어 쓰며 Neuron을 쓰지 않게 여기서 끝낸다.
-            terminate: true,
-          };
-        }
-        if (result.reason === 'quota') {
-          return { output: toJson({ status: 'quota', message: QUOTA_EXCEEDED_MESSAGE, stats }), terminate: true };
-        }
-        return {
-          output: toJson({
-            status: 'violations',
-            message: '조건을 모두 맞추는 식단표를 만들기 어려웠어요.',
-            violations: result.check.violations,
-            lastPlan: result.lastPlan,
-            stats,
-          }),
-          terminate: true,
-        };
-      } catch (error) {
-        // 던지면 바깥 모델이 이 도구를 다시 부를 수 있다 (리뷰 1번). 결과로 답하고 턴을 끝낸다
-        return { output: toJson(planFailure(startedAt, error, log)), terminate: true };
-      }
+          if (!interviewResult || resolved.kind === 'no_classes') {
+            const output: PlanToolOutput = { status: 'no_classes', message: NO_CLASSES_MESSAGE };
+            return { output: toJson(output), terminate: true };
+          }
+          const { classes } = resolved;
+          const ctx = planContext(interviewResult, classes);
+          // durable(B12): 복구 뒤 다시 돌아도 ID·시각·주 시작·예산 시작이 처음 값 그대로다
+          const start = await step.do('start', () => ({
+            planId: crypto.randomUUID(),
+            createdAt: new Date().toISOString(),
+            startedAt: Date.now(),
+            weekStart: planWeekStart(period?.weekStart, new Date()),
+          }));
+          const { startedAt } = start;
+
+          try {
+            // LLM 호출(사용량 기록 포함)은 llm:N step 안에서 돈다. 끝난 호출은 복구 때 다시 부르지 않는다
+            const generator = steppedGenerator(pickGenerator(metered(harness, meter, log)), step);
+            const result = await createPlan(generator, ctx, {
+              planId: start.planId,
+              createdAt: start.createdAt,
+              weekStart: start.weekStart,
+              events: structuredClone(period?.events ?? []),
+              // 도구 전체 시간 상한 (tasks.md T8-4)
+              budget: { totalMs: PLAN_TOOL_BUDGETS.createPlan, now: Date.now, startedAt },
+            });
+            const stats = toolStats(startedAt, result, log);
+            log.info('식단표 생성 끝', { ok: result.ok, ...stats });
+
+            if (result.ok) {
+              // 칸 수정이 같은 분류로 점검하도록 사용자가 바꾼 분류를 저장한다. 실패하면 저장된 분류는 그대로 둔다 (T9-2)
+              // 에이전트 상태 쓰기는 도구 결과와 함께 커밋되므로 step 밖에 둔다 (B10c 조사)
+              saveClasses(classes);
+              savePlan(result.plan);
+              if (store) {
+                const plan = result.plan;
+                await persistQuietly(log, '식단표', () => step.do('persist', () => persistPlan(store.storage, store.userId, plan)));
+              }
+              return {
+                output: toJson({
+                  status: 'ok',
+                  plan: result.plan,
+                  summary: formatCheckSummary(result.check.stats, ctx.profile),
+                  // 고른 주가 이미 시작해 다음 주로 만들었으면 알린다 (T10-5)
+                  notices: buildPlanNotices(ctx.profile, {
+                    chosen: period?.weekStart,
+                    weekStart: start.weekStart,
+                    hasEvents: (period?.events.length ?? 0) > 0,
+                  }),
+                  stats,
+                }),
+                // 식단표는 도구 결과로 화면에 보여 준다. 모델이 14칸을 다시 풀어 쓰며 Neuron을 쓰지 않게 여기서 끝낸다.
+                terminate: true,
+              };
+            }
+            if (result.reason === 'quota') {
+              return { output: toJson({ status: 'quota', message: QUOTA_EXCEEDED_MESSAGE, stats }), terminate: true };
+            }
+            return {
+              output: toJson({
+                status: 'violations',
+                message: '조건을 모두 맞추는 식단표를 만들기 어려웠어요.',
+                violations: result.check.violations,
+                lastPlan: result.lastPlan,
+                stats,
+              }),
+              terminate: true,
+            };
+          } catch (error) {
+            // 던지면 바깥 모델이 이 도구를 다시 부를 수 있다 (리뷰 1번). 결과로 답하고 턴을 끝낸다
+            return { output: toJson(planFailure(startedAt, error, log)), terminate: true };
+          }
+        },
+      );
     },
   });
 }

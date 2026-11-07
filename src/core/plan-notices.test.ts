@@ -11,3 +11,30 @@ describe('buildPlanNotices', () => {
     expect(buildPlanNotices({ medication })).toEqual([MEDICAL_DISCLAIMER, MEDICATION_ADVICE]);
   });
 });
+
+// tasks.md T10-5: 고른 주가 이미 시작해 planWeekStart가 다음 주로 민 경우
+describe('주가 밀렸을 때 안내 (T10-5)', () => {
+  it('고른 시작일과 만든 시작일이 같거나 고른 값이 없으면 안내 없음', () => {
+    expect(buildPlanNotices({ medication: 'none' }, { chosen: '2026-11-09', weekStart: '2026-11-09', hasEvents: true })).toEqual([
+      MEDICAL_DISCLAIMER,
+    ]);
+    expect(buildPlanNotices({ medication: 'none' }, { chosen: undefined, weekStart: '2026-11-16', hasEvents: true })).toEqual([
+      MEDICAL_DISCLAIMER,
+    ]);
+  });
+
+  it('밀렸으면 맨 앞에 두 날짜를 알린다', () => {
+    expect(buildPlanNotices({ medication: 'none' }, { chosen: '2026-11-09', weekStart: '2026-11-16', hasEvents: false })).toEqual([
+      '고른 주(11/9~)가 이미 시작돼 다음 주(11/16~)로 만들었어요.',
+      MEDICAL_DISCLAIMER,
+    ]);
+  });
+
+  it('일정이 있으면 같은 요일·끼니에 넣었다고 덧붙인다', () => {
+    expect(buildPlanNotices({ medication: 'glucose' }, { chosen: '2026-12-28', weekStart: '2027-01-04', hasEvents: true })).toEqual([
+      '고른 주(12/28~)가 이미 시작돼 다음 주(1/4~)로 만들었어요. 일정은 같은 요일·끼니에 넣었어요.',
+      MEDICAL_DISCLAIMER,
+      MEDICATION_ADVICE,
+    ]);
+  });
+});

@@ -9,6 +9,7 @@ import { isPlanRequest } from '../core/plan-request.ts';
 import { sameSlot } from '../core/helpers.ts';
 import { DAY_LABELS, MEAL_LABELS } from '../core/labels.ts';
 import type { EditToolOutput, PlanToolOutput } from '../core/plan-tool-output.ts';
+import { isDuplicateOutput } from '../core/tool-gate.ts';
 import type { Plan, Slot } from '../core/types.ts';
 
 export const CREATE_TOOL = 'create_week_plan';
@@ -141,8 +142,13 @@ function lastToolCall(messages: FlueConversationMessage[]): ToolPart | undefined
   return undefined;
 }
 
+/** 이 화면의 도구 호출. 같은 응답에서 여러 번 불러 게이트에 진 호출(duplicate, T10-2)은 없는 것으로 본다 */
 function isPlanTool(part: FlueConversationMessage['parts'][number]): part is ToolPart {
-  return part.type === 'dynamic-tool' && (part.toolName === CREATE_TOOL || part.toolName === EDIT_TOOL);
+  return (
+    part.type === 'dynamic-tool' &&
+    (part.toolName === CREATE_TOOL || part.toolName === EDIT_TOOL) &&
+    !(part.state === 'output-available' && isDuplicateOutput(part.output))
+  );
 }
 
 function toView(output: { plan: Plan; summary: string[]; notices: string[] }): PlanView {

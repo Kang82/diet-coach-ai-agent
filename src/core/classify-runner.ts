@@ -1,7 +1,7 @@
 // 메뉴 분류 도구(classify_menus)의 판단 (스펙 4.2, tasks.md B5·B6, T9-5).
 // 도구(agents/classify-menus-tool.ts)는 이 결과의 save가 있을 때만 분류와 기간을 저장하고 output을 돌려준다.
 // 분류가 실패하면 기간도 저장하지 않는다(다시 요청하면 같은 일정으로 다시 정한다).
-import type { ClassifyToolOutput, ClassifyToolStats } from './classify-tool-output.ts';
+import type { ClassifyRunOutput, ClassifyToolStats } from './classify-tool-output.ts';
 import { nextMondayKst } from './helpers.ts';
 import type { InterviewResult } from './interview.ts';
 import { runClassification, type MenuClassifier } from './menu-classifier.ts';
@@ -15,7 +15,7 @@ export const NO_INTERVIEW_MESSAGE = '인터뷰를 먼저 마쳐 주세요.';
 export const BAD_EVENTS_MESSAGE = '일정을 읽지 못했어요. 기간 선택 화면에서 다시 넣어 주세요.';
 
 export interface ClassifyRequestResult {
-  output: ClassifyToolOutput;
+  output: ClassifyRunOutput;
   /** 성공했을 때만 있다 */
   save?: { classes: MenuClassification[]; period: PlanPeriod };
   /** 분류기가 던진 에러 (도구가 로그로 남긴다) */

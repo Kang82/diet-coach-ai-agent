@@ -36,7 +36,9 @@ export type PlanToolOutput =
   /** 인터뷰나 메뉴 분류가 끝나지 않았음. LLM을 부르지 않는다 */
   | { status: 'no_classes'; message: string }
   /** `식단표 만들기:` 메시지 형식이 깨짐 (tasks.md T9-1). LLM을 부르지 않는다. 같은 메시지를 다시 보내도 같아서 다시 시도가 없다 */
-  | { status: 'bad_request'; message: string };
+  | { status: 'bad_request'; message: string }
+  /** 모델이 한 응답에서 이 도구를 여러 번 불러 게이트에 진 호출 (tasks.md T10-2). LLM을 부르지 않는다. 화면은 건너뛴다 */
+  | { status: 'duplicate'; message: string };
 
 /**
  * 칸 다시 추천 도구(edit_plan_cells)의 결과 (스펙 4.4-4).
@@ -57,7 +59,9 @@ export type EditToolOutput =
       stats: PlanToolStats;
     }
   | {
-      status: 'violations' | 'quota' | 'timeout' | 'error' | 'invalid_targets' | 'stale_plan' | 'no_plan' | 'bad_request';
+      status: 'violations' | 'quota' | 'timeout' | 'error' | 'invalid_targets' | 'stale_plan' | 'no_plan' | 'bad_request'
+        /** 같은 응답의 중복 호출 (T10-2). 화면은 건너뛴다 */
+        | 'duplicate';
       message: string;
       targets?: Slot[];
       stats?: PlanToolStats;

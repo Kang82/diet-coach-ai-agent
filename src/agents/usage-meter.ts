@@ -14,3 +14,11 @@ export const usageMeter: NeuronMeter = {
     await new D1GuardStore(env.DB as D1Like).addNeurons(utcHour(new Date()), neurons);
   },
 };
+
+/**
+ * 미들웨어가 둔 진행 중 예약(T10-4)을 지운다. key는 대화 ID (server/guard.ts).
+ * 비싼 도구가 끝날 때 부른다(plan-tool-support.ts runGuarded)
+ */
+export function reservationRelease(conversationId: string): () => Promise<void> {
+  return () => new D1GuardStore(env.DB as D1Like).release(conversationId);
+}

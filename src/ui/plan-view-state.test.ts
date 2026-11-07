@@ -5,6 +5,7 @@ import { planA } from '../core/__fixtures__/persona-a.ts';
 import { formatEditRequest } from '../core/edit-request.ts';
 import { formatPlanRequest } from '../core/plan-request.ts';
 import type { EditToolOutput, PlanToolOutput } from '../core/plan-tool-output.ts';
+import { DUPLICATE_TOOL_MESSAGE } from '../core/tool-gate.ts';
 import type { Plan } from '../core/types.ts';
 import { EDIT_FAILED, GENERIC_ERROR, toPlanViewState, type PlanViewInput } from './plan-view-state.ts';
 
@@ -89,6 +90,28 @@ const input = (patch: Partial<PlanViewInput>): PlanViewInput => ({
 
 /** 식단표를 만든 대화 (s1) */
 const created = () => [userMsg(CREATE, 's1'), assistantMsg('s1', done(ok))];
+
+describe('toPlanViewState: 같은 응답에서 두 번 부른 호출 (T10-2)', () => {
+  const dup = { status: 'duplicate', message: DUPLICATE_TOOL_MESSAGE };
+
+  it('막힌 호출(duplicate)은 건너뛰고 실제로 돈 호출 결과를 보여 준다', () => {
+    for (const parts of [[done(ok), done(dup)], [done(dup), done(ok)]]) {
+      const messages = [userMsg(CREATE, 's1'), assistantMsg('s1', ...parts)];
+      expect(toPlanViewState(input({ messages, settlements: [settled('s1')] }))).toEqual({ kind: 'done', view: { plan: planA, summary: ok.summary, notices: ok.notices } });
+    }
+  });
+
+  it('막힌 호출만 끝나고 실제 호출이 도는 중이면 creating', () => {
+    const messages = [userMsg(CREATE, 's1', '2026-11-06T08:00:00Z'), assistantMsg('s1', done(dup), pending())];
+    expect(toPlanViewState(input({ status: 'streaming', messages }))).toEqual({ kind: 'creating', startedAt: '2026-11-06T08:00:00Z' });
+  });
+
+  it('칸 수정도 막힌 호출을 건너뛴다', () => {
+    const messages = [...created(), userMsg(EDIT, 's2'), assistantMsg('s2', done(editOk(), 'edit_plan_cells'), done(dup, 'edit_plan_cells'))];
+    const state = toPlanViewState(input({ messages, settlements: [settled('s1'), settled('s2')] }));
+    expect(state).toMatchObject({ kind: 'done', editNotice: { tone: 'info' } });
+  });
+});
 
 describe('toPlanViewState: 만들기', () => {
   it('기록을 읽기 전에는 loading', () => {

@@ -1,5 +1,5 @@
 // 스펙 11.4 한도 보호 미들웨어. app.ts에서 에이전트 라우터 앞에 둔다.
-// 순서: 토큰 → 대화 소유 → (새 메시지만) 전체 안전선 → 사용자 하루 횟수.
+// 순서: 토큰 → 대화 소유 → (새 메시지만) 전체 안전선 → (비싼 종류면) 예약 포함 안전선 → 종류별 하루 횟수 → 사용자 하루 횟수 → 예약.
 // 횟수와 안전선은 새 메시지 POST에만 건다. SDK는 대화 읽기(GET 스트림)가 429를 받으면 끝없이 다시 시도하고,
 // send(POST)는 다시 시도하지 않기 때문이다. 읽기와 abort는 진행 중인 요청이라 막지 않는다.
 import type { Context, MiddlewareHandler } from 'hono';
@@ -10,11 +10,16 @@ import {
   GLOBAL_DAILY_NEURON_LIMIT,
   hashToken,
   isMessagePost,
+  messageKindOfRaw,
+  RESERVATION_TTL_MS,
+  RESERVE_NEURONS,
+  USER_DAILY_KIND_LIMITS,
   neuronWindowStart,
   ownsConversation,
   USER_DAILY_MESSAGE_LIMIT,
   utcDay,
 } from '../core/guard.ts';
+import { isExpensiveKind } from '../core/message-kind.ts';
 import type { GuardStore } from '../storage/guard-store.ts';
 
 export interface GuardOptions {
@@ -46,12 +51,34 @@ export function guardAgentRoutes(mount: string, options: GuardOptions): Middlewa
         return c.json(errorBody('message_rejected'), raw === undefined ? 413 : 400);
       }
       const at = now();
+      const day = utcDay(at);
       // 전체 안전선은 최근 24시간 합계, 사용자 횟수는 날짜(UTC) 기준 (tasks.md T7-5)
-      if ((await store.neuronsSince(neuronWindowStart(at))) >= GLOBAL_DAILY_NEURON_LIMIT) {
-        return c.json(errorBody('global_daily_limit'), 429);
+      const used = await store.neuronsSince(neuronWindowStart(at));
+      if (used >= GLOBAL_DAILY_NEURON_LIMIT) return c.json(errorBody('global_daily_limit'), 429);
+
+      // 비싼 메시지(분류·만들기·칸 수정): 진행 중 예약까지 더해 보고, 종류별 하루 횟수를 센다 (T10-3, T10-4).
+      // 종류 횟수를 30회보다 먼저 센다. 종류에서 막히면 30회를 쓰지 않는다
+      const kind = messageKindOfRaw(raw);
+      const conversation = safeDecode(conversationId);
+      if (isExpensiveKind(kind)) {
+        const reserved = await store.reservedNeurons(at.toISOString(), conversation);
+        if (used + reserved + RESERVE_NEURONS[kind] > GLOBAL_DAILY_NEURON_LIMIT) {
+          return c.json(errorBody('global_daily_limit'), 429);
+        }
+        if (!(await store.tryCountKind(userId, kind, day, USER_DAILY_KIND_LIMITS[kind]))) {
+          return c.json(errorBody('user_kind_limit', kind), 429);
+        }
       }
-      if (!(await store.tryCountMessage(userId, utcDay(at), USER_DAILY_MESSAGE_LIMIT))) {
+      if (!(await store.tryCountMessage(userId, day, USER_DAILY_MESSAGE_LIMIT))) {
         return c.json(errorBody('user_daily_limit'), 429);
+      }
+      if (isExpensiveKind(kind)) {
+        // 도구가 끝나면 에이전트가 지운다(agents/usage-meter.ts). 못 지워도 만료로 풀린다
+        await store.reserve(conversation, RESERVE_NEURONS[kind], new Date(at.getTime() + RESERVATION_TTL_MS).toISOString());
+        await next();
+        // 에이전트가 받지 않았으면(202가 아님) 도구가 돌지 않으니 예약을 지운다
+        if (c.res.status !== 202) await store.release(conversation);
+        return;
       }
     }
     await next();
