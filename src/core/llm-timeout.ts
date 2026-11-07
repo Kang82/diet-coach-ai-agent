@@ -45,3 +45,13 @@ export const MIN_REGENERATE_MS = 2 * 60_000;
 export function callLimit(callMaxMs: number, limitMs: number | undefined): number {
   return limitMs === undefined ? callMaxMs : Math.max(0, Math.min(callMaxMs, limitMs));
 }
+
+/**
+ * 제출(메시지) 하나의 복구 한도 (B12, Flue `durability` static). Flue 기본은 10회·1시간이라 복구가 되풀이되면 Neuron을 많이 쓴다.
+ * 만들기 예산 10분(PLAN_TOOL_BUDGETS) + 바깥 턴 + 복구 한두 번 여유로 20분. durable 식단 도구는 예산을 처음 시작 시각부터 재므로
+ * 복구가 있어도 도구는 대개 10분 안에 끝난다. 20분을 넘으면 Flue가 제출을 실패로 끝낸다(마지막 안전장치)
+ */
+export const SUBMISSION_DURABILITY = {
+  maxAttempts: 3,
+  timeoutMs: 20 * 60_000,
+} as const;

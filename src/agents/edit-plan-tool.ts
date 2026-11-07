@@ -7,6 +7,7 @@ import { parseEditRequest } from '../core/edit-request.ts';
 import { formatCheckSummary } from '../core/format-summary.ts';
 import { PLAN_TOOL_BUDGETS } from '../core/llm-timeout.ts';
 import { editPlanCells } from '../core/plan-loop.ts';
+import { steppedGenerator } from '../core/stepped-generator.ts';
 import { buildPlanNotices } from '../core/plan-notices.ts';
 import type { EditToolOutput } from '../core/plan-tool-output.ts';
 import { QUOTA_EXCEEDED_MESSAGE } from '../core/quota.ts';
@@ -43,7 +44,9 @@ export function editPlanCellsTool({
     description: '사용자가 고른 식단표 칸을 다시 추천한다. 어떤 칸인지는 도구가 사용자 메시지에서 직접 읽는다. 1~2분 걸린다.',
     input: v.object({}),
     harness: true,
-    async run({ harness, log }) {
+    // Durable Object가 재시작돼도 끝난 LLM 호출을 버리지 않고 이어 간다 (B12, tasks.md T8-3)
+    durable: true,
+    async run({ harness, log, step }) {
       const done = (output: EditToolOutput) => ({ output: toJson(output), terminate: true });
 
       const parsed = delivery.kind === 'user' ? parseEditRequest(delivery.body) : undefined;
@@ -54,13 +57,16 @@ export function editPlanCellsTool({
       }
 
       const ctx = planContext(interviewResult, menuClasses);
-      const startedAt = Date.now();
+      // durable(B12): 복구 뒤 다시 돌아도 예산은 처음 시작 시각부터 잰다
+      const { startedAt } = await step.do('start', () => ({ startedAt: Date.now() }));
       try {
-        const result = await editPlanCells(pickGenerator(metered(harness, meter, log)), ctx, plan, {
+        // LLM 호출(사용량 기록 포함)은 llm:N step 안에서 돈다. 끝난 호출은 복구 때 다시 부르지 않는다
+        const generator = steppedGenerator(pickGenerator(metered(harness, meter, log)), step);
+        const result = await editPlanCells(generator, ctx, plan, {
           targets,
           userRequest: parsed.request,
           // 도구 전체 시간 상한 (tasks.md T8-4)
-          budget: { totalMs: PLAN_TOOL_BUDGETS.editPlanCells, now: Date.now },
+          budget: { totalMs: PLAN_TOOL_BUDGETS.editPlanCells, now: Date.now, startedAt },
         });
         const stats = toolStats(startedAt, result, log);
         log.info('칸 다시 추천 끝', { ok: result.ok, reason: result.ok ? undefined : result.reason, ...stats });
@@ -69,7 +75,7 @@ export function editPlanCellsTool({
           savePlan(result.plan);
           if (store) {
             const plan = result.plan;
-            await persistQuietly(log, '고친 식단표', () => persistPlan(store.storage, store.userId, plan));
+            await persistQuietly(log, '고친 식단표', () => step.do('persist', () => persistPlan(store.storage, store.userId, plan)));
           }
           return done({
             status: 'ok',

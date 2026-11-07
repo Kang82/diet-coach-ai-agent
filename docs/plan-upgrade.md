@@ -13,6 +13,7 @@ Workers AI 무료 티어(하루 10,000 Neuron, 넘으면 호출 실패, 자동 �
 | 카운터 기간 | 안전선: 최근 24시간 합계(시간 칸 25개, 24~25시간). 사용자 메시지 수: 날짜(00:00 UTC, 한국 오전 9시 초기화) | Workers AI 무료 한도가 문서와 달리 최근 24시간 합계로 세는 것처럼 동작했다(2026-11-07, 초기화 직후 1,099 Neuron에서 막힘, `experiments/2026-11-07-t1-7-eval-personas.md`). 날짜 기준이면 전날 늦게 쓴 양을 못 본다(T7-5). 사용자 횟수는 남용 방지라 날짜 기준 그대로 | `src/core/guard.ts` `neuronWindowStart`, `utcDay`, `migrations/0003_usage_hourly.sql` |
 | 안내 문구 | 안전선·한도 초과: "오늘 사용할 수 있는 양을 다 썼어요. 몇 시간 뒤에 다시 해 주세요." / 사용자: "오늘 이용 횟수를 다 썼어요. 오전 9시 이후에…" | 안전선은 24시간 창이라 풀리는 시각을 말하지 않는다. 사용자 횟수는 날짜 기준 | `src/core/quota.ts`, `src/core/guard.ts` |
 | Workers Logs (B10) | 전부 수집(sampling 1), 무료 하루 20만 건·3일 보관. 2026-12-01부터 하루 0.5GB·7일 보관이고 넘으면 그날 수집 중단 | 사용자가 적어 전부 남긴다. 트래픽이 늘면 `head_sampling_rate`를 낮춘다 | `wrangler.jsonc` `observability` |
+| 제출 하나의 복구 한도 (B12) | 3회 시도, 20분 (Flue 기본 10회·1시간) | Durable Object 재시작 뒤 Flue가 제출을 다시 시도한다. durable 식단 도구는 끝난 LLM 호출을 다시 부르지 않지만 끊긴 호출은 처음부터 다시 부르므로(최악 그 호출 Neuron 두 배), 되풀이 횟수를 줄여 한도를 아낀다. 20분 = 만들기 예산 10분 + 바깥 턴 + 복구 여유 | `src/core/llm-timeout.ts` `SUBMISSION_DURABILITY` |
 | 모델 선택 | 기본 gemma, 목표 메모 llama-4-scout | 무료 한도 안에서 1회 사용 예산(스펙 11.2)을 맞추려고 | `src/agents/models.ts` |
 
 ## Workers Paid로 올릴 때

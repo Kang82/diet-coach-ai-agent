@@ -42,6 +42,8 @@ export interface LoopStats {
 export interface TimeBudget {
   totalMs: number;
   now: () => number;
+  /** 예산을 잴 시작 시각. durable 도구가 복구 뒤 다시 돌 때 처음 시작 기준으로 잇는다 (B12). 없으면 루프 시작 시각 */
+  startedAt?: number;
 }
 
 export interface CreatePlanInput {
@@ -249,7 +251,7 @@ interface Deadline {
 
 function deadline(budget: TimeBudget | undefined): Deadline {
   if (!budget) return { remaining: () => Infinity, options: () => undefined };
-  const end = budget.now() + budget.totalMs;
+  const end = (budget.startedAt ?? budget.now()) + budget.totalMs;
   const remaining = () => Math.max(0, end - budget.now());
   return { remaining, options: () => ({ limitMs: remaining() }) };
 }

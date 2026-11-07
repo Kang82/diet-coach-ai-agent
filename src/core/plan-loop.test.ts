@@ -644,6 +644,30 @@ describe('시간 예산', () => {
     expect(failureKind(error)).toBe('timeout');
   });
 
+  // B12: durable 도구가 복구 뒤 다시 돌 때 예산을 처음 시작 시각부터 잰다
+  it('startedAt이 있으면 그때부터 남은 시간을 잰다', async () => {
+    const c = clock();
+    const fake = new FakePlanGenerator({ plans: [planA.cells] });
+
+    await createPlan(fake, ctx(), { ...weekInput(), budget: { totalMs: 10 * MIN, now: c.now, startedAt: -4 * MIN } });
+
+    expect(limits(fake)).toEqual([6 * MIN]);
+  });
+
+  it('칸 수정: startedAt부터 재서 남은 시간이 모자라면 다시 추천을 멈춘다', async () => {
+    const c = clock();
+    const fake = new FakePlanGenerator({ regenerations: [c.after(MIN, [dairyLunch()])] });
+
+    const result = await editPlanCells(fake, ctx(), structuredClone(planA), {
+      targets: [s('tue', 'lunch')],
+      userRequest: '점심을 다른 걸로 바꿔 줘',
+      budget: { totalMs: 5 * MIN, now: c.now, startedAt: -3 * MIN },
+    });
+
+    expect(limits(fake)).toEqual([2 * MIN]);
+    expect(result).toMatchObject({ ok: false, reason: 'violations', plan: planA, regenerations: 1, stoppedForTime: true });
+  });
+
   it('호출이 시간 초과로 실패하면 PlanLoopError로 던지고 원인은 timeout이다', async () => {
     const fake = new FakePlanGenerator({ plans: [new LlmTimeoutError(10 * MIN)] });
 

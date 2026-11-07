@@ -3,6 +3,7 @@ import { type AgentProps, useDelivery, useModel, usePersistentState, useResponse
 import { EDIT_REQUEST_PREFIX } from '../core/edit-request.ts';
 import type { InterviewResult } from '../core/interview.ts';
 import { INTERVIEW_SUBMIT_PREFIX } from '../core/interview-form.ts';
+import { SUBMISSION_DURABILITY } from '../core/llm-timeout.ts';
 import { estimateNeurons } from '../core/neurons.ts';
 import { CLASSIFY_REQUEST, PLAN_REQUEST_PREFIX } from '../core/plan-request.ts';
 import type { PlanPeriod } from '../core/period.ts';
@@ -98,6 +99,9 @@ export function DietCoach({ id }: AgentProps) {
     `사용자 메시지가 "${PLAN_REQUEST_PREFIX}"로 시작하거나 식단표를 만들어 달라고 하면 ${CREATE_PLAN_TOOL} 도구를 한 번 부르세요. 바꾼 분류는 도구가 메시지에서 직접 읽으므로 입력은 비워 두세요.`,
   ].join('\n');
 }
+
+// 제출 하나의 복구 한도: 3회, 20분 (B12, core/llm-timeout.ts). Flue 기본(10회·1시간)이면 복구가 되풀이될 때 Neuron을 많이 쓴다
+DietCoach.durability = { ...SUBMISSION_DURABILITY };
 
 /** 사용자 ID를 알 수 있는 대화(웹 화면, 평가 세트)만 서버에 저장한다 */
 function userStoreFor(conversationId: string): UserStore | undefined {

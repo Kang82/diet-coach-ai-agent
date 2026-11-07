@@ -12,6 +12,7 @@ import type { PlanToolOutput } from '../core/plan-tool-output.ts';
 import type { MenuClassification } from '../core/types.ts';
 import { PLAN_TOOL_BUDGETS } from '../core/llm-timeout.ts';
 import { createPlan } from '../core/plan-loop.ts';
+import { steppedGenerator } from '../core/stepped-generator.ts';
 import { buildPlanNotices } from '../core/plan-notices.ts';
 import { QUOTA_EXCEEDED_MESSAGE } from '../core/quota.ts';
 import type { NeuronMeter } from './metered-harness.ts';
@@ -53,7 +54,9 @@ export function createWeekPlanTool({
     // 기간 선택 화면(T5-3)이 생기면 그쪽에서 정한 값을 넘긴다.
     input: v.object({}),
     harness: true,
-    async run({ harness, log }) {
+    // Durable Object가 재시작돼도 끝난 LLM 호출을 버리지 않고 이어 간다 (B12, tasks.md T8-3)
+    durable: true,
+    async run({ harness, log, step }) {
       // 정해진 형식이 아닌 메시지("식단표 만들어 줘" 등)면 바꾼 분류 없이 저장된 분류를 그대로 쓴다.
       // `식단표 만들기:`인데 형식이 깨졌으면 바꾼 분류를 버리지 않고 bad_request로 답한다 (T9-1)
       const resolved = resolvePlanClasses(delivery.kind === 'user' ? delivery.body : undefined, interviewResult?.meals, menuClasses);
@@ -67,27 +70,37 @@ export function createWeekPlanTool({
       }
       const { classes } = resolved;
       const ctx = planContext(interviewResult, classes);
-      const startedAt = Date.now();
+      // durable(B12): 복구 뒤 다시 돌아도 ID·시각·주 시작·예산 시작이 처음 값 그대로다
+      const start = await step.do('start', () => ({
+        planId: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+        startedAt: Date.now(),
+        weekStart: planWeekStart(period?.weekStart, new Date()),
+      }));
+      const { startedAt } = start;
 
       try {
-        const result = await createPlan(pickGenerator(metered(harness, meter, log)), ctx, {
-          planId: crypto.randomUUID(),
-          createdAt: new Date().toISOString(),
-          weekStart: planWeekStart(period?.weekStart, new Date()),
+        // LLM 호출(사용량 기록 포함)은 llm:N step 안에서 돈다. 끝난 호출은 복구 때 다시 부르지 않는다
+        const generator = steppedGenerator(pickGenerator(metered(harness, meter, log)), step);
+        const result = await createPlan(generator, ctx, {
+          planId: start.planId,
+          createdAt: start.createdAt,
+          weekStart: start.weekStart,
           events: structuredClone(period?.events ?? []),
           // 도구 전체 시간 상한 (tasks.md T8-4)
-          budget: { totalMs: PLAN_TOOL_BUDGETS.createPlan, now: Date.now },
+          budget: { totalMs: PLAN_TOOL_BUDGETS.createPlan, now: Date.now, startedAt },
         });
         const stats = toolStats(startedAt, result, log);
         log.info('식단표 생성 끝', { ok: result.ok, ...stats });
 
         if (result.ok) {
           // 칸 수정이 같은 분류로 점검하도록 사용자가 바꾼 분류를 저장한다. 실패하면 저장된 분류는 그대로 둔다 (T9-2)
+          // 에이전트 상태 쓰기는 도구 결과와 함께 커밋되므로 step 밖에 둔다 (B10c 조사)
           saveClasses(classes);
           savePlan(result.plan);
           if (store) {
             const plan = result.plan;
-            await persistQuietly(log, '식단표', () => persistPlan(store.storage, store.userId, plan));
+            await persistQuietly(log, '식단표', () => step.do('persist', () => persistPlan(store.storage, store.userId, plan)));
           }
           return {
             output: toJson({

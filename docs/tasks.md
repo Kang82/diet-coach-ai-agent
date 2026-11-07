@@ -25,7 +25,7 @@
 - 보안 리뷰에서 나온 설계 과제(T10-2~5): 메시지 하나가 비싼 도구를 병렬로 여러 번 부를 수 있음, 한 사람이 하루 한도를 다 쓸 수 있음, 동시 요청이 안전선을 넘침, 주가 밀릴 때 일정 날짜 안내. 사용자가 링크 1개뿐이라 B12 뒤에 한다
 
 **다음 할 일 (순서대로)**
-1. B12(T8-3) 결과 유실 막기: 식단 도구 2개를 durable로. 실험으로 범위 확정(T8-3 메모). 코드·단위 테스트는 Neuron 없음. 배포 뒤 실제 1회(약 400 Neuron)에 아래를 함께 본다
+1. B12(T8-3) 결과 유실 막기: 코드·테스트·로컬 재시작 확인은 끝(11-08 0시경, [기록](experiments/2026-11-08-b12-durable-plan-tools.md)). **남은 것: 배포(사용자 확인 뒤)와 배포본 실제 1회(약 400 Neuron)**. 테이블 변경 없음. 실제 1회 때 아래를 함께 본다
    - 두 번째 배포부터의 확인: Workers Traces span에 대화 내용이 없는지(`content: false`), 원격 `usage_hourly`에 새 시간 칸, 도구 안 Flue `log.info`가 Workers Logs에 나오는지
    - 알람 15분 가설: Durable Objects → FlueDietCoachAgent Observability에서 alarm 호출 시간과 끝난 이유
 2. T10-2~5: 배포 전 리뷰의 설계 과제. 사용자를 늘리기 전에
@@ -344,6 +344,12 @@
   - 선행: T8-1, T8-2, T8-5 남은 실험 (모두 끝남)
   - 실험으로 확정(2026-11-07 밤, B10c 기록 "결과"): durable이면 끝난 `llm:N` step은 다시 부르지 않고 끊긴 step만 다시 돈다. 도구 결과는 복구 커밋으로 남는다. 시작 시각을 step 밖에서 재면 복구 뒤 처음부터 다시 잰다(실험 `stats.seconds` 60) → `start` step에 planId·createdAt·startedAt을 넣는다. 실험 코드 diff는 버렸고 위 범위 초안대로 다시 짠다
   - 배포 뒤 실제 1회 때 함께 볼 것: "현재 상태 > 다음 할 일 1"
+  - 진행(2026-11-08 0시경): 코드·테스트·로컬 확인 끝. 남은 것은 배포와 배포본 실제 1회
+    - 결정: `core/stepped-generator.ts`의 `steppedGenerator(gen, step)`가 호출마다 `step.do('llm:N')`(만들기·다시 추천 공통 순번). core는 Flue를 import하지 않아 `StepRunner` 최소 인터페이스를 둔다. 안쪽이 던지면 기록하지 않고 같은 에러가 올라온다(Flue `createToolStep` 소스 확인)
+    - 결정: `TimeBudget.startedAt`(선택). 만들기는 `start` step에 planId·createdAt·startedAt·weekStart(자정 경계 복구 대비), 칸 수정은 startedAt만. `toolStats`·`planFailure`도 이 시각 기준
+    - 결정: D1 저장은 `persist` step, `saveClasses`·`savePlan`은 step 밖(도구 결과와 함께 커밋). 분류·인터뷰 도구는 그대로
+    - 결정: `DietCoach.durability = SUBMISSION_DURABILITY`(3회, 20분, `core/llm-timeout.ts`). `plan-upgrade.md`에 적음
+    - 확인: 테스트 587개(새 6개: steppedGenerator 4, 예산 startedAt 2), 타입 검사, 빌드. 로컬 데모 생성기로 만들기·칸 수정 도중 서버 강제 종료 → `start`는 기록값, `llm:1`만 다시 돌아 `ok`, `stats.seconds` 124·127초 ([기록](experiments/2026-11-08-b12-durable-plan-tools.md))
 
 - [x] **T8-4. 도구 전체 시간 상한과 추론 수준 배선** (B10a, Neuron 없음) (2026-11-07)
   - 지금은 호출마다 제한(생성 8분, 다시 추천 4분)만 있어 도구 전체로는 20분 가까이 걸릴 수 있다. 만들기·칸 수정 도구에 전체 예산을 두고, 다음 호출은 남은 시간 안에서만 부른다. 남은 시간이 모자라면 다시 추천을 멈추고 지금까지의 결과로 끝낸다(위반이면 `violations`, 시간이면 `timeout`)
