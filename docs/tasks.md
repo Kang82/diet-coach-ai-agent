@@ -416,6 +416,7 @@
     - ① 직접 2턴 호출: mistral-small은 Flue 모양 그대로 200(보정 불필요, 출력 상한 256만 넣음). gpt-oss는 Flue 모양 400 재현, 문자열 content로 맞추면 200이고 `finish`를 제대로 부름
     - ② 결정: 식단 생성·다시 추천·메뉴 분류 프롬프트 첫 줄 `FINISH_ONLY`("이 요청에서는 다른 도구를 부르지 말고 결과를 finish 도구로만 보내세요."), 바깥 지시는 접두어 조건을 되살림(`agents/agent-instructions.ts`). `harness.prompt`에 지시·도구를 바꾸는 옵션이 없어 문구로 막는다
     - ③ 결정: `output-caps.ts`가 후보 모델 전체에 상한 또는 `null`을 명시(타입으로 강제), gpt-oss만 `PAYLOAD_FIXES`(`onPayload`로 문자열 content). 자기 키만 보고 숫자만 쓴다(커밋 뒤 자동 보안 리뷰 2건 반영)
+  - 진행 3차(2026-11-08 08:33 KST, 사용자 결정: gpt-oss low만 지금): **페르소나 E에서 72초, 출력 3,585토큰, 306 Neuron, 첫 생성에 `checkPlan` 통과**(재요청·다시 추천 없음) ([기록](experiments/2026-11-08-b14-gpt-oss-low-run.md)). 약 376 Neuron. 바깥 턴(gemma)은 바뀐 접두어 조건 지시로 도구를 정상 호출. 품질 확인할 점: 흰쌀·흰빵 칸에 `refined_carb_main` 태그 누락(혈당 제한을 태그 누락으로 통과했을 수 있음), 외식 칸 주문 팁 빈 곳 많음. 1회라 흔들림은 모름
     - 남은 것: 페르소나 E로 gemma·gpt-oss-120b(low)·mistral-small 실제 비교(한도가 풀린 날, 약 2,500~4,000 Neuron). mistral은 `PLAN_MODEL=mistral`로 바로 시험할 수 있다(후보와 상한 등록됨). 바깥 턴 지시가 바뀌었으니 바깥 턴이 도구를 제대로 부르는지도 함께 본다
 
 ### T9. B5·B6 리뷰 남은 버그 (B10b, Neuron 없음)
