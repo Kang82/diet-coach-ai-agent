@@ -133,4 +133,8 @@ describe('watchBinding', () => {
     expect(watched.models()).toBe('models');
     expect(streamStats(watch, clock.now).requests).toBe(1);
   });
+
+  it('바인딩이 아직 없으면(배포 시작 검증) 감싸지 않고 그대로 돌려준다', () => {
+    expect(watchBinding(undefined as unknown as { run: () => Promise<unknown> })).toBeUndefined();
+  });
 });

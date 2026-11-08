@@ -53,6 +53,8 @@ type RunFn = (...args: any[]) => Promise<unknown>;
  * 지켜보는 호출 밖이거나 Response가 아니면 그대로 돌려준다. 다른 속성(models 등)은 원래 바인딩의 것을 쓴다
  */
 export function watchBinding<B extends { run: RunFn }>(binding: B): B {
+  // 배포 시작 검증(전역 평가)에서는 env.AI가 아직 없다. 감싸지 않고 그대로 넘긴다(2026-11-08 배포 실패 10021)
+  if (typeof binding !== 'object' || binding === null) return binding;
   const run: RunFn = async (...args) => {
     const watch = storage.getStore();
     if (!watch) return binding.run(...args);
