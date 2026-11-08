@@ -22,6 +22,9 @@ import type {
   Violation,
 } from './types.ts';
 
+
+/** 같은 주재료 집밥 칸을 1주일에 넣을 수 있는 횟수 (T18, 사용자 결정 2026-11-08) */
+export const MAIN_INGREDIENT_WEEKLY_MAX = 3;
 export function checkPlan(
   plan: Plan,
   profile: Profile,
@@ -173,6 +176,39 @@ export function checkPlan(
         cells: list.map(toSlot),
         regenerate: list.slice(weeklyMax).map(toSlot),
         detail: list[0]!.menuId,
+      });
+    }
+  }
+
+  // 같은 주재료 (T18): 집밥 칸 중 mainIngredient가 있는 칸만. 외식은 메뉴 규칙이 맡는다
+  const mainKey = (cell: PlanCell) => (cell.place === 'home' && cell.mainIngredient ? menuKey(cell.mainIngredient) : '');
+  // main_ingredient_consecutive: 시간순으로 바로 이어진 두 집밥 칸. 같은 메뉴라 consecutive_menu로 보고한 쌍은 건너뛴다
+  for (let i = 1; i < cells.length; i++) {
+    const prev = cells[i - 1]!;
+    const cur = cells[i]!;
+    const key = mainKey(cur);
+    if (!key || key !== mainKey(prev) || menuKey(prev.menuId) === menuKey(cur.menuId)) continue;
+    violations.push({
+      rule: 'main_ingredient_consecutive',
+      cells: [toSlot(prev), toSlot(cur)],
+      regenerate: [toSlot(cur)],
+      detail: prev.mainIngredient!.trim(),
+    });
+  }
+  // main_ingredient_weekly_limit: 같은 주재료 집밥 주 MAIN_INGREDIENT_WEEKLY_MAX회 초과
+  const byMain = new Map<string, PlanCell[]>();
+  for (const cell of cells) {
+    const key = mainKey(cell);
+    if (!key) continue;
+    byMain.set(key, [...(byMain.get(key) ?? []), cell]);
+  }
+  for (const list of byMain.values()) {
+    if (list.length > MAIN_INGREDIENT_WEEKLY_MAX) {
+      violations.push({
+        rule: 'main_ingredient_weekly_limit',
+        cells: list.map(toSlot),
+        regenerate: list.slice(MAIN_INGREDIENT_WEEKLY_MAX).map(toSlot),
+        detail: list[0]!.mainIngredient!.trim(),
       });
     }
   }

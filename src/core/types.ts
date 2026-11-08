@@ -104,6 +104,8 @@ export interface PlanCell extends Slot {
   cookMinutes: number;
   reason: string;
   criterionIds: CriterionId[];
+  /** 집밥 칸의 주재료 한 단어 (LLM이 적음, T18). 같은 주재료 반복 규칙에 쓴다. 없으면 그 규칙에서 빠진다 */
+  mainIngredient?: string;
 }
 
 export interface PlanEvent extends Slot {
@@ -140,6 +142,8 @@ export const RULE_IDS = [
   'consecutive_menu',
   'same_meal_consecutive_days', // 같은 끼니, 연속된 요일에 같은 메뉴
   'menu_weekly_limit', // 같은 메뉴 주 2회 초과
+  'main_ingredient_consecutive', // 이어진 두 집밥 칸의 주재료가 같음 (T18)
+  'main_ingredient_weekly_limit', // 같은 주재료 집밥 주 3회 초과 (T18)
   'cook_time_exceeded',
   'reason_criterion',
 ] as const;

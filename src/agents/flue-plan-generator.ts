@@ -5,8 +5,7 @@ import type { PlanGenerator, TokenUsage } from '../core/plan-generator.ts';
 import { finishCells } from '../core/plan-cells.ts';
 import { buildGeneratePrompt, buildRegeneratePrompt } from '../core/plan-prompt.ts';
 import { callLimit, LLM_TIME_LIMITS, type StreamStats } from '../core/llm-timeout.ts';
-import type { PlanCell } from '../core/types.ts';
-import { PlanCellsResultSchema } from './plan-schema.ts';
+import { PlanCellsResultSchema, toPlanCells, type RawPlanCell } from './plan-schema.ts';
 import { promptWatched } from './prompt-call.ts';
 
 /** harness 중 이 구현이 쓰는 부분. 테스트에서 가짜를 넣기 쉽게 좁혀 둔다. */
@@ -28,17 +27,18 @@ export function createFluePlanGenerator(harness: PromptHarness, options: FluePla
     async generatePlan(input, callOptions) {
       const callMaxMs = LLM_TIME_LIMITS.generatePlan;
       const { res, stream } = await call(harness, buildGeneratePrompt(input), extra, callLimit(callMaxMs, callOptions?.limitMs), callMaxMs);
-      return { value: finishCells(res.data.cells, input.profile, input.classes), usage: withStream(toTokenUsage(res), stream) };
+      return { value: finishCells(toPlanCells(res.data), input.profile, input.classes), usage: withStream(toTokenUsage(res), stream) };
     },
     async regenerateCells(input, callOptions) {
       const callMaxMs = LLM_TIME_LIMITS.regenerateCells;
       const { res, stream } = await call(harness, buildRegeneratePrompt(input), extra, callLimit(callMaxMs, callOptions?.limitMs), callMaxMs);
-      return { value: finishCells(res.data.cells, input.profile, input.classes), usage: withStream(toTokenUsage(res), stream) };
+      return { value: finishCells(toPlanCells(res.data), input.profile, input.classes), usage: withStream(toTokenUsage(res), stream) };
     },
   } satisfies PlanGenerator;
 }
 
-type CellsResponse = PromptResultResponse<{ cells: PlanCell[] }>;
+// 스키마가 받아 준 모양(값 하나 문자열, null 배열)은 toPlanCells가 PlanCell로 맞춘다
+type CellsResponse = PromptResultResponse<{ cells: RawPlanCell[] }>;
 
 /**
  * 한도 초과는 QuotaExceededError(루프가 즉시 멈춤), 시간 초과는 원인을 실은 LlmTimeoutError로 바뀐다 (prompt-call.ts).
@@ -52,7 +52,6 @@ async function call(
   callMaxMs: number,
 ): Promise<{ res: CellsResponse; stream: StreamStats }> {
   const out = await promptWatched(harness, text, { result: PlanCellsResultSchema, ...extra }, limitMs, { callMaxMs });
-  // valibot 출력 타입의 tags 등은 PlanCell과 같은 리터럴 유니온이다.
   return { res: out.response as CellsResponse, stream: out.stream };
 }
 

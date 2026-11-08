@@ -11,6 +11,7 @@ import type { MenuClassification, PlanCell, Profile } from './types.ts';
  * - 외식 orderTip: 그 메뉴 분류의 주문 팁이 있으면 그것(모델 팁보다 우선, 다른 메뉴 팁을 옮겨 적는 실수 방지),
  *   없으면 모델이 쓴 팁. 모델은 제목에 팁을 쓴 칸에만 orderTip을 채우고 나머지는 비웠다(B14 기록)
  * - 집밥: menuId만 정규화한다
+ * - 주재료(mainIngredient): 앞뒤 공백을 뗀다 (T18)
  */
 export function finishCells(
   cells: readonly PlanCell[],
@@ -18,7 +19,9 @@ export function finishCells(
   classes: readonly MenuClassification[],
 ): PlanCell[] {
   const tipsOf = new Map(classes.map((c) => [c.menu, c.orderTips]));
-  return cells.map((cell) => {
+  return cells.map((raw) => {
+    // 주재료는 앞뒤 공백을 뗀다 (T18, 같은 주재료 규칙은 menuKey로 비교)
+    const cell = raw.mainIngredient === undefined ? raw : { ...raw, mainIngredient: raw.mainIngredient.trim() };
     if (cell.place !== 'eat_out') return { ...cell, menuId: normalizeMenuId(cell.menuId) };
     const setting = profile.meals.find((m) => m.dayType === dayType(cell.day) && m.meal === cell.meal);
     const menuId = normalizeMenuId(cell.menuId, setting?.menus ?? []);

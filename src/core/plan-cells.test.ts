@@ -68,4 +68,9 @@ describe('finishCells', () => {
     expect(out.title).toBe('닭가슴살 샐러드 (간장 드레싱)');
     expect(out.orderTip).toBe('드레싱 따로');
   });
+
+  it('주재료는 앞뒤 공백을 뗀다 (T18)', () => {
+    const cell = { ...cellOf('tue', 'dinner'), mainIngredient: ' 닭가슴살 ' };
+    expect(finishOne(cell).mainIngredient).toBe('닭가슴살');
+  });
 });

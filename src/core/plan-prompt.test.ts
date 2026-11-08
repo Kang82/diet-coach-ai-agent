@@ -109,6 +109,13 @@ describe('buildGeneratePrompt', () => {
     expect(withoutFat).not.toContain('삼겹살·갈비보다');
   });
 
+  it('집밥 칸의 주재료를 적고, 같은 주재료 규칙을 지키라고 알린다 (T18)', () => {
+    const prompt = buildGeneratePrompt(generateInput());
+
+    expect(prompt).toContain('- mainIngredient: 집밥 칸의 주재료 한 단어 (예: 닭가슴살, 연어, 두부, 돼지고기). 외식은 비워도 됩니다');
+    expect(prompt).toContain('- 집밥은 같은 주재료를 바로 앞 끼니에 넣지 않고, 1주일에 3번까지만 넣습니다.');
+  });
+
   it('일정이 있는 끼니는 빼고, 칸을 만들지 말라고 알린다', () => {
     const prompt = buildGeneratePrompt(generateInput({ events: [{ day: 'tue', meal: 'dinner', note: '회식' }] }));
 
@@ -156,6 +163,27 @@ describe('buildRegeneratePrompt', () => {
       '## 사용자 요청\n면 말고 밥으로',
     );
     expect(buildRegeneratePrompt(regenerateInput())).not.toContain('## 사용자 요청');
+  });
+
+  it('지금 식단표에 주재료를 함께 적고, 주재료 위반 이유를 알린다 (T18)', () => {
+    const plan = structuredClone(planA);
+    plan.cells.find((c) => c.day === 'mon' && c.meal === 'dinner')!.mainIngredient = '두부';
+    const prompt = buildRegeneratePrompt(
+      regenerateInput({
+        plan,
+        violations: [
+          {
+            rule: 'main_ingredient_weekly_limit',
+            cells: [{ day: 'mon', meal: 'dinner' }],
+            regenerate: [{ day: 'tue', meal: 'lunch' }],
+            detail: '두부',
+          },
+        ],
+      }),
+    );
+
+    expect(prompt).toContain('- 월요일 저녁 (mon dinner): 두부 채소 볶음 (주재료: 두부) [soy]');
+    expect(prompt).toContain('- 같은 주재료 집밥을 1주일에 3번 넘게 넣음 [두부]');
   });
 
   it('위반이 없으면 위반 절을 넣지 않는다', () => {

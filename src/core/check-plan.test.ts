@@ -360,4 +360,65 @@ describe('checkPlan: 외식 메뉴가 적을 때 같은 메뉴 허용 횟수', (
       },
     ]);
   });
+
+  // T18: 같은 주재료 (집밥 칸만, mainIngredient가 있는 칸만)
+  describe('같은 주재료', () => {
+    const main = (plan: Plan, day: Day, meal: MealType, value: string) => {
+      cellAt(plan, day, meal).mainIngredient = value;
+    };
+
+    it('24. 이어진 두 집밥 칸의 주재료가 같으면 뒤쪽 칸을 다시 추천', () => {
+      const ctx = setup();
+      main(ctx.plan, 'sat', 'lunch', '두부');
+      main(ctx.plan, 'sat', 'dinner', '두부');
+      expect(run(ctx).violations).toEqual([
+        { rule: 'main_ingredient_consecutive', cells: [s('sat', 'lunch'), s('sat', 'dinner')], regenerate: [s('sat', 'dinner')], detail: '두부' },
+      ]);
+    });
+
+    it('25. 같은 메뉴로 이어졌으면 consecutive_menu만 보고한다', () => {
+      const ctx = setup();
+      cellAt(ctx.plan, 'sat', 'dinner').menuId = '비빔밥';
+      main(ctx.plan, 'sat', 'lunch', '두부');
+      main(ctx.plan, 'sat', 'dinner', '두부');
+      expect(run(ctx).violations).toEqual([
+        { rule: 'consecutive_menu', cells: [s('sat', 'lunch'), s('sat', 'dinner')], regenerate: [s('sat', 'dinner')] },
+      ]);
+    });
+
+    it('26. 한쪽이 외식이면 보지 않는다', () => {
+      const ctx = setup();
+      main(ctx.plan, 'fri', 'lunch', '소고기');
+      main(ctx.plan, 'fri', 'dinner', '소고기');
+      expect(run(ctx).violations).toEqual([]);
+    });
+
+    it('27. 같은 주재료 집밥이 주 4번이면 4번째 칸을 다시 추천, 3번은 괜찮다', () => {
+      const ctx = setup();
+      for (const day of ['mon', 'wed', 'fri'] as const) main(ctx.plan, day, 'dinner', '닭가슴살');
+      expect(run(ctx).violations).toEqual([]);
+      main(ctx.plan, 'sun', 'dinner', '닭가슴살');
+      expect(run(ctx).violations).toEqual([
+        {
+          rule: 'main_ingredient_weekly_limit',
+          cells: [s('mon', 'dinner'), s('wed', 'dinner'), s('fri', 'dinner'), s('sun', 'dinner')],
+          regenerate: [s('sun', 'dinner')],
+          detail: '닭가슴살',
+        },
+      ]);
+    });
+
+    it('28. 공백만 다른 주재료는 같다', () => {
+      const ctx = setup();
+      main(ctx.plan, 'sat', 'lunch', '닭 가슴살');
+      main(ctx.plan, 'sat', 'dinner', '닭가슴살 ');
+      expect(run(ctx).violations.map((v) => v.rule)).toEqual(['main_ingredient_consecutive']);
+    });
+
+    it('29. 주재료가 없는 칸은 빠진다 (예전 식단표, 데모 픽스처)', () => {
+      const ctx = setup();
+      main(ctx.plan, 'sat', 'lunch', '두부');
+      expect(run(ctx).passed).toBe(true);
+    });
+  });
 });

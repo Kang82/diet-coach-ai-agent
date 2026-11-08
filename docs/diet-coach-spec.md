@@ -160,6 +160,7 @@ interface PlanCell extends Slot {
   cookMinutes: number;     // 집밥일 때 필수, 외식이면 0
   reason: string;          // 한두 문장
   criterionIds: CriterionId[];  // reason의 근거. 1개 이상
+  mainIngredient?: string; // 집밥 칸의 주재료 한 단어 (LLM이 적음, T18). 없으면 같은 주재료 규칙에서 빠짐
 }
 
 interface Plan {
@@ -196,6 +197,8 @@ type RuleId =
   | "consecutive_menu"     // 같은 메뉴가 연속됨
   | "same_meal_consecutive_days" // 같은 끼니, 연속된 요일에 같은 메뉴
   | "menu_weekly_limit"    // 같은 메뉴 주 2회 초과
+  | "main_ingredient_consecutive"  // 이어진 두 집밥 칸의 주재료가 같음 (T18)
+  | "main_ingredient_weekly_limit" // 같은 주재료 집밥 주 3회 초과 (T18)
   | "cook_time_exceeded"   // 집밥 조리 시간 초과
   | "reason_criterion";    // 이유의 근거가 식단 기준에 없음
 
@@ -288,6 +291,8 @@ checkPlan(
 | `consecutive_menu` | 이어진 두 칸의 `menuKey`가 같음 | 이어진 쌍마다 1개 | 뒤쪽 칸 |
 | `same_meal_consecutive_days` | 같은 끼니(점심끼리, 저녁끼리)의 달력상 연속된 두 요일 칸의 `menuKey`가 같음. 한쪽 요일에 칸이 없으면(거름, 일정, 빠짐) 연속으로 보지 않는다. `consecutive_menu`가 볼 수 있는 이어진 칸 쌍은 건너뛴다(중복 보고 방지) | 쌍마다 1개 | 뒤쪽 칸 |
 | `menu_weekly_limit` | 같은 `menuKey`가 모든 칸 합산으로 주 2회(외식 메뉴가 적으면 사전 점검이 늘린 값, 4.3 사전 점검)를 넘음. `weekly_max_1`·`avoid`로 분류된 메뉴는 더 엄격한 규칙이 맡으므로 제외 | 메뉴마다 1개. `detail`은 처음 나온 칸의 `menuId` | 세 번째 이후 칸 |
+| `main_ingredient_consecutive` (T18) | 시간순으로 바로 이어진 두 칸이 모두 집밥이고 `menuKey(mainIngredient)`가 같음. 같은 메뉴라 `consecutive_menu`로 보고한 쌍은 건너뛴다. `mainIngredient`가 없는 칸과 외식 칸은 보지 않는다 | 쌍마다 1개. `detail`은 앞 칸의 주재료 | 뒤쪽 칸 |
+| `main_ingredient_weekly_limit` (T18) | 같은 `menuKey(mainIngredient)`의 집밥 칸이 주 3회(`MAIN_INGREDIENT_WEEKLY_MAX`, 사용자 결정 2026-11-08)를 넘음 | 주재료마다 1개. `detail`은 처음 칸의 주재료 | 네 번째 이후 칸 |
 | `cook_time_exceeded` | 집밥 칸의 `cookMinutes`가 그 끼니 설정의 `cookMinutes`보다 큼. 설정에 값이 없으면 점검하지 않음 | 칸마다 1개 | 그 칸 |
 | `reason_criterion` | 칸의 `criterionIds`가 비었거나 `rules.criteria`에 없는 값이 있음 | 칸마다 1개 | 그 칸 |
 
@@ -423,6 +428,8 @@ generatePlan(input: {
 ```
 
 **출력 정리 (B17, 2026-11-08)**: 생성·다시 추천(칸 수정 포함)의 칸은 `finishCells`(`core/plan-cells.ts`)를 거친다. menuId 정규화(1.4), 외식 칸 `title` = menuId, 외식 칸 `orderTip` = 그 메뉴 분류의 `orderTips`를 ", "로 이은 것(없으면 모델이 쓴 팁). 태그와 이유는 고치지 않고 프롬프트로 안내한다: 이유는 칸의 재료·주문 팁에서 확인되는 사실만, 양념·장류를 열량·탄수화물 근거로 쓰지 않기, `refined_carb_main` 정의(흰쌀밥 제외)와 예시, 집밥 메뉴는 식단 기준에 맞는 쪽.
+
+프롬프트는 집밥 칸에 `mainIngredient`(주재료 한 단어)를 적고 같은 주재료를 바로 앞 끼니에 넣지 않으며 1주일에 3번까지만 넣으라고 알린다. 다시 추천 프롬프트의 지금 식단표 줄에도 주재료를 적는다(T18). 스키마(`agents/plan-schema.ts`)는 배열 필드에 값 하나를 문자열로 내거나 null로 내도 받고, `toPlanCells`가 배열로 맞춘다(메뉴 분류 스키마와 같음, 2026-11-08). 검증 실패는 Flue 재요청(시간·Neuron)이 되기 때문이다.
 
 LLM에는 칸(`cells`)만 받는다. `planId`, `userId`, `profileVersion`, `weekStart`, `events`, `createdAt`은 루프가 입력 값으로 채운다. LLM이 일정이나 날짜를 바꿔 점검을 비켜 가지 못하게 하려는 것이다.
 
@@ -624,6 +631,12 @@ formatCheckSummary(stats: CheckStats, profile: Pick<Profile, 'avoid'>): string[]
 | 23 (B15) | 페르소나 G(평일 점심 외식 메뉴 2개)로 월·수·금 비빔밥, 화·목 칼국수 | 없음 (사전 점검이 같은 메뉴 3번까지 허용) |
 | 23-1 (B15) | 23에서 화 점심을 일정으로 빼고 월·수·금 비빔밥, 목 칼국수 | `menu_weekly_limit` cells [월, 수, 금 점심], regenerate [금 점심] (점심 4칸이면 2번으로 충분) |
 | 23 | 평일 저녁을 거름으로 바꾸고 칸 삭제, 화 점심을 회덮밥으로 | `consecutive_menu` [월 점심, 화 점심]만 (중복 보고 없음) |
+| 24 (T18) | 토 점심·저녁 주재료 "두부" | `main_ingredient_consecutive` [토 점심, 토 저녁], regenerate [토 저녁], detail "두부" |
+| 25 (T18) | 24에서 토 저녁 메뉴도 비빔밥 | `consecutive_menu`만 (주재료 중복 보고 없음) |
+| 26 (T18) | 금 점심(외식)·금 저녁 주재료 "소고기" | 없음 (외식 칸은 보지 않음) |
+| 27 (T18) | 월·수·금 저녁 주재료 "닭가슴살" → 일 저녁도 | 3번은 없음. 4번이면 `main_ingredient_weekly_limit` [월, 수, 금, 일 저녁], regenerate [일 저녁], detail "닭가슴살" |
+| 28 (T18) | 토 점심 "닭 가슴살", 토 저녁 "닭가슴살 " | `main_ingredient_consecutive` (공백만 다르면 같음) |
+| 29 (T18) | 토 점심만 주재료 "두부" | 없음 (주재료가 없는 칸은 빠짐) |
 
 ### 8.3 `buildCriteria` 단위 테스트
 

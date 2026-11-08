@@ -10,7 +10,7 @@ import { QuotaExceededError } from '../core/quota.ts';
 import type { PlanCell } from '../core/types.ts';
 import { createFluePlanGenerator, type PromptHarness } from './flue-plan-generator.ts';
 import { MODEL_CANDIDATES, NEURON_PRICES } from './models.ts';
-import { PlanCellsResultSchema } from './plan-schema.ts';
+import { PlanCellsResultSchema, toPlanCells } from './plan-schema.ts';
 import { watchBinding } from './stream-watch.ts';
 
 const generateInput = () => ({
@@ -191,5 +191,51 @@ describe('PlanCellsResultSchema', () => {
   it('규칙 위반(목록에 없는 메뉴, 빈 criterionIds)은 스키마가 아니라 checkPlan에 맡긴다', () => {
     const cell = { ...planA.cells[0]!, menuId: '짜장면', criterionIds: [] };
     expect(v.safeParse(PlanCellsResultSchema, { cells: [cell] }).success).toBe(true);
+  });
+});
+
+// 받아 줄 수 있는 모양은 받는다 (메뉴 분류 스키마와 같음). 검증 실패면 Flue가 다시 요청해 시간과 Neuron을 더 쓴다
+describe('PlanCellsResultSchema: 모델이 낼 법한 모양 (나중에 → 2026-11-08)', () => {
+  const base = planA.cells[0]!;
+
+  it('배열 필드에 값 하나를 문자열로 내도 받고, 배열로 바꾼다', () => {
+    const cell = { ...base, ingredients: '연어', tags: 'fish', criterionIds: 'reduce_saturated_fat' };
+    const parsed = v.safeParse(PlanCellsResultSchema, { cells: [cell] });
+    expect(parsed.success).toBe(true);
+    const [out] = toPlanCells(parsed.output as never);
+    expect(out).toMatchObject({ ingredients: ['연어'], tags: ['fish'], criterionIds: ['reduce_saturated_fat'] });
+  });
+
+  it('배열 필드가 null이거나 빠지면 빈 배열, orderTip이 null이면 없앤다', () => {
+    const { ingredients: _i, ...rest } = base;
+    const cell = { ...rest, tags: null, criterionIds: null, orderTip: null };
+    const parsed = v.safeParse(PlanCellsResultSchema, { cells: [cell] });
+    expect(parsed.success).toBe(true);
+    const [out] = toPlanCells(parsed.output as never);
+    expect(out).toMatchObject({ ingredients: [], tags: [], criterionIds: [] });
+    expect(out).not.toHaveProperty('orderTip');
+  });
+
+  it('mainIngredient는 없어도, null이어도 받고 null·빈 값은 없앤다 (T18)', () => {
+    const parsed = v.parse(PlanCellsResultSchema, {
+      cells: [
+        { ...base, mainIngredient: null },
+        { ...base, mainIngredient: '  ' },
+        { ...base, mainIngredient: '연어' },
+      ],
+    });
+    const [none, blank, salmon] = toPlanCells(parsed);
+    expect(none).not.toHaveProperty('mainIngredient');
+    expect(blank).not.toHaveProperty('mainIngredient');
+    expect(salmon?.mainIngredient).toBe('연어');
+  });
+
+  it('문자열 하나라도 모르는 값이면 여전히 거른다', () => {
+    expect(v.safeParse(PlanCellsResultSchema, { cells: [{ ...base, tags: 'spicy' }] }).success).toBe(false);
+  });
+
+  it('보통 모양은 그대로 (페르소나 A)', () => {
+    const parsed = v.parse(PlanCellsResultSchema, { cells: planA.cells });
+    expect(toPlanCells(parsed)).toEqual(planA.cells);
   });
 });

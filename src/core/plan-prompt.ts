@@ -1,6 +1,7 @@
 // 스펙 4.3, 4.4의 LLM 프롬프트. 문장만 만들고 LLM은 부르지 않는다.
 // 규칙의 기준은 checkPlan(3.2)이다. 여기 적은 규칙은 LLM이 처음부터 지키도록 돕는 안내일 뿐이고,
 // 지켰는지는 checkPlan이 판정한다.
+import { MAIN_INGREDIENT_WEEKLY_MAX } from './check-plan.ts';
 import { menuWeeklyMaxFor } from './plan-feasibility.ts';
 import { requiredSlots } from './plan-slots.ts';
 import { dayType, expandAvoid, menuKey, slotOrder } from './helpers.ts';
@@ -44,6 +45,8 @@ const RULE_LABELS: Record<RuleId, string> = {
   consecutive_menu: '바로 앞 끼니와 같은 메뉴',
   same_meal_consecutive_days: '전날 같은 끼니와 같은 메뉴',
   menu_weekly_limit: '같은 메뉴를 1주일에 허용 횟수보다 많이 넣음', // describeViolation이 횟수를 넣는다
+  main_ingredient_consecutive: '바로 앞 끼니와 같은 주재료의 집밥',
+  main_ingredient_weekly_limit: `같은 주재료 집밥을 1주일에 ${MAIN_INGREDIENT_WEEKLY_MAX}번 넘게 넣음`,
   cook_time_exceeded: '조리 시간 초과',
   reason_criterion: '이유의 근거(criterionIds)가 식단 기준에 없음',
 };
@@ -170,6 +173,8 @@ function sectionRules(profile: Profile, rules: CriteriaRules, weeklyMax: number)
     '- 바로 앞 끼니와 같은 메뉴는 넣지 않습니다.',
     '- 같은 끼니(점심끼리, 저녁끼리)에 전날과 같은 메뉴는 넣지 않습니다.',
     `- 같은 메뉴는 1주일에 ${weeklyMax}번까지만 넣습니다. 메뉴를 다양하게 고릅니다.`,
+    // T18: 이름은 다르지만 주재료가 같은 집밥(닭가슴살 샐러드, 닭가슴살 볶음)이 이어지지 않게
+    `- 집밥은 같은 주재료를 바로 앞 끼니에 넣지 않고, 1주일에 ${MAIN_INGREDIENT_WEEKLY_MAX}번까지만 넣습니다.`,
     `- 식단 기준: ${rules.criteria.map((c) => `${CRITERION_LABELS[c]}(${c})`).join(', ')}`,
     // B17 T13-1: 감량·LDL 목표에 집밥 삼겹살 구이가 나왔다(규칙 안이지만 목표와 어긋남)
     '- 집밥 메뉴는 식단 기준에 맞는 쪽을 고릅니다.' +
@@ -195,6 +200,7 @@ function sectionCellFormat(): string {
     // B17 T13-2: 분류에 팁이 있으면 코드가 그 팁으로 채운다(plan-cells.ts)
     '- orderTip: 외식 칸에서 위 "주문 팁"에 없는 메뉴만 주문 팁 한 줄. 주문 팁이 있는 메뉴는 비워 두면 그 팁이 들어갑니다',
     '- cookMinutes: 집밥은 조리 시간(분), 외식은 0',
+    '- mainIngredient: 집밥 칸의 주재료 한 단어 (예: 닭가슴살, 연어, 두부, 돼지고기). 외식은 비워도 됩니다',
     '- reason: 이 메뉴를 고른 이유를 한국어 한두 문장으로. 식단 기준과 연결해서',
     // B17 T13-1: "된장은 정제 탄수화물을 줄이는 데 도움", 외식 "저염 된장" 같은 근거가 나왔다(B14 기록)
     '  이 칸의 재료와 주문 팁에서 확인되는 사실만 근거로 씁니다. 외식에서 알 수 없는 조리 방식(저염, 저칼로리 양념 등)은 쓰지 않습니다.',
@@ -209,7 +215,8 @@ function sectionCurrentPlan(plan: Plan, targets: readonly Slot[]): string {
   const kept = plan.cells.filter((c) => !isTarget(c));
   if (kept.length === 0) lines.push('- (없음)');
   for (const c of kept) {
-    lines.push(`- ${slotLabel(c)}: ${c.menuId} [${c.tags.join(', ')}]`);
+    const main = c.mainIngredient ? ` (주재료: ${c.mainIngredient})` : '';
+    lines.push(`- ${slotLabel(c)}: ${c.menuId}${main} [${c.tags.join(', ')}]`);
   }
   lines.push('', '다시 만든 칸이 위 칸들과 함께 규칙을 지키도록 메뉴를 고르세요.', '');
   return lines.join('\n');
