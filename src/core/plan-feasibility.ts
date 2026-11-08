@@ -9,7 +9,7 @@
 import { MENU_WEEKLY_MAX, requiredSlots } from './plan-slots.ts';
 import { dayType, MEAL_KEYS, menuKey, sameMealKey, slotOrder } from './helpers.ts';
 import { DAY_TYPE_LABELS, MEAL_LABELS } from './labels.ts';
-import { DAYS, type MealKey, type MenuClassification, type Profile, type Slot } from './types.ts';
+import { DAYS, type MealKey, type MenuClass, type MenuClassification, type Profile, type Slot } from './types.ts';
 
 export type Feasibility = { feasible: true; menuWeeklyMax: number } | { feasible: false; shortMeals: MealKey[] };
 
@@ -144,3 +144,73 @@ export function profileStepHint(profile: Profile): string | undefined {
   const names = result.shortMeals.map(mealLabel);
   return `${names.join(', ')} 외식 메뉴가 적어 식단표를 만들기 어려워요. 같은 메뉴는 바로 앞 끼니나 전날 같은 끼니에 다시 넣지 않아서, ${names.join('이나 ')}에 메뉴를 더 넣어 주세요.`;
 }
+
+/** 분류 확인 화면의 끼니 묶음 (B16 T12-1). 외식 끼니마다 칸 수와 쓸 수 있는 메뉴 수 */
+export interface MealGroup {
+  meal: MealKey;
+  /** 일정을 뺀 칸 수 */
+  slots: number;
+  /** 그 끼니의 메뉴(공백 정리, 중복 없이, 입력 순서). 분류 목록의 이름과 같다 */
+  menus: string[];
+  /** 피하기가 아닌 메뉴 수 */
+  usable: number;
+  /** 그중 주 1회 메뉴 수 */
+  weekly1: number;
+  /** 메뉴가 모자란 끼니 (사전 점검의 shortMeals) */
+  short: boolean;
+}
+
+export function mealGroups(profile: Profile, classes: readonly MenuClassification[], events: readonly Slot[]): MealGroup[] {
+  const result = planFeasibility(profile, classes, events);
+  const shortMeals = result.feasible ? [] : result.shortMeals;
+  const classOf = (menu: string): MenuClass => classes.find((c) => c.menu === menu)?.class ?? 'often';
+  const slots = requiredSlots(profile, events);
+  const groups: MealGroup[] = [];
+  for (const key of MEAL_KEYS) {
+    const setting = profile.meals.find((m) => sameMealKey(m, key));
+    if (setting?.place !== 'eat_out') continue;
+    const menus: string[] = [];
+    for (const raw of setting.menus ?? []) {
+      const menu = raw.trim();
+      if (menu !== '' && !menus.includes(menu)) menus.push(menu);
+    }
+    const usable = menus.filter((m) => classOf(m) !== 'avoid');
+    groups.push({
+      meal: { dayType: key.dayType, meal: key.meal },
+      slots: slots.filter((s) => sameMealKey({ dayType: dayType(s.day), meal: s.meal }, key)).length,
+      menus,
+      usable: usable.length,
+      weekly1: usable.filter((m) => classOf(m) === 'weekly_max_1').length,
+      short: shortMeals.some((s) => sameMealKey(s, key)),
+    });
+  }
+  return groups;
+}
+
+/** 불가능할 때 해결 방법 (B16 T12-1). 분류를 자주로 바꾸면 되는 메뉴, 메뉴를 하나 더 넣으면 되는 끼니 */
+export type FixSuggestion = { kind: 'reclass'; menu: string; to: 'often' } | { kind: 'add_menu'; meal: MealKey };
+
+export function fixSuggestions(profile: Profile, classes: readonly MenuClassification[], events: readonly Slot[]): FixSuggestion[] {
+  const result = planFeasibility(profile, classes, events);
+  if (result.feasible) return [];
+  const candidates: string[] = [];
+  for (const group of mealGroups(profile, classes, events)) {
+    if (!group.short) continue;
+    for (const menu of group.menus) {
+      const c = classes.find((x) => x.menu === menu)?.class;
+      if ((c === 'weekly_max_1' || c === 'avoid') && !candidates.includes(menu)) candidates.push(menu);
+    }
+  }
+  const reclass: FixSuggestion[] = candidates
+    .filter((menu) => planFeasibility(profile, classes.map((c) => (c.menu === menu ? { ...c, class: 'often' as const } : c)), events).feasible)
+    .map((menu) => ({ kind: 'reclass', menu, to: 'often' }));
+  return [...reclass, ...result.shortMeals.map((meal): FixSuggestion => ({ kind: 'add_menu', meal }))];
+}
+
+/** 묶음 머리 문구: "평일 저녁 · 5끼 · 쓸 수 있는 메뉴 3개(주 1회 1개)" */
+export function mealGroupLabel(group: MealGroup): string {
+  const weekly = group.weekly1 > 0 ? `(주 1회 ${group.weekly1}개)` : '';
+  return `${mealLabel(group.meal)} · ${group.slots}끼 · 쓸 수 있는 메뉴 ${group.usable}개${weekly}`;
+}
+
+export { mealLabel };

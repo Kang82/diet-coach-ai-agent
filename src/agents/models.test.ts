@@ -19,10 +19,10 @@ describe('menuClassModel', () => {
 });
 
 describe('planModel (B14, T8-7)', () => {
-  it('키가 후보에 있으면 그 모델, 아니면 undefined(기본 모델 gemma를 그대로 씀)', () => {
-    expect(planModel('gptOss120b')).toBe(MODEL_CANDIDATES.gptOss120b);
-    expect(planModel(undefined)).toBeUndefined();
-    expect(planModel('toString')).toBeUndefined();
+  it('키가 후보에 있으면 그 모델, 아니면 기본 gpt-oss-120b (사용자 결정 2026-11-08)', () => {
+    expect(planModel('gemma')).toBe(MODEL_CANDIDATES.gemma);
+    expect(planModel(undefined)).toBe(MODEL_CANDIDATES.gptOss120b);
+    expect(planModel('toString')).toBe(MODEL_CANDIDATES.gptOss120b);
   });
 
   it('gpt-oss-120b 단가: $0.35 / $0.75 per M, $0.011 = 1,000 Neuron', () => {
@@ -31,13 +31,13 @@ describe('planModel (B14, T8-7)', () => {
 });
 
 describe('planThinking', () => {
-  it('low·medium·high만 받고, off·모르는 값·없음은 Flue 기본값(undefined)', () => {
+  it('low·medium·high만 받고, off·모르는 값·없음은 기본 low', () => {
     expect(planThinking('low')).toBe('low');
     expect(planThinking('medium')).toBe('medium');
     expect(planThinking('high')).toBe('high');
-    expect(planThinking('off')).toBeUndefined();
-    expect(planThinking('LOW')).toBeUndefined();
-    expect(planThinking(undefined)).toBeUndefined();
+    expect(planThinking('off')).toBe('low');
+    expect(planThinking('LOW')).toBe('low');
+    expect(planThinking(undefined)).toBe('low');
   });
 });
 

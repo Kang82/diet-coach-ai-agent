@@ -8,6 +8,7 @@ import type { InterviewToolOutput } from '../core/interview-tool-output.ts';
 import type { InterviewResult } from '../core/interview.ts';
 import { draftKey } from './browser-store.ts';
 import { draftFromResult, reopenSection, type ProfileSection } from '../core/profile-edit.ts';
+import { sameMealKey } from '../core/helpers.ts';
 import type { InterviewState, InterviewUpdate } from '../core/types.ts';
 
 export interface FormProgress {
@@ -17,6 +18,8 @@ export interface FormProgress {
   message?: InterviewMessage;
   /** 이어받은 서버 ask의 도구 호출 ID. 같은 ask를 두 번 이어받지 않으려고 둔다 */
   basedOn?: string;
+  /** 메뉴 "고치기"로 다시 물을 때 입력란에 미리 채울 이전 메뉴 (B16: 메뉴 하나를 더하려고 전부 다시 쓰지 않게). 답하면 없어진다 */
+  prefill?: string;
 }
 
 export type ServerAsk = { id: string; output: Extract<InterviewToolOutput, { status: 'ask' }> };
@@ -44,7 +47,10 @@ const NO_ANSWER: InterviewUpdate = { filled: {}, stopFlags: [], turnFlags: [] };
 
 /** 프로필 확인 화면의 "고치기" (B6). 그 항목만 비우고 다음 질문을 다시 계산한다. 다 답하면 다시 확인 화면(done) */
 export function reopen(progress: FormProgress, section: ProfileSection): FormProgress {
-  return advance({ ...progress, state: reopenSection(progress.state, section) }, NO_ANSWER);
+  const next = advance({ ...progress, state: reopenSection(progress.state, section) }, NO_ANSWER);
+  if (section.kind !== 'menus') return next;
+  const previous = progress.state.draft.meals?.find((m) => sameMealKey(m, section.meal))?.menus ?? [];
+  return previous.length > 0 ? { ...next, prefill: previous.join(', ') } : next;
 }
 
 /** 저장된 프로필로 시작 (B6 "바뀐 항목 고치기"): 끝난 진행이라 프로필 확인 화면부터 */

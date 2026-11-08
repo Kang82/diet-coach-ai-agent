@@ -61,3 +61,35 @@ describe('runClassification', () => {
     await expect(runClassification(classifier, profileA)).rejects.toThrow('boom');
   });
 });
+
+// B16 T12-4: 이전 대화에서 정한 분류는 다시 모델에 보내지 않는다
+describe('runClassification 이전 분류 재사용', () => {
+  const byName = (m: string) => classesA.find((c) => c.menu === m)!;
+
+  it('모든 메뉴가 있으면 분류기를 부르지 않는다', async () => {
+    const { classifier, calls } = fakeClassifier(new Error('부르면 안 됨'));
+    const out = await runClassification(classifier, profileA, classesA);
+    expect(calls).toEqual([]);
+    expect(out).toEqual({ kind: 'ok', classes: ['국밥', '백반', '돈가스', '쌀국수', '회덮밥'].map(byName), usages: [] });
+  });
+
+  it('일부만 있으면 남은 메뉴만 보내고 대상 순서로 합친다', async () => {
+    const { classifier, calls } = fakeClassifier([byName('돈가스'), byName('회덮밥')]);
+    const known = [byName('국밥'), byName('백반'), byName('쌀국수'), { ...byName('국밥'), menu: '대상에 없는 메뉴' }];
+    const out = await runClassification(classifier, profileA, known);
+    expect(calls.map((c) => c.menus)).toEqual([['돈가스', '회덮밥']]);
+    expect(out).toEqual({ kind: 'ok', classes: ['국밥', '백반', '돈가스', '쌀국수', '회덮밥'].map(byName), usages: [USAGE] });
+  });
+
+  it('지금 기준에 없는 기준 ID는 거른다', async () => {
+    const { classifier } = fakeClassifier([]);
+    const known = classesA.map((c) => (c.menu === '국밥' ? { ...c, criterionIds: ['reduce_refined_carbs' as const, ...c.criterionIds] } : c));
+    const out = await runClassification(classifier, profileA, known);
+    expect(out.kind === 'ok' && out.classes[0]).toEqual(byName('국밥'));
+  });
+
+  it('모델이 이월한 메뉴까지 다시 내면 1:1이 아니라 에러', async () => {
+    const { classifier } = fakeClassifier([byName('돈가스'), byName('회덮밥'), byName('국밥')]);
+    await expect(runClassification(classifier, profileA, [byName('국밥'), byName('백반'), byName('쌀국수')])).rejects.toThrow(/맞지 않습니다/);
+  });
+});

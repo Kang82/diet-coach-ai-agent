@@ -241,15 +241,18 @@ export function MenusStep({
   mealKey,
   existing,
   followUp,
+  initialText = '',
   onAnswer,
 }: {
   mealKey: MealKey;
   existing: DraftMealSetting | undefined;
   /** 메뉴가 적어 한 번 더 묻는 중 (분기 6) */
   followUp: boolean;
+  /** "고치기"로 다시 물을 때 이전 메뉴 (B16) */
+  initialText?: string;
   onAnswer: OnAnswer;
 }) {
-  const [text, setText] = useState('');
+  const [text, setText] = useState(initialText);
   const inputId = useId();
   const known = existing?.menus ?? [];
 

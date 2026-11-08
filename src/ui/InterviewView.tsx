@@ -104,6 +104,7 @@ function Step({ progress, onAnswer }: { progress: FormProgress; onAnswer: (u: In
         mealKey={field.menusFor}
         existing={draftMeal(progress.state.draft, field.menusFor)}
         followUp={next.reason === 'few_menus'}
+        initialText={progress.prefill}
         onAnswer={onAnswer}
       />
     );

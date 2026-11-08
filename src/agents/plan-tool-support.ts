@@ -29,13 +29,13 @@ export function planContext(result: InterviewResult, classes: readonly MenuClass
 /**
  * 개발용 가짜 생성 모드: `.dev.vars`의 PLAN_GENERATOR=demo (demo-plan-generator.ts).
  * nodejs_compat에서는 Worker의 vars가 process.env로도 들어온다. 값이 없으면 실제 모델을 쓴다.
- * 추론 수준은 PLAN_THINKING(models.ts planThinking), 모델은 PLAN_MODEL(planModel, B14). 없으면 Flue 기본값과 gemma
+ * 추론 수준은 PLAN_THINKING(models.ts planThinking), 모델은 PLAN_MODEL(planModel, B14). 없으면 gpt-oss-120b, low (T8-7)
  */
 export function pickGenerator(harness: PromptHarness): PlanGenerator {
   if (process.env.PLAN_GENERATOR === 'demo') return createDemoPlanGenerator();
   const thinkingLevel = planThinking(process.env.PLAN_THINKING);
   const model = planModel(process.env.PLAN_MODEL);
-  return createFluePlanGenerator(harness, { ...(thinkingLevel ? { thinkingLevel } : {}), ...(model ? { model } : {}) });
+  return createFluePlanGenerator(harness, { thinkingLevel, model });
 }
 
 /** 서버 저장(T6-2)에 쓰는 저장소와 사용자. 사용자를 모르는 대화(flue run 등)면 없다 */

@@ -3,7 +3,7 @@
 // 화면이 이 형식으로 보내면 classify_menus, create_week_plan 도구가 useDelivery()로 직접 읽는다.
 // 사용자가 바꾼 분류는 모델이 옮겨 적지 않고 메시지 JSON으로 도구에 넘어간다 (edit-request.ts와 같은 방식).
 import { classesForPlan, type MenuClassOverride } from './menu-classification.ts';
-import { DAYS, MEAL_TYPES, MENU_CLASSES, type MealSetting, type MenuClassification, type PlanEvent } from './types.ts';
+import { CRITERION_IDS, DAYS, MEAL_TYPES, MENU_CLASSES, type CriterionId, type MealSetting, type MenuClassification, type PlanEvent } from './types.ts';
 
 export const CLASSIFY_REQUEST = '메뉴 분류 요청';
 export const PLAN_REQUEST_PREFIX = '식단표 만들기:';
@@ -16,7 +16,15 @@ export interface PlanRequest {
 export interface ClassifyRequest {
   /** 기간 선택 화면에서 넣은 일정 (B6). 옛 형식("메뉴 분류 요청"만)이면 빈 배열 */
   events: PlanEvent[];
+  /**
+   * 이전 대화에서 정한 분류 (B16 T12-4, "외식 메뉴 고치기"). 같은 이름 메뉴는 이 값을 쓰고 새 메뉴만 모델에 보낸다.
+   * 사용자가 분류 화면에서 마음대로 바꿀 수 있는 값(overrides)과 같은 수준이라 받아도 되지만, 개수·길이는 제한한다
+   */
+  known?: MenuClassification[];
 }
+
+/** 이월 분류 제한 (본문 32KB 안) */
+export const KNOWN_LIMITS = { count: 100, menu: 100, reason: 300, tips: 5, tip: 100 } as const;
 
 /** 일정 메모 길이가 이보다 길면 형식 오류로 본다. 화면 제한(EVENT_NOTE_MAX)보다 넉넉하게 둔다 */
 const RAW_NOTE_MAX = 200;
@@ -27,8 +35,14 @@ export function isClassifyRequest(body: string): boolean {
   return text === CLASSIFY_REQUEST || text.startsWith(`${CLASSIFY_REQUEST}:`);
 }
 
-export function formatClassifyRequest({ events }: ClassifyRequest): string {
-  return `${CLASSIFY_REQUEST}:\n${JSON.stringify({ events: events.map(({ day, meal, note }) => ({ day, meal, note })) })}`;
+export function formatClassifyRequest({ events, known }: ClassifyRequest): string {
+  const body = {
+    events: events.map(({ day, meal, note }) => ({ day, meal, note })),
+    ...(known && known.length > 0
+      ? { known: known.map(({ menu, class: c, reason, criterionIds, orderTips }) => ({ menu, class: c, reason, criterionIds, orderTips })) }
+      : {}),
+  };
+  return `${CLASSIFY_REQUEST}:\n${JSON.stringify(body)}`;
 }
 
 /** 형식이 틀리면 undefined. 일정이 그 사람의 끼니에 맞는지는 도구가 validateEvents로 본다 */
@@ -51,7 +65,33 @@ export function parseClassifyRequest(body: string): ClassifyRequest | undefined 
     if (typeof note !== 'string' || note.length > RAW_NOTE_MAX) return undefined;
     parsed.push({ day: day as PlanEvent['day'], meal: meal as PlanEvent['meal'], note });
   }
-  return { events: parsed };
+  const rawKnown = (json as { known?: unknown }).known;
+  if (rawKnown === undefined) return { events: parsed };
+  const known = parseKnown(rawKnown);
+  return known ? { events: parsed, known } : undefined;
+}
+
+/** 이월 분류 검증. 하나라도 형식이 틀리면 undefined. 모르는 기준 ID는 버린다(지금 기준으로는 runClassification이 다시 거른다) */
+function parseKnown(value: unknown): MenuClassification[] | undefined {
+  if (!Array.isArray(value) || value.length > KNOWN_LIMITS.count) return undefined;
+  const known: MenuClassification[] = [];
+  for (const k of value) {
+    const { menu, class: c, reason, criterionIds, orderTips } = (k ?? {}) as Record<string, unknown>;
+    if (typeof menu !== 'string' || menu.trim() === '' || menu.length > KNOWN_LIMITS.menu) return undefined;
+    if (!MENU_CLASSES.includes(c as never)) return undefined;
+    if (typeof reason !== 'string' || reason.length > KNOWN_LIMITS.reason) return undefined;
+    if (!Array.isArray(criterionIds) || !criterionIds.every((id) => typeof id === 'string')) return undefined;
+    if (!Array.isArray(orderTips) || orderTips.length > KNOWN_LIMITS.tips) return undefined;
+    if (!orderTips.every((t) => typeof t === 'string' && t.length <= KNOWN_LIMITS.tip)) return undefined;
+    known.push({
+      menu,
+      class: c as MenuClassification['class'],
+      reason,
+      criterionIds: (criterionIds as string[]).filter((id): id is CriterionId => (CRITERION_IDS as readonly string[]).includes(id)),
+      orderTips: orderTips as string[],
+    });
+  }
+  return known;
 }
 
 export function formatPlanRequest(request: PlanRequest): string {

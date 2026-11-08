@@ -11,12 +11,14 @@ export const PROFILE_KEY = `${PREFIX}profile`;
 /** 사용자 링크 토큰 (auth-token.ts). 내 정보 지우기에서도 남긴다: 지우면 받은 링크를 다시 열어야 한다 */
 export const TOKEN_KEY = `${PREFIX}token`;
 
-export type DraftKind = 'interview' | 'period' | 'menuClasses';
+/** carryClasses: "외식 메뉴 고치기"로 새 대화에 넘기는 이전 분류 (B16 T12-3). 분류가 끝나면 지운다 */
+export type DraftKind = 'interview' | 'period' | 'menuClasses' | 'carryClasses';
 
 const DRAFT_PREFIX: Record<DraftKind, string> = {
   interview: `${PREFIX}interview:`,
   period: `${PREFIX}period:`,
   menuClasses: `${PREFIX}menu-classes:`,
+  carryClasses: `${PREFIX}carry-classes:`,
 };
 
 /** 대화별 진행 값의 키 */

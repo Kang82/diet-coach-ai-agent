@@ -1,4 +1,4 @@
-// 식단표를 만드는 동안 보여 주는 화면 (스펙 7장). 생성에 4분쯤 걸린다 (스펙 11.5).
+// 식단표를 만드는 동안 보여 주는 화면 (스펙 7장). 생성에 1~2분쯤 걸린다 (gpt-oss-120b low, 스펙 11.5, T8-7).
 import { formatClock, useElapsedSeconds } from './use-elapsed.ts';
 
 const EXPECTED_SECONDS = 4 * 60;
@@ -21,7 +21,7 @@ export function WaitingView({ startedAt }: { startedAt: number }) {
       <p className="lede" aria-live="polite">
         {over
           ? '예상보다 오래 걸리고 있어요. 규칙에 맞지 않는 칸을 다시 고르는 중일 수 있어요.'
-          : '보통 4분쯤 걸려요. 이 창을 닫았다 다시 열어도 이어서 볼 수 있어요.'}
+          : '보통 1~2분 걸려요. 이 창을 닫았다 다시 열어도 이어서 볼 수 있어요.'}
       </p>
     </section>
   );

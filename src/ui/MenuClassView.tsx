@@ -1,12 +1,14 @@
 // 메뉴 분류 확인 화면 (스펙 7장, 4.2, tasks.md B5). LLM이 나눈 분류를 보여 주고, 사용자가 메뉴마다 바꿀 수 있다.
 // 바꾼 분류는 "식단표 만들기" 메시지에 실어 보내고 create_week_plan이 반영한다 (core/plan-request.ts).
 // 고르는 중인 값은 localStorage(대화 ID별)에 두어 새로고침해도 남는다.
-import { useEffect, useState } from 'react';
+// B16: 목록을 외식 끼니별로 묶고, 메뉴가 모자란 끼니에 해결 방법(분류 바꾸기, 메뉴 더 넣기)을 보인다(class-groups.ts).
+import { useEffect, useMemo, useState } from 'react';
 import { CRITERION_LABELS, MENU_CLASS_LABELS } from '../core/labels.ts';
-import type { MenuClassOverride } from '../core/menu-classification.ts';
+import { applyClassOverrides, type MenuClassOverride } from '../core/menu-classification.ts';
 import { classStepWarning } from '../core/plan-feasibility.ts';
 import { MENU_CLASSES, type MenuClass, type MenuClassification, type Profile, type Slot } from '../core/types.ts';
 import { draftKey } from './browser-store.ts';
+import { classGroupsView } from './class-groups.ts';
 
 const MENU_CLASS_HINTS: Record<MenuClass, string> = {
   often: '여러 번 넣어요',
@@ -20,6 +22,7 @@ export function MenuClassView({
   profile,
   events,
   onCreate,
+  onEditMenus,
 }: {
   conversationId: string;
   classes: MenuClassification[];
@@ -28,6 +31,8 @@ export function MenuClassView({
   /** 기간 화면에서 정한 일정 */
   events: Slot[];
   onCreate: (overrides: MenuClassOverride[]) => void;
+  /** "외식 메뉴 고치기" (B16 T12-3). 사용자가 바꾼 분류를 반영한 지금 분류를 넘긴다 */
+  onEditMenus?: (classes: MenuClassification[]) => void;
 }) {
   const key = draftKey('menuClasses', conversationId);
   const [chosen, setChosen] = useState<Record<string, MenuClass>>(() => load(key));
@@ -35,9 +40,54 @@ export function MenuClassView({
 
   const classOf = (c: MenuClassification): MenuClass => chosen[c.menu] ?? c.class;
   const overrides = classes.filter((c) => classOf(c) !== c.class).map((c) => ({ menu: c.menu, class: classOf(c) }));
+  const current = useMemo(() => applyClassOverrides(classes, overrides), [classes, JSON.stringify(overrides)]);
   const usable = classes.length === 0 || classes.some((c) => classOf(c) !== 'avoid');
   // 바꾼 분류와 일정으로 규칙을 지키는 식단표가 없으면 만들기를 막는다(서버도 같은 점검으로 LLM 전에 막는다)
-  const infeasible = usable && profile ? classStepWarning(profile, classes.map((c) => ({ ...c, class: classOf(c) })), events) : undefined;
+  const infeasible = usable && profile ? classStepWarning(profile, current, events) : undefined;
+  // 끼니별 묶음과 해결 방법 (B16 T12-2)
+  const view = useMemo(() => classGroupsView(profile, current, events), [profile, current, events]);
+  const choose = (menu: string, value: MenuClass) => setChosen((prev) => ({ ...prev, [menu]: value }));
+  const editMenus = onEditMenus && (() => onEditMenus(current));
+
+  const row = (c: MenuClassification, group: string) => {
+    const value = classOf(c);
+    const changed = value !== c.class;
+    return (
+      <li key={`${group}-${c.menu}`} className={`class-row${changed ? ' changed' : ''}`}>
+        <fieldset>
+          <legend className="class-menu">
+            {c.menu}
+            {changed && <span className="changed-badge">바꿈</span>}
+          </legend>
+          <div className="class-options">
+            {MENU_CLASSES.map((option) => (
+              <label key={option} className={`class-option ${option}`}>
+                <input
+                  type="radio"
+                  name={`class-${group}-${c.menu}`}
+                  value={option}
+                  checked={value === option}
+                  onChange={() => choose(c.menu, option)}
+                />
+                <span>
+                  {MENU_CLASS_LABELS[option]}
+                  <small>{MENU_CLASS_HINTS[option]}</small>
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="class-detail">
+            <p>{changed ? `처음 분류: ${MENU_CLASS_LABELS[c.class]}. ${c.reason}` : c.reason}</p>
+            {c.criterionIds.length > 0 && (
+              <p className="class-criteria">근거: {c.criterionIds.map((id) => CRITERION_LABELS[id]).join(', ')}</p>
+            )}
+            {c.orderTips.length > 0 && value !== 'avoid' && <p className="tip">주문 팁: {c.orderTips.join(', ')}</p>}
+          </div>
+        </fieldset>
+      </li>
+    );
+  };
+  const byMenu = (menu: string) => classes.find((c) => c.menu === menu)!;
 
   return (
     <section className="menu-classes">
@@ -48,52 +98,49 @@ export function MenuClassView({
             ? '외식하는 끼니가 없어서 분류할 메뉴가 없어요. 바로 식단표를 만들 수 있어요.'
             : '식단 기준에 맞춰 메뉴를 나눴어요. 다르게 생각하는 메뉴는 바꿔 주세요. 식단표는 이 분류대로 메뉴를 고르고 횟수를 점검해요.'}
         </p>
+        {view.summary && usable && (
+          <p className="chat-alert" role="alert">
+            {view.summary}
+          </p>
+        )}
       </div>
 
-      {classes.length > 0 && (
-        <ul className="class-list">
-          {classes.map((c) => {
-            const current = classOf(c);
-            const changed = current !== c.class;
-            return (
-              <li key={c.menu} className={`class-row${changed ? ' changed' : ''}`}>
-                <fieldset>
-                  <legend className="class-menu">
-                    {c.menu}
-                    {changed && <span className="changed-badge">바꿈</span>}
-                  </legend>
-                  <div className="class-options">
-                    {MENU_CLASSES.map((value) => (
-                      <label key={value} className={`class-option ${value}`}>
-                        <input
-                          type="radio"
-                          name={`class-${c.menu}`}
-                          value={value}
-                          checked={current === value}
-                          onChange={() => setChosen((prev) => ({ ...prev, [c.menu]: value }))}
-                        />
-                        <span>
-                          {MENU_CLASS_LABELS[value]}
-                          <small>{MENU_CLASS_HINTS[value]}</small>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                  <div className="class-detail">
-                    <p>{changed ? `처음 분류: ${MENU_CLASS_LABELS[c.class]}. ${c.reason}` : c.reason}</p>
-                    {c.criterionIds.length > 0 && (
-                      <p className="class-criteria">근거: {c.criterionIds.map((id) => CRITERION_LABELS[id]).join(', ')}</p>
+      {view.groups.map((g) => (
+        <section key={g.key} className={`class-group${g.short ? ' short' : ''}`} aria-label={g.title}>
+          <h2 className="class-group-title">
+            {g.title}
+            {g.short && <span className="short-badge">메뉴가 모자라요</span>}
+          </h2>
+          {g.short && (g.fixes.length > 0 || g.addMenu) && (
+            <div className="fix-box">
+              <p className="fix-title">이렇게 하면 만들 수 있어요 (하나만 하면 돼요)</p>
+              <ul className="fix-list">
+                {g.fixes.map((f) => (
+                  <li key={f.menu}>
+                    <button type="button" className="link" onClick={() => choose(f.menu, 'often')}>
+                      {f.text}
+                    </button>
+                  </li>
+                ))}
+                {g.addMenu && (
+                  <li>
+                    {editMenus ? (
+                      <button type="button" className="link" onClick={editMenus}>
+                        {g.addMenu}
+                      </button>
+                    ) : (
+                      g.addMenu
                     )}
-                    {c.orderTips.length > 0 && current !== 'avoid' && (
-                      <p className="tip">주문 팁: {c.orderTips.join(', ')}</p>
-                    )}
-                  </div>
-                </fieldset>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
+          <ul className="class-list">{g.menus.map((m) => row(byMenu(m), g.key))}</ul>
+        </section>
+      ))}
+
+      {view.others.length > 0 && <ul className="class-list">{view.others.map((m) => row(byMenu(m), 'other'))}</ul>}
 
       <div className="interview-foot class-foot">
         {!usable && (
@@ -103,13 +150,23 @@ export function MenuClassView({
         )}
         {infeasible && (
           <p className="chat-alert" role="alert">
-            {infeasible} 분류를 바꾸거나 "처음부터 다시"로 외식 메뉴를 고쳐 주세요.
+            {infeasible} 위에 표시한 끼니의 방법 중 하나를 고르거나 "외식 메뉴 고치기"로 메뉴를 더 넣어 주세요.
           </p>
         )}
-        <button type="button" className="primary" disabled={!usable || !!infeasible} onClick={() => onCreate(overrides)}>
-          이 분류로 식단표 만들기
-        </button>
-        <p className="status-line">만드는 데 4분쯤 걸려요.</p>
+        <div className="choices">
+          <button type="button" className="primary" disabled={!usable || !!infeasible} onClick={() => onCreate(overrides)}>
+            이 분류로 식단표 만들기
+          </button>
+          {editMenus && classes.length > 0 && (
+            <button type="button" className="secondary" onClick={editMenus}>
+              외식 메뉴 고치기
+            </button>
+          )}
+        </div>
+        <p className="status-line">
+          만드는 데 1~2분쯤 걸려요.
+          {editMenus && classes.length > 0 && ' 외식 메뉴 고치기는 프로필 확인 화면으로 돌아가고, 지금 분류는 그대로 이어서 써요.'}
+        </p>
       </div>
     </section>
   );

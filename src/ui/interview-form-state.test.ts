@@ -104,6 +104,15 @@ describe('프로필 확인 화면 (B6)', () => {
     expect(dinner?.cookMinutes).toBe(30);
   });
 
+  it('고치기: 메뉴를 고치면 이전 메뉴를 입력란에 미리 채우고, 답하면 없어진다 (B16)', () => {
+    const lunch = { dayType: 'weekday' as const, meal: 'lunch' as const };
+    const p = reopen(progressFromResult(resultA), { kind: 'menus', meal: lunch });
+    expect(p.next).toEqual({ kind: 'ask', field: { menusFor: lunch } });
+    expect(p.prefill).toBe(meals.find((m) => m.dayType === 'weekday' && m.meal === 'lunch')!.menus!.join(', '));
+    expect(advance(p, { filled: {}, stopFlags: [], turnFlags: [] }).prefill).toBeUndefined();
+    expect(reopen(progressFromResult(resultA), { kind: 'goals' }).prefill).toBeUndefined();
+  });
+
   it('고치기: 목표를 고치면 목표부터', () => {
     expect(reopen(progressFromResult(resultA), { kind: 'goals' }).next).toEqual({ kind: 'ask', field: 'goals' });
   });

@@ -17,7 +17,16 @@ import {
 } from './__fixtures__/personas.ts';
 import { checkPlan } from './check-plan.ts';
 import { buildCriteria } from './criteria.ts';
-import { classStepWarning, findEatOutAssignment, planFeasibility, profileStepHint, shortMealsMessage } from './plan-feasibility.ts';
+import {
+  classStepWarning,
+  findEatOutAssignment,
+  fixSuggestions,
+  mealGroupLabel,
+  mealGroups,
+  planFeasibility,
+  profileStepHint,
+  shortMealsMessage,
+} from './plan-feasibility.ts';
 import type { MealSetting, MenuClassification, Plan, PlanCell, Profile, Slot } from './types.ts';
 
 const tueLunch: Slot = { day: 'tue', meal: 'lunch' };
@@ -174,5 +183,57 @@ describe('화면 미리 알림', () => {
     );
     // 페르소나 F는 주 1회 분류 전에는(모두 자주) 가능하다
     expect(profileStepHint(profileF)).toBeUndefined();
+  });
+});
+
+// B16 T12-1: 분류 확인 화면에서 무엇을 고치면 되는지
+describe('mealGroups', () => {
+  it('외식 끼니마다 칸 수(일정 반영), 쓸 수 있는 메뉴 수, 모자란 끼니를 알린다', () => {
+    expect(mealGroups(profileF, classesF, [tueLunch])).toEqual([
+      { meal: { dayType: 'weekday', meal: 'lunch' }, slots: 4, menus: ['샐러드', '주먹밥'], usable: 2, weekly1: 1, short: true },
+      { meal: { dayType: 'weekday', meal: 'dinner' }, slots: 5, menus: ['샐러드', '덮밥', '토스트'], usable: 3, weekly1: 1, short: true },
+    ]);
+    expect(mealGroups(profileF, classesF, []).map((g) => g.short)).toEqual([true, false]);
+  });
+
+  it('가능하면 모자란 끼니가 없고, 피하기 메뉴는 쓸 수 있는 수에서 뺀다', () => {
+    expect(mealGroups(profileG, classesG, [])).toEqual([
+      { meal: { dayType: 'weekday', meal: 'lunch' }, slots: 5, menus: ['비빔밥', '칼국수'], usable: 2, weekly1: 0, short: false },
+    ]);
+    const [group] = mealGroups(lunchOnly(['비빔밥', '칼국수', '돈가스']), [often('비빔밥'), often('칼국수'), avoid('돈가스')], []);
+    expect(group).toMatchObject({ usable: 2, weekly1: 0 });
+  });
+
+  it('묶음 머리 문구', () => {
+    const [lunch, dinner] = mealGroups(profileF, classesF, [tueLunch]);
+    expect(mealGroupLabel(lunch!)).toBe('평일 점심 · 4끼 · 쓸 수 있는 메뉴 2개(주 1회 1개)');
+    expect(mealGroupLabel(dinner!)).toBe('평일 저녁 · 5끼 · 쓸 수 있는 메뉴 3개(주 1회 1개)');
+    expect(mealGroupLabel(mealGroups(profileG, classesG, [])[0]!)).toBe('평일 점심 · 5끼 · 쓸 수 있는 메뉴 2개');
+  });
+});
+
+describe('fixSuggestions', () => {
+  it('가능하면 없다', () => {
+    expect(fixSuggestions(profileG, classesG, [])).toEqual([]);
+  });
+
+  it('페르소나 F(화요일 점심 일정): 주 1회 메뉴 하나를 자주로 바꾸거나, 점심·저녁에 메뉴를 하나 더', () => {
+    expect(fixSuggestions(profileF, classesF, [tueLunch])).toEqual([
+      { kind: 'reclass', menu: '주먹밥', to: 'often' },
+      { kind: 'reclass', menu: '토스트', to: 'often' },
+      { kind: 'add_menu', meal: { dayType: 'weekday', meal: 'lunch' } },
+      { kind: 'add_menu', meal: { dayType: 'weekday', meal: 'dinner' } },
+    ]);
+  });
+
+  it('페르소나 F(일정 없음): 분류를 바꿔도 안 되어 평일 점심에 메뉴를 더하는 것만', () => {
+    expect(fixSuggestions(profileF, classesF, [])).toEqual([{ kind: 'add_menu', meal: { dayType: 'weekday', meal: 'lunch' } }]);
+  });
+
+  it('피하기로 바꾼 메뉴를 자주로 되돌리면 되는 경우', () => {
+    expect(fixSuggestions(profileG, [often('비빔밥'), avoid('칼국수')], [])).toEqual([
+      { kind: 'reclass', menu: '칼국수', to: 'often' },
+      { kind: 'add_menu', meal: { dayType: 'weekday', meal: 'lunch' } },
+    ]);
   });
 });

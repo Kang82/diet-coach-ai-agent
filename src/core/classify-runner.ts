@@ -54,7 +54,7 @@ export async function handleClassifyRequest({
 
   let out: Awaited<ReturnType<typeof runClassification>>;
   try {
-    out = await runClassification(classifier, interviewResult);
+    out = await runClassification(classifier, interviewResult, request.known);
   } catch (error) {
     // 던지면 바깥 모델이 이 도구를 다시 부를 수 있다 (리뷰 1번). 결과로 답한다
     const kind = failureKind(error);

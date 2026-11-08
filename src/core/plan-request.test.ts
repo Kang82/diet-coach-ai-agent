@@ -91,3 +91,36 @@ describe('resolvePlanClasses', () => {
     expect(resolvePlanClasses(body, profileA.meals, undefined)).toEqual({ kind: 'no_classes' });
   });
 });
+
+// B16 T12-4: "외식 메뉴 고치기" 뒤 다시 분류할 때 이전 분류를 싣는다
+describe('분류 요청의 이전 분류(known)', () => {
+  const known = [
+    { menu: '국밥', class: 'weekly_max_1' as const, reason: '나트륨이 많음', criterionIds: ['reduce_portion_calories' as const], orderTips: ['국물 남기기'] },
+  ];
+
+  it('일정과 함께 되읽고, 없으면 옛 모양(events만)', () => {
+    expect(parseClassifyRequest(formatClassifyRequest({ events: [], known }))).toEqual({ events: [], known });
+    expect(formatClassifyRequest({ events: [], known: [] })).toBe(formatClassifyRequest({ events: [] }));
+  });
+
+  it('모르는 기준 ID는 버린다', () => {
+    const body = `메뉴 분류 요청:\n${JSON.stringify({ events: [], known: [{ ...known[0], criterionIds: ['reduce_portion_calories', 'xyz'] }] })}`;
+    expect(parseClassifyRequest(body)?.known?.[0]?.criterionIds).toEqual(['reduce_portion_calories']);
+  });
+
+  it.each([
+    ['분류 값', { class: 'sometimes' }],
+    ['빈 메뉴', { menu: ' ' }],
+    ['긴 이유', { reason: 'ㄱ'.repeat(301) }],
+    ['팁 6개', { orderTips: ['a', 'b', 'c', 'd', 'e', 'f'] }],
+    ['기준 ID가 문자열이 아님', { criterionIds: [1] }],
+  ])('형식이 틀리면(%s) 요청 전체가 undefined', (_, patch) => {
+    const body = `메뉴 분류 요청:\n${JSON.stringify({ events: [], known: [{ ...known[0], ...patch }] })}`;
+    expect(parseClassifyRequest(body)).toBeUndefined();
+  });
+
+  it('101개 이상이면 undefined', () => {
+    const many = Array.from({ length: 101 }, (_, i) => ({ ...known[0], menu: `메뉴${i}` }));
+    expect(parseClassifyRequest(`메뉴 분류 요청:\n${JSON.stringify({ events: [], known: many })}`)).toBeUndefined();
+  });
+});

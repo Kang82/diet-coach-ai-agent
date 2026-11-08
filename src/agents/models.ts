@@ -24,22 +24,31 @@ export const DEFAULT_MODEL = MODEL_CANDIDATES.gemma;
 export const INTERVIEW_THINKING = 'low' as const;
 
 /**
- * 식단 생성·다시 추천의 추론 수준 (tasks.md T8-4). 기본은 undefined(Flue 기본값 'medium')로 지금까지와 같다.
+ * 식단 생성·다시 추천 기본 모델과 추론 수준 (tasks.md T8-7, 사용자 결정 2026-11-08).
+ * gemma는 배포본에서 생성 4~6분, 다시 추천이 4분 제한을 넘겨 시간 초과로 끝나는 일이 이어졌다.
+ * gpt-oss-120b(low)는 같은 조건에서 27~72초로 3~7배 빨랐고 첫 생성에 규칙을 통과했다(docs/experiments/2026-11-08-b14-compare.md).
+ * 생성 1회 Neuron은 약 1.5배(300~380). 출력 상한 16,384토큰이라 호출 1번 최대 약 1,180 Neuron(output-caps.ts)
+ */
+export const PLAN_DEFAULT_MODEL = MODEL_CANDIDATES.gptOss120b;
+export const PLAN_DEFAULT_THINKING = 'low' as const;
+
+/**
+ * 식단 생성·다시 추천의 추론 수준 (tasks.md T8-4). 기본은 PLAN_DEFAULT_THINKING('low').
  * 11-06 배포본에서 생성 1회 출력이 평소의 약 2배(14,832토큰, 5분 46초)였다.
  * B11(T8-2, 2026-11-07)에서 'low'를 평가 세트 8회로 재 보니 medium 대비 출력 토큰 중앙값 -7%, 시간은 같아 기본값을 바꾸지 않았다
  * (docs/experiments/2026-11-07-b11-thinking-level.md). gemma는 reasoning_effort에 거의 반응하지 않는다.
  * 개발 중 `.dev.vars`의 PLAN_THINKING(low|medium|high)으로 바꿔 시험한다. 'off'는 받지 않는다(위 INTERVIEW_THINKING 주석)
  */
-/**
- * 식단 생성·다시 추천 모델 (tasks.md B14 T8-7). 기본은 undefined(에이전트 기본 모델 gemma를 그대로 씀).
- * 개발 중 `.dev.vars`의 PLAN_MODEL(MODEL_CANDIDATES의 키)로 바꿔 시험한다
- */
-export function planModel(key: string | undefined): ModelId | undefined {
-  return key && Object.hasOwn(MODEL_CANDIDATES, key) ? MODEL_CANDIDATES[key as keyof typeof MODEL_CANDIDATES] : undefined;
+export function planThinking(key: string | undefined): 'low' | 'medium' | 'high' {
+  return key === 'low' || key === 'medium' || key === 'high' ? key : PLAN_DEFAULT_THINKING;
 }
 
-export function planThinking(key: string | undefined): 'low' | 'medium' | 'high' | undefined {
-  return key === 'low' || key === 'medium' || key === 'high' ? key : undefined;
+/**
+ * 식단 생성·다시 추천 모델 (tasks.md B14 T8-7). 기본은 PLAN_DEFAULT_MODEL(gpt-oss-120b).
+ * 개발 중 `.dev.vars`의 PLAN_MODEL(MODEL_CANDIDATES의 키, 예: gemma)로 바꿔 시험한다
+ */
+export function planModel(key: string | undefined): ModelId {
+  return candidateOr(key, PLAN_DEFAULT_MODEL);
 }
 
 /**

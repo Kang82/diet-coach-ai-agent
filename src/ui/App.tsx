@@ -13,9 +13,10 @@ import { formatInterviewSubmission, type InterviewSubmission } from '../core/int
 import type { MenuClassOverride } from '../core/menu-classification.ts';
 import { formatClassifyRequest, formatPlanRequest } from '../core/plan-request.ts';
 import { draftFromResult } from '../core/profile-edit.ts';
-import type { PlanEvent } from '../core/types.ts';
+import type { MenuClassification, PlanEvent } from '../core/types.ts';
 import { clearAll, clearDrafts, CONVERSATION_KEY, defaultStore, draftKey } from './browser-store.ts';
 import { progressFromResult } from './interview-form-state.ts';
+import { loadCarryClasses, prepareMenuEdit } from './menu-edit.ts';
 import { PeriodView } from './PeriodView.tsx';
 import { clearLegacyProfile, deleteSavedProfile, fetchSavedProfile, type SavedProfile } from './saved-profile.ts';
 import { defaultConsentFor, shouldOfferSaved, type StartChoice as StartChoiceKind } from './start-choice-state.ts';
@@ -92,7 +93,7 @@ export function App({ token, userId }: { token: string; userId: string }) {
   const classified = menu?.kind === 'classified';
   const planDone = view?.kind === 'done';
   useEffect(() => {
-    if (classified) clearDrafts(conversationId, ['period']);
+    if (classified) clearDrafts(conversationId, ['period', 'carryClasses']);
     if (planDone) clearDrafts(conversationId, ['menuClasses']);
   }, [classified, planDone, conversationId]);
 
@@ -115,7 +116,8 @@ export function App({ token, userId }: { token: string; userId: string }) {
   /** 기간 선택의 "다음": 일정을 실어 메뉴 분류를 요청한다 (스펙 4.2). 메뉴는 도구가 인터뷰 결과에서 직접 읽는다 */
   async function classify(events: PlanEvent[]) {
     setSentAt(Date.now());
-    await send(formatClassifyRequest({ events }));
+    // "외식 메뉴 고치기"로 온 대화면 이전 분류를 실어 같은 메뉴는 다시 분류하지 않는다 (B16 T12-4)
+    await send(formatClassifyRequest({ events, known: loadCarryClasses(defaultStore(), conversationId) }));
   }
 
   /** 지난 프로필로 시작: 저장한 결과를 그대로 제출한다. 보내기에 실패하면 확인 화면에서 다시 보낸다 */
@@ -160,13 +162,30 @@ export function App({ token, userId }: { token: string; userId: string }) {
 
   /** 새 대화로 시작한다. 두고 가는 대화의 진행 값(건강 정보)은 지운다 (리뷰 4번) */
   function startOver() {
-    clearDrafts(conversationId, ['interview', 'period', 'menuClasses']);
+    moveToNewConversation();
+  }
+
+  /** 새 대화 ID로 옮긴다. prepare가 있으면 새 대화에 초기값을 넣고 첫 화면 선택을 정한다 */
+  function moveToNewConversation(prepare?: (id: string) => StartChoiceKind) {
+    clearDrafts(conversationId, ['interview', 'period', 'menuClasses', 'carryClasses']);
     const id = conversationIdFor(userId, null);
+    const nextChoice = prepare?.(id);
     saveConversationId(id);
     setSentAt(undefined);
     setSendFailure(undefined);
-    setChoice(undefined);
+    setChoice(nextChoice);
     setConversationId(id);
+  }
+
+  /**
+   * 외식 메뉴 고치기 (B16 T12-3): 지금 프로필을 채운 새 대화의 프로필 확인 화면으로 간다.
+   * 일정과 지금 분류(바꾼 값 포함)도 넘겨, 다시 분류할 때 새 메뉴만 모델에 보낸다
+   */
+  function editMenus(classes: MenuClassification[]) {
+    if (interview.kind !== 'done' || menu?.kind !== 'classified') return;
+    const { result } = interview;
+    const { events } = menu.period;
+    moveToNewConversation((id) => prepareMenuEdit(defaultStore(), id, { result, events, classes }));
   }
 
   return (
@@ -241,6 +260,7 @@ export function App({ token, userId }: { token: string; userId: string }) {
           profile={interview.kind === 'done' ? profileFromInterview(interview.result, new Date()) : undefined}
           events={menu.period.events}
           onCreate={create}
+          onEditMenus={editMenus}
         />
       )}
 

@@ -82,3 +82,13 @@ describe('handleClassifyRequest', () => {
     expect(out.save).toBeUndefined();
   });
 });
+
+describe('handleClassifyRequest 이전 분류 (B16 T12-4)', () => {
+  it('요청에 실린 이전 분류로 모든 메뉴가 덮이면 분류기를 부르지 않고 ok, Neuron 0', async () => {
+    const { classifier, calls } = fakeClassifier(new Error('부르면 안 됨'));
+    const out = await run(classifier, formatClassifyRequest({ events: [], known: classesA }), resultA);
+    expect(calls()).toBe(0);
+    expect(out.output.status).toBe('ok');
+    expect(out.output.stats.neurons).toBe(0);
+  });
+});

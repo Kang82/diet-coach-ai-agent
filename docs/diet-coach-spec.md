@@ -398,6 +398,7 @@ classifyMenus(profile: Profile, rules: CriteriaRules): MenuClassification[]
 - 메뉴 분류 요청에는 기간 선택 화면의 일정을 싣는다: `메뉴 분류 요청:` + `{"events":[{day, meal, note}]}`(B6). 도구가 `validateEvents`(`core/period.ts`: 안 먹는 끼니·같은 칸·빈 메모·50자 초과·모든 끼니가 일정이면 `bad_request`)로 검증하고, 분류가 성공하면 `nextMondayKst`로 정한 시작일과 함께 `usePersistentState('period')`에 둔다(판단은 `core/classify-runner.ts`). `create_week_plan`은 이 기간과 일정으로 만들되, 저장한 시작일이 오늘(KST)이거나 지났으면 다음 월요일로 다시 정한다(`planWeekStart`, T9-4).
 - 흐름: 인터뷰가 끝나면 화면이 `메뉴 분류 요청`을 보내고 `classify_menus` 도구가 끝난 인터뷰로 분류해 `usePersistentState('menuClasses')`에 저장한다. 분류 확인 화면에서 `식단표 만들기:` + `{"overrides":[{menu, class}]}` 메시지를 보내면 `create_week_plan`이 `useDelivery()`로 읽어 저장된 분류에 반영하고(`classesForPlan`), 반영한 분류를 다시 저장한 뒤 식단을 만든다. 칸 수정도 이 분류로 점검한다. 저장된 분류에 없는 메뉴로 온 수정은 무시한다.
 - 사용자가 바꾼 메뉴는 `class`만 바꾸고 `reason`은 "직접 정한 분류"로 바꾼다. `orderTips`는 그대로 둔다.
+- **이전 분류 재사용 (B16, 2026-11-08):** 분류 확인 화면의 "외식 메뉴 고치기"로 새 대화에서 다시 분류할 때, 요청에 이전 분류를 싣는다: `메뉴 분류 요청:` + `{"events":[…],"known":[MenuClassification]}`. `known`에 같은 이름(정확히 일치)이 있는 메뉴는 그 값을 쓰고 남은 메뉴만 모델에 보낸다. 모두 있으면 모델을 부르지 않는다. `criterionIds`는 지금 기준으로 거른다. `known`은 사용자가 분류 화면에서 마음대로 바꿀 수 있는 값과 같은 수준이라 받되, 100개·이유 300자·팁 5개(각 100자) 제한과 형식을 검증하고 틀리면 `bad_request`. 분류 요청은 그대로 종류별 하루 횟수에 센다.
 - 분류가 없거나 지금 메뉴와 1:1이 아니면 `create_week_plan`은 LLM을 부르지 않고 `no_classes`를 돌려준다.
 - 식단표의 프로필은 `profileFromInterview`로 만든다. 저장(T6) 전이라 `userId: 'demo'`, `version: 0`이다. `consentedAt`은 프로필 확인 화면에서 동의했으면 제출 시각, 아니면 `''`다(B6).
 
@@ -510,7 +511,7 @@ formatCheckSummary(stats: CheckStats, profile: Pick<Profile, 'avoid'>): string[]
 | 인터뷰 | 단계별 입력(목표·약·피할 음식·끼니 표·메뉴·조리 시간). 메모가 무리한 목표면 목표 단계로 돌아가 선택지를 보여 줌. 새로고침해도 이어짐 | 프로필 확인 |
 | 프로필 확인 | 프로필 표, 식단 기준, 항목별 수정, 저장 동의 | 기간 선택 |
 | 기간 선택 | 1주일(첫 시연은 이것만), 정해진 일정 입력 | 메뉴 분류 확인 |
-| 메뉴 분류 확인 | 분류 표, 분류 바꾸기 | 식단표 |
+| 메뉴 분류 확인 | 분류 표, 분류 바꾸기. (B16) 외식 끼니별로 묶고 머리에 "평일 저녁 · 5끼 · 쓸 수 있는 메뉴 3개(주 1회 1개)". 메뉴가 모자란 끼니는 경고 테두리와 "이렇게 하면 만들 수 있어요"(자주로 바꾸면 되는 메뉴는 누르면 바로 바뀜, 메뉴를 하나 더 넣을 끼니). "외식 메뉴 고치기"는 지금 프로필·일정·분류를 채운 새 대화의 프로필 확인 화면으로 가고, 메뉴 "고치기"는 이전 메뉴를 입력란에 미리 채운다 | 식단표 |
 | (B15) 미리 알림 | 프로필 확인: 모든 메뉴를 자주로 보고도 불가능하면 메뉴를 더 넣으라는 안내(막지 않음). 메뉴 분류 확인: 바꾼 분류와 일정으로 불가능하면 4.3과 같은 문구를 띄우고 만들기 버튼을 막음 | – |
 | 식단표 | 요일 × 끼니 표, 칸마다 이유와 주문 팁, 점검 요약, 의료 조언 아님 안내(약 복용 중이면 상담 권고 추가), 고른 주가 이미 시작해 다음 주로 만들었으면 맨 앞에 "고른 주(11/9~)가 이미 시작돼 다음 주(11/16~)로 만들었어요."(일정이 있으면 "일정은 같은 요일·끼니에 넣었어요." 덧붙임, T10-5), 칸별 "다시 추천" | 저장 |
 
@@ -701,13 +702,14 @@ LLM 단계는 결과가 매번 다르므로 페르소나별로 여러 번 돌려
 
 | 후보 | 모델 ID | 컨텍스트 | 함수 호출 | Neuron / 100만 토큰 (입력 / 출력) |
 | --- | --- | --- | --- | --- |
-| gemma (기본값) | `cloudflare/@cf/google/gemma-4-26b-a4b-it` | 256K | 지원 | 9,091 / 27,273 |
+| gemma (기본값. 바깥 턴·메뉴 분류) | `cloudflare/@cf/google/gemma-4-26b-a4b-it` | 256K | 지원 | 9,091 / 27,273 |
 | glm | `cloudflare/@cf/zai-org/glm-4.7-flash` | 131K | 지원 | 5,500 / 36,400 |
-| gpt-oss-120b (식단 생성 비교 후보, B14) | `cloudflare/@cf/openai/gpt-oss-120b` | 128K | 지원 | 31,818 / 68,182 |
+| gpt-oss-120b (식단 생성·다시 추천 기본값, 추론 low, T8-7 2026-11-08) | `cloudflare/@cf/openai/gpt-oss-120b` | 128K | 지원 | 31,818 / 68,182 |
 
 - 단가는 [Workers AI 가격표](https://developers.cloudflare.com/workers-ai/platform/pricing/)에서 옮겼다 (2026-11-06 확인). 코드의 값은 `src/agents/models.ts`의 `NEURON_PRICES`이고, 11.5 측정 기록과 맞는지 테스트로 확인한다.
 
 - 모델 ID는 `src/agents/models.ts`에만 두고, 에이전트는 이 값을 가져다 쓴다.
+- **식단 생성·다시 추천은 gpt-oss-120b(추론 low)로 바꿨다 (사용자 결정 2026-11-08, T8-7).** 배포본에서 gemma 생성이 4분 가까이 걸리고 이어진 다시 추천이 4분 제한을 넘겨 시간 초과로 끝났다(11:19~11:27 KST, AI Gateway). B14 같은 조건 비교에서 gpt-oss low는 27~72초(gemma 207초), 첫 생성 통과, 생성 Neuron 약 1.5배였다([기록](experiments/2026-11-08-b14-compare.md)). 이유 문장에 사실과 다른 근거가 섞이는 점은 남은 과제다. `.dev.vars`의 `PLAN_MODEL=gemma`로 되돌려 시험할 수 있다.
 - 8.5 평가 세트로 두 후보를 비교해 최종 모델을 정한다. 비교 기준은 스키마 통과율, `checkPlan` 통과율, 1회 사용 Neuron, 한국어 이유 문장의 자연스러움(사람이 확인)이다.
 - 무료로 쓸 수 없는 모델(Kimi K2.6, GLM-5.x, DeepSeek V4)은 쓰지 않는다.
 - gpt-oss-120b는 기본 출력 상한이 256토큰이라 `OUTPUT_CAPS`(16,384)로 상한을 넣는다. Flue의 두 번째 턴 메시지 형식(배열·null content)을 400으로 거절해 `PAYLOAD_FIXES`로 문자열 content로 맞춘다(직접 호출로 확인). 식단 생성으로는 아직 확인하지 않았다(`experiments/2026-11-08-b14-gpt-oss-low.md`, `2026-11-08-b14-payload-check.md`).
