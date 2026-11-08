@@ -39,7 +39,8 @@ describe('buildGeneratePrompt', () => {
 
     expect(prompt).toContain('menuId는 다음 중 하나를 글자 그대로: 백반, 쌀국수, 회덮밥');
     expect(prompt).toContain('1주일에 1번까지만: 국밥, 돈가스');
-    expect(prompt).toContain('회덮밥(초장 절반)');
+    expect(prompt).toContain('주문 팁(그 메뉴에만): ');
+    expect(prompt).toContain('회덮밥 → 초장 절반');
   });
 
   it('피하기로 분류된 메뉴는 목록에 넣지 않는다', () => {
@@ -141,6 +142,15 @@ describe('normalizeMenuId', () => {
 
   it('메뉴 목록이 있으면 공백만 다른 이름을 목록의 글자로 맞춘다', () => {
     expect(normalizeMenuId('회 덮밥 (초장 절반)', ['회덮밥', '백반'])).toBe('회덮밥');
+  });
+
+  it('목록 이름에 괄호 메모가 있어도 맞춘다 (2026-11-08 배포본: "포케볼(생선 x)"이 매번 목록에 없음으로 걸림)', () => {
+    const menus = ['샐러드', '포케볼(생선 x)', '쌀국수'];
+    expect(normalizeMenuId('포케볼', menus)).toBe('포케볼(생선 x)');
+    expect(normalizeMenuId('포케볼(생선 x)', menus)).toBe('포케볼(생선 x)');
+    expect(normalizeMenuId('포케볼 (현미밥 선택)', menus)).toBe('포케볼(생선 x)');
+    // 괄호 없는 이름이 목록에 따로 있으면 그쪽이 먼저
+    expect(normalizeMenuId('포케볼', ['포케볼', '포케볼(생선 x)'])).toBe('포케볼');
   });
 
   it('목록에 없는 메뉴는 정규화한 이름 그대로 둔다 (checkPlan이 eat_out_not_in_list로 거른다)', () => {

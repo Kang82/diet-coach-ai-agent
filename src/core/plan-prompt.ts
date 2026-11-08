@@ -141,9 +141,10 @@ function describeMenus(menus: readonly string[], classes: readonly MenuClassific
   if (weekly.length > 0) parts.push(`1주일에 1번까지만: ${weekly.join(', ')}`);
   const tips = menus.flatMap((m) => {
     const c = classOf.get(m);
-    return c && c.class !== 'avoid' && c.orderTips.length > 0 ? [`${m}(${c.orderTips.join(', ')})`] : [];
+    return c && c.class !== 'avoid' && c.orderTips.length > 0 ? [`${m} → ${c.orderTips.join(', ')}`] : [];
   });
-  if (tips.length > 0) parts.push(`주문 팁: ${tips.join(', ')}`);
+  // 예전 "메뉴(팁)" 모양은 메뉴 이름의 괄호와 섞이고, 팁 하나를 다른 메뉴에도 옮겨 적었다(2026-11-08 배포본). 메뉴마다 화살표로 나눈다
+  if (tips.length > 0) parts.push(`주문 팁(그 메뉴에만): ${tips.join('; ')}`);
   return parts.join(' / ');
 }
 
@@ -185,7 +186,7 @@ function sectionCellFormat(): string {
     '- ingredients: 주요 재료',
     `- tags: 해당하는 것을 빠짐없이. 재료 태그 ${AVOID_TAGS.join(', ')} / 음식 종류 태그 ${NUTRITION_TAGS.join(', ')}`,
     '  고기가 들어가면 meat와 함께 pork, beef, chicken 중 해당하는 것도 붙입니다.',
-    '- orderTip: 외식일 때 주문 팁 한 줄',
+    '- orderTip: 외식일 때 그 메뉴의 주문 팁 한 줄. 위 "주문 팁"에 그 메뉴가 있으면 그 팁을 쓰고, 다른 메뉴의 팁은 옮기지 않습니다',
     '- cookMinutes: 집밥은 조리 시간(분), 외식은 0',
     '- reason: 이 메뉴를 고른 이유를 한국어 한두 문장으로. 식단 기준과 연결해서',
     '- criterionIds: reason의 근거가 된 식단 기준 ID를 1개 이상 (위 "식단 기준"의 영문 값만)',
@@ -214,12 +215,21 @@ function describeViolation(v: Violation, weeklyMax: number): string {
 /**
  * LLM이 만든 menuId를 정규화한다 (스펙 1.4). 앞뒤 공백을 지우고 괄호 설명을 뗀다.
  * 외식 메뉴 목록과는 정확히 일치로 비교하므로, 정규화 뒤 목록과 menuKey가 같으면 목록의 글자로 맞춘다.
+ * 사용자가 메뉴 이름에 괄호 메모를 넣은 경우("포케볼(생선 x)")도 맞춘다: 목록 이름과 그대로 같거나, 괄호를 뗀 모양끼리 같으면
+ * 목록의 글자를 돌려준다. 예전에는 목록 쪽 괄호를 떼지 않아 이런 메뉴는 고를 때마다 eat_out_not_in_list였다(2026-11-08 배포본)
  */
 export function normalizeMenuId(menuId: string, menus: readonly string[] = []): string {
-  const stripped = menuId
+  const exact = menus.find((m) => menuKey(m) === menuKey(menuId));
+  if (exact) return exact;
+  const stripped = stripNotes(menuId);
+  const match = menus.find((m) => menuKey(m) === menuKey(stripped)) ?? menus.find((m) => menuKey(stripNotes(m)) === menuKey(stripped));
+  return match ?? stripped;
+}
+
+/** 괄호 설명을 떼고 공백을 정리한다 */
+function stripNotes(text: string): string {
+  return text
     .replace(/\s*[(（][^)）]*[)）]\s*/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  const match = menus.find((m) => menuKey(m) === menuKey(stripped));
-  return match ?? stripped;
 }
