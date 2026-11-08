@@ -1,0 +1,358 @@
+[
+  {
+    "persona": "페르소나E",
+    "run": 1,
+    "result": "pass",
+    "output": {
+      "status": "ok",
+      "plan": {
+        "planId": "dbe971f5-4937-4a94-b378-8df6b8e91772",
+        "userId": "demo",
+        "profileVersion": 0,
+        "weekStart": "2026-11-09",
+        "events": [],
+        "cells": [
+          {
+            "day": "mon",
+            "meal": "lunch",
+            "place": "eat_out",
+            "menuId": "비빔밥",
+            "title": "비빔밥",
+            "ingredients": [
+              "밥",
+              "나물",
+              "고추장",
+              "계란"
+            ],
+            "tags": [
+              "egg",
+              "soy"
+            ],
+            "orderTip": "",
+            "cookMinutes": 0,
+            "reason": "식이섬유를 늘리고 정제 탄수화물 섭취를 조절하기 위해 비빔밥을 선택했습니다.",
+            "criterionIds": [
+              "increase_fiber",
+              "reduce_refined_carbs"
+            ]
+          },
+          {
+            "day": "mon",
+            "meal": "dinner",
+            "place": "eat_out",
+            "menuId": "샤브샤브",
+            "title": "샤브샤브",
+            "ingredients": [
+              "소고기",
+              "배추",
+              "버섯",
+              "숙주"
+            ],
+            "tags": [
+              "beef",
+              "meat"
+            ],
+            "orderTip": "",
+            "cookMinutes": 0,
+            "reason": "채소를 많이 섭취하여 식이섬유를 높이고 포만감을 줍니다.",
+            "criterionIds": [
+              "increase_fiber"
+            ]
+          },
+          {
+            "day": "tue",
+            "meal": "lunch",
+            "place": "eat_out",
+            "menuId": "닭가슴살 샐러드",
+            "title": "닭가슴살 샐러드",
+            "ingredients": [
+              "닭가슴살",
+              "채소",
+              "드레싱"
+            ],
+            "tags": [
+              "chicken",
+              "meat"
+            ],
+            "orderTip": "",
+            "cookMinutes": 0,
+            "reason": "단백질과 식이섬유를 충분히 섭취하면서 칼로리를 줄입니다.",
+            "criterionIds": [
+              "reduce_portion_calories",
+              "increase_fiber"
+            ]
+          },
+          {
+            "day": "tue",
+            "meal": "dinner",
+            "place": "eat_out",
+            "menuId": "된장찌개",
+            "title": "된장찌개",
+            "ingredients": [
+              "된장",
+              "두부",
+              "애호박"
+            ],
+            "tags": [
+              "soy"
+            ],
+            "orderTip": "",
+            "cookMinutes": 0,
+            "reason": "자극적이지 않고 식이섬유가 풍부한 식단을 유지합니다.",
+            "criterionIds": [
+              "increase_fiber"
+            ]
+          },
+          {
+            "day": "wed",
+            "meal": "lunch",
+            "place": "eat_out",
+            "menuId": "쌀국수",
+            "title": "쌀국수 (숙주 추가)",
+            "ingredients": [
+              "쌀면",
+              "소고기",
+              "숙주",
+              "양파"
+            ],
+            "tags": [
+              "beef",
+              "meat",
+              "refined_carb_main"
+            ],
+            "orderTip": "숙주 추가",
+            "cookMinutes": 0,
+            "reason": "숙주를 추가하여 식이섬유를 보충하고 정제 탄수화물 비중을 조절합니다.",
+            "criterionIds": [
+              "increase_fiber",
+              "reduce_refined_carbs"
+            ]
+          },
+          {
+            "day": "wed",
+            "meal": "dinner",
+            "place": "eat_out",
+            "menuId": "연어덮밥",
+            "title": "연어덮밥",
+            "ingredients": [
+              "연어",
+              "밥",
+              "채소"
+            ],
+            "tags": [
+              "fish"
+            ],
+            "orderTip": "",
+            "cookMinutes": 0,
+            "reason": "양질의 지방과 단백질을 섭취하며 칼로리를 관리합니다.",
+            "criterionIds": [
+              "reduce_portion_calories"
+            ]
+          },
+          {
+            "day": "thu",
+            "meal": "lunch",
+            "place": "eat_out",
+            "menuId": "회덮밥",
+            "title": "회덮밥 (초장 절반)",
+            "ingredients": [
+              "회",
+              "채소",
+              "초장",
+              "밥"
+            ],
+            "tags": [
+              "fish"
+            ],
+            "orderTip": "초장 절반",
+            "cookMinutes": 0,
+            "reason": "초장 양을 줄여 당분 섭취를 제한하고 채소를 많이 먹습니다.",
+            "criterionIds": [
+              "reduce_portion_calories",
+              "increase_fiber"
+            ]
+          },
+          {
+            "day": "thu",
+            "meal": "dinner",
+            "place": "eat_out",
+            "menuId": "국밥",
+            "title": "국밥 (국물과 밥 남기기)",
+            "ingredients": [
+              "돼지국밥",
+              "밥",
+              "다대기"
+            ],
+            "tags": [
+              "pork",
+              "meat"
+            ],
+            "orderTip": "국물과 밥 남기기",
+            "cookMinutes": 0,
+            "reason": "국물과 밥의 양을 조절하여 칼로리 섭취를 줄입니다.",
+            "criterionIds": [
+              "reduce_portion_calories"
+            ]
+          },
+          {
+            "day": "fri",
+            "meal": "lunch",
+            "place": "eat_out",
+            "menuId": "생선구이 정식",
+            "title": "생선구이 정식",
+            "ingredients": [
+              "생선",
+              "밥",
+              "밑반찬"
+            ],
+            "tags": [
+              "fish"
+            ],
+            "orderTip": "",
+            "cookMinutes": 0,
+            "reason": "생선을 통해 단백질을 섭취하고 식이섬유가 풍부한 반찬을 곁들입니다.",
+            "criterionIds": [
+              "increase_fiber"
+            ]
+          },
+          {
+            "day": "fri",
+            "meal": "dinner",
+            "place": "eat_out",
+            "menuId": "보쌈",
+            "title": "보쌈",
+            "ingredients": [
+              "돼지고기 수육",
+              "쌈채소"
+            ],
+            "tags": [
+              "pork",
+              "meat"
+            ],
+            "orderTip": "",
+            "cookMinutes": 0,
+            "reason": "튀기지 않은 고기로 단백질을 섭취하며 쌈채소로 식이섬유를 보충합니다.",
+            "criterionIds": [
+              "increase_fiber"
+            ]
+          },
+          {
+            "day": "sat",
+            "meal": "lunch",
+            "place": "home",
+            "menuId": "두부 채소 볶음",
+            "title": "두부 채소 볶음",
+            "ingredients": [
+              "두부",
+              "브로콜리",
+              "버섯",
+              "간장"
+            ],
+            "tags": [
+              "soy"
+            ],
+            "orderTip": "",
+            "cookMinutes": 15,
+            "reason": "두부와 채소 위주의 식단으로 식이섬유를 늘리고 칼로리를 낮춥니다.",
+            "criterionIds": [
+              "increase_fiber",
+              "reduce_portion_calories"
+            ]
+          },
+          {
+            "day": "sat",
+            "meal": "dinner",
+            "place": "home",
+            "menuId": "닭가슴살 야채 볶음",
+            "title": "닭가슴살 야채 볶음",
+            "ingredients": [
+              "닭가슴살",
+              "파프리카",
+              "양파",
+              "올리브유"
+            ],
+            "tags": [
+              "chicken",
+              "meat"
+            ],
+            "orderTip": "",
+            "cookMinutes": 20,
+            "reason": "저칼로리 고단백 식단으로 영양 균형을 맞춥니다.",
+            "criterionIds": [
+              "reduce_portion_calories"
+            ]
+          },
+          {
+            "day": "sun",
+            "meal": "lunch",
+            "place": "home",
+            "menuId": "소고기 버섯 전골",
+            "title": "소고기 버섯 전골",
+            "ingredients": [
+              "소고기",
+              "각종 버섯",
+              "청경채",
+              "육수"
+            ],
+            "tags": [
+              "beef",
+              "meat"
+            ],
+            "orderTip": "",
+            "cookMinutes": 30,
+            "reason": "버섯을 듬뿍 넣어 식이섬유를 풍부하게 섭취합니다.",
+            "criterionIds": [
+              "increase_fiber"
+            ]
+          },
+          {
+            "day": "sun",
+            "meal": "dinner",
+            "place": "home",
+            "menuId": "계란 야채 덮밥",
+            "title": "계란 야채 덮밥",
+            "ingredients": [
+              "계란",
+              "시금치",
+              "당근",
+              "밥"
+            ],
+            "tags": [
+              "egg"
+            ],
+            "orderTip": "",
+            "cookMinutes": 10,
+            "reason": "간단하면서도 영양가가 높은 식단으로 칼로리를 조절합니다.",
+            "criterionIds": [
+              "reduce_portion_calories"
+            ]
+          }
+        ],
+        "createdAt": "2026-11-08T00:18:46.397Z"
+      },
+      "summary": [
+        "유제품 0회, 견과류 0회",
+        "주 1회 이하 메뉴: 쌀국수 1회, 보쌈 1회",
+        "같은 메뉴 연속 없음"
+      ],
+      "notices": [
+        "일반적인 식단 지침을 따른 추천이며, 의료 조언이 아닙니다."
+      ],
+      "stats": {
+        "seconds": 207,
+        "regenerations": 0,
+        "usages": [
+          {
+            "model": "cloudflare/@cf/google/gemma-4-26b-a4b-it",
+            "input": 2033,
+            "output": 7377
+          }
+        ],
+        "neurons": 220
+      }
+    },
+    "violations": [],
+    "conversationId": "c5d7d39d5bfdc261-eval-0608f430-7214-41db-802c-f62a0b7a1eab",
+    "seconds": 221
+  }
+]

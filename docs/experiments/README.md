@@ -29,7 +29,8 @@
 | 2026-11-08 | [B12+B13 배포와 배포본 실제 1회](2026-11-08-b12-b13-deploy.md) | 배포본에서 만들기가 끝나나, Traces 내용·`log.info`·`usage_hourly`·알람 15분·예약 정산 | 만들기 245초 `ok` 310 Neuron. Traces에 내용 없음, `log.info`는 Workers Logs에 안 나옴, 알람 최장 19초(15분 가설 아님), 예약 정산됨. 같은 시각 기존 사용자의 만들기는 모델이 5분 응답하지 않아 `timeout`(T8-6) | 약 630 Neuron(분류 포함) |
 | 2026-11-08 | [B14 gpt-oss-120b(추론 low) 1회](2026-11-08-b14-gpt-oss-low.md) | 메뉴 많은 프로필(페르소나 E)에서 gpt-oss-120b가 시간 안에 좋은 식단표를 내나 | 식단표까지 못 감. 도구 안 프롬프트가 에이전트 지시를 물려받아 `create_week_plan`을 불렀고(Flue가 재귀 차단), 두 번째 턴부터 Workers AI가 Flue 메시지 형식(배열·null content)을 400으로 거절. 출력 상한 감싸기는 동작 | 약 120 Neuron |
 | 2026-11-08 | [B14 후보 모델 메시지 형식 사전 확인](2026-11-08-b14-payload-check.md) | mistral-small도 Flue 두 번째 턴 형식에서 막히나, gpt-oss를 문자열 content로 맞추면 통하나 | mistral-small은 그대로 통함(상한 256만 넣으면 됨). gpt-oss는 문자열로 맞추면 200, `finish` 정상 호출 | 약 22 Neuron |
-| 2026-11-08 | [B14 gpt-oss-120b(low) 식단 생성 실측](2026-11-08-b14-gpt-oss-low-run.md) | 형식 보정 뒤 gpt-oss-120b low가 메뉴 많은 프로필(페르소나 E)에서 시간 안에 좋은 식단표를 내나 | 72초, 출력 3,585토큰, 306 Neuron, 첫 생성에 `checkPlan` 통과. 이유 문장은 자연스러움. 흰쌀·흰빵 칸에 정제 탄수화물 태그 누락, 외식 주문 팁 빈 칸 많음(사람 확인 필요). 1회 | 약 376 Neuron |
+| 2026-11-08 | [B14 gpt-oss-120b(low) 식단 생성 실측](2026-11-08-b14-gpt-oss-low-run.md) | 형식 보정 뒤 gpt-oss-120b low가 메뉴 많은 프로필(페르소나 E)에서 시간 안에 좋은 식단표를 내나 | 72초, 출력 3,585토큰, 306 Neuron, 첫 생성에 `checkPlan` 통과. 이유 문장은 자연스러움. 흰 식빵 칸에 정제 탄수화물 태그 누락, 외식 주문 팁 빈 칸 많음(사람 확인 필요). 1회 | 약 376 Neuron |
+| 2026-11-08 | [B14 페르소나 E: gpt-oss low vs gemma](2026-11-08-b14-compare.md) | 같은 조건에서 gpt-oss-120b low와 gemma의 시간·품질·Neuron 차이 | gpt-oss 27초·382 Neuron, gemma 207초·220 Neuron, 둘 다 첫 생성 통과. gemma도 페르소나 E에선 느려지지 않아 사용자 경우 재현 실패. 문장은 gpt-oss가 구체적이나 틀린 근거가 섞임. 각 1회 | 약 730 Neuron |
 
 비용은 식단 생성 호출의 토큰으로 계산한 값이다. 에이전트가 도구를 고르는 바깥 턴은 빠져 있다(2026-11-06 화면 실험부터 바깥 턴 포함).
 
