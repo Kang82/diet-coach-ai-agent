@@ -12,6 +12,7 @@ import {
   PLACE_LABELS,
 } from '../core/labels.ts';
 import { criteriaText, type ProfileSection } from '../core/profile-edit.ts';
+import { profileStepHint } from '../core/plan-feasibility.ts';
 import { needsMedication, validateProfile, type ProfileIssueCode } from '../core/profile-validation.ts';
 
 const ISSUE_TEXT: Record<ProfileIssueCode, string> = {
@@ -39,7 +40,10 @@ export function ProfileConfirmView({
   const [consent, setConsent] = useState(defaultConsent);
   const consentId = useId();
   const { criteria, limits } = criteriaText(buildCriteria(result.goals));
-  const issues = validateProfile(profileFromInterview(result, new Date())).filter((i) => i.code !== 'consent_missing');
+  const profile = profileFromInterview(result, new Date());
+  const issues = validateProfile(profile).filter((i) => i.code !== 'consent_missing');
+  // 외식 메뉴가 적어 식단표를 만들기 어려우면 미리 알린다(막지는 않음, B15 T11-4)
+  const menuHint = issues.length === 0 ? profileStepHint(profile) : undefined;
 
   const edit = (section: ProfileSection, label: string) => (
     <button type="button" className="link" onClick={() => onEdit(section)} aria-label={`${label} 고치기`}>
@@ -122,6 +126,12 @@ export function ProfileConfirmView({
             <li key={n}>{ISSUE_TEXT[i.code]}</li>
           ))}
         </ul>
+      )}
+
+      {menuHint && (
+        <p className="chat-alert" role="status">
+          {menuHint}
+        </p>
       )}
 
       <label className="option consent" htmlFor={consentId}>

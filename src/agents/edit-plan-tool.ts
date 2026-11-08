@@ -7,6 +7,7 @@ import { parseEditRequest } from '../core/edit-request.ts';
 import { formatCheckSummary } from '../core/format-summary.ts';
 import { PLAN_TOOL_BUDGETS } from '../core/llm-timeout.ts';
 import { editPlanCells } from '../core/plan-loop.ts';
+import { menuWeeklyMaxFor } from '../core/plan-feasibility.ts';
 import { steppedGenerator } from '../core/stepped-generator.ts';
 import { DUPLICATE_TOOL_MESSAGE, type ToolGate } from '../core/tool-gate.ts';
 import type { PlanPeriod } from '../core/period.ts';
@@ -113,11 +114,12 @@ export function editPlanCellsTool({
                 status: 'ok',
                 plan: result.plan,
                 summary: formatCheckSummary(result.check.stats, ctx.profile),
-                notices: buildPlanNotices(ctx.profile, {
-                  chosen: period?.weekStart,
-                  weekStart: result.plan.weekStart,
-                  hasEvents: result.plan.events.length > 0,
-                }),
+                notices: buildPlanNotices(
+                  ctx.profile,
+                  { chosen: period?.weekStart, weekStart: result.plan.weekStart, hasEvents: result.plan.events.length > 0 },
+                  // 외식 메뉴가 적어 늘린 같은 메뉴 허용 횟수 (B15). 만들 때와 같은 값
+                  menuWeeklyMaxFor(ctx.profile, ctx.classes, result.plan.events),
+                ),
                 targets,
                 changed: result.changed,
                 unchangedTargets: result.unchangedTargets,

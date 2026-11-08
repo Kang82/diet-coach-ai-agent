@@ -1,7 +1,9 @@
 // 스펙 4.3, 4.4 프롬프트. 문장 전체가 아니라 LLM에 꼭 전해야 할 사실이 들어 있는지 확인한다.
 import { describe, expect, it } from 'vitest';
 import { classesA, planA, profileA } from './__fixtures__/persona-a.ts';
+import { classesG, profileG } from './__fixtures__/personas.ts';
 import { rulesA } from './__fixtures__/rules-a.ts';
+import { buildCriteria } from './criteria.ts';
 import { buildGeneratePrompt, buildRegeneratePrompt, FINISH_ONLY, normalizeMenuId } from './plan-prompt.ts';
 import type { GeneratePlanInput, RegenerateCellsInput } from './plan-generator.ts';
 
@@ -143,5 +145,25 @@ describe('normalizeMenuId', () => {
 
   it('목록에 없는 메뉴는 정규화한 이름 그대로 둔다 (checkPlan이 eat_out_not_in_list로 거른다)', () => {
     expect(normalizeMenuId('짜장면', ['회덮밥', '백반'])).toBe('짜장면');
+  });
+});
+
+// B15 T11-2: 같은 메뉴 허용 횟수는 사전 점검이 정한 값을 알린다
+describe('같은 메뉴 허용 횟수', () => {
+  it('기본은 2번', () => {
+    expect(buildGeneratePrompt(generateInput())).toContain('- 같은 메뉴는 1주일에 2번까지만 넣습니다.');
+  });
+
+  it('외식 메뉴가 적어 늘어나면 그 값을 알리고, 다시 추천의 위반 이유도 같은 값', () => {
+    const input = generateInput({ profile: structuredClone(profileG), classes: structuredClone(classesG), rules: buildCriteria(profileG.goals) });
+    expect(buildGeneratePrompt(input)).toContain('- 같은 메뉴는 1주일에 3번까지만 넣습니다.');
+    const regenerate = buildRegeneratePrompt({
+      ...input,
+      plan: { ...structuredClone(planA), events: [] },
+      targets: [{ day: 'fri', meal: 'lunch' }],
+      violations: [{ rule: 'menu_weekly_limit', cells: [{ day: 'fri', meal: 'lunch' }], regenerate: [{ day: 'fri', meal: 'lunch' }], detail: '비빔밥' }],
+    });
+    expect(regenerate).toContain('같은 메뉴를 1주일에 3번 넘게 넣음');
+    expect(regenerate).toContain('- 같은 메뉴는 1주일에 3번까지만 넣습니다.');
   });
 });

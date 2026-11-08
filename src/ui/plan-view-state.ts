@@ -83,7 +83,10 @@ export function toPlanViewState({ historyReady, status, messages, settlements }:
     if (output?.status === 'violations') return { kind: 'violations', message: output.message, ...retry };
     if (output?.status === 'quota') return { kind: 'quota', message: output.message, ...retry };
     if (output?.status === 'timeout' || output?.status === 'error') return { kind: 'error', message: output.message, ...retry };
-    if (output?.status === 'no_classes' || output?.status === 'bad_request') return { kind: 'error', message: output.message };
+    // 분류 없음, 깨진 요청, 불가능한 조건(B15)은 같은 메시지를 다시 보내도 결과가 같아 다시 시도가 없다
+    if (output?.status === 'no_classes' || output?.status === 'bad_request' || output?.status === 'infeasible') {
+      return { kind: 'error', message: output.message };
+    }
     return { kind: 'error', message: GENERIC_ERROR, ...retry };
   }
   if (call?.state === 'output-error' || status === 'error' || settled) return { kind: 'error', message: GENERIC_ERROR, ...retry };

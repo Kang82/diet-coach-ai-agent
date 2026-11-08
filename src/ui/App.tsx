@@ -5,6 +5,7 @@
 // 대화 ID를 localStorage에 두어 새로고침하거나 창을 닫았다 열어도 같은 대화(진행 상태나 결과)를 다시 읽는다.
 // 대화 ID는 "<userId>-<UUID>"이고, 모든 요청에 사용자 링크 토큰을 붙인다 (스펙 11.4-1, AccessGate.tsx).
 import { useFlueAgent } from '@flue/react';
+import { profileFromInterview } from '../core/interview.ts';
 import { createFlueClient } from '@flue/sdk';
 import { useEffect, useMemo, useState } from 'react';
 import { formatEditRequest } from '../core/edit-request.ts';
@@ -233,7 +234,14 @@ export function App({ token, userId }: { token: string; userId: string }) {
       )}
 
       {view?.kind === 'idle' && menu?.kind === 'classified' && (
-        <MenuClassView key={conversationId} conversationId={conversationId} classes={menu.classes} onCreate={create} />
+        <MenuClassView
+          key={conversationId}
+          conversationId={conversationId}
+          classes={menu.classes}
+          profile={interview.kind === 'done' ? profileFromInterview(interview.result, new Date()) : undefined}
+          events={menu.period.events}
+          onCreate={create}
+        />
       )}
 
       {view?.kind === 'creating' && (

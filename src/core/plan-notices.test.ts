@@ -38,3 +38,18 @@ describe('주가 밀렸을 때 안내 (T10-5)', () => {
     ]);
   });
 });
+
+// B15 T11-2: 외식 메뉴가 적어 같은 메뉴 허용 횟수를 늘렸으면 알린다
+describe('같은 메뉴 허용 횟수 안내', () => {
+  it('기본(2번)이면 안내 없음', () => {
+    expect(buildPlanNotices({ medication: 'none' }, undefined, 2)).toEqual([MEDICAL_DISCLAIMER]);
+  });
+
+  it('늘렸으면 주 밀림 안내 다음, 의료 안내 앞에 알린다', () => {
+    expect(buildPlanNotices({ medication: 'none' }, { chosen: '2026-11-09', weekStart: '2026-11-16', hasEvents: false }, 3)).toEqual([
+      '고른 주(11/9~)가 이미 시작돼 다음 주(11/16~)로 만들었어요.',
+      '외식 메뉴가 적어 같은 메뉴를 1주일에 3번까지 넣었어요.',
+      MEDICAL_DISCLAIMER,
+    ]);
+  });
+});

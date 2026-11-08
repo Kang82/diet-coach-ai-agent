@@ -1,6 +1,7 @@
 // 스펙 8.2
 import { describe, expect, it } from 'vitest';
 import { classesA, planA, profileA } from './__fixtures__/persona-a.ts';
+import { classesG, profileG } from './__fixtures__/personas.ts';
 import { checkPlan } from './check-plan.ts';
 import { rulesA } from './__fixtures__/rules-a.ts';
 import type { CheckResult, Day, MealType, MenuClassification, Plan, PlanCell, Profile, Slot } from './types.ts';
@@ -306,6 +307,57 @@ describe('checkPlan', () => {
       'avoid_tag',
       'class_weekly_limit',
       'cook_time_exceeded',
+    ]);
+  });
+});
+
+// B15 T11-2: 같은 메뉴 허용 횟수는 사전 점검(plan-feasibility.ts)이 프로필·분류·일정으로 정한다
+describe('checkPlan: 외식 메뉴가 적을 때 같은 메뉴 허용 횟수', () => {
+  /** 페르소나 G: 평일 점심 외식(비빔밥·칼국수), 평일 저녁 집밥 30분, 주말 집밥 */
+  function planG(lunches: Partial<Record<Day, string>>, events: Slot[] = []): Plan {
+    const cell = (day: Day, meal: MealType, place: 'home' | 'eat_out', menuId: string): PlanCell => ({
+      day,
+      meal,
+      place,
+      menuId,
+      title: menuId,
+      ingredients: [],
+      tags: [],
+      cookMinutes: place === 'home' ? 20 : 0,
+      reason: '이유',
+      criterionIds: ['reduce_portion_calories'],
+    });
+    const cells: PlanCell[] = [];
+    for (const day of ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const) {
+      const weekday = day !== 'sat' && day !== 'sun';
+      const lunch = lunches[day];
+      if (weekday && lunch) cells.push(cell(day, 'lunch', 'eat_out', lunch));
+      if (!weekday) cells.push(cell(day, 'lunch', 'home', `${day} 점심 집밥`));
+      cells.push(cell(day, 'dinner', 'home', `${day} 저녁 집밥`));
+    }
+    return { ...structuredClone(planA), events: events.map((e) => ({ ...e, note: '일정' })), cells };
+  }
+  const rulesG = { criteria: ['reduce_portion_calories' as const], tagLimits: {} };
+
+  it('평일 점심 5칸을 메뉴 2개로 채우면 같은 메뉴 3번까지 허용된다', () => {
+    const plan = planG({ mon: '비빔밥', tue: '칼국수', wed: '비빔밥', thu: '칼국수', fri: '비빔밥' });
+    expect(checkPlan(plan, profileG, classesG, rulesG).violations).toEqual([]);
+  });
+
+  it('일정으로 평일 점심이 4칸이면 기본(2번)이라 같은 메뉴 3번은 위반이다', () => {
+    const events = [{ day: 'tue' as const, meal: 'lunch' as const }];
+    const plan = planG({ mon: '비빔밥', wed: '비빔밥', thu: '칼국수', fri: '비빔밥' }, events);
+    expect(checkPlan(plan, profileG, classesG, rulesG).violations).toEqual([
+      {
+        rule: 'menu_weekly_limit',
+        cells: [
+          { day: 'mon', meal: 'lunch' },
+          { day: 'wed', meal: 'lunch' },
+          { day: 'fri', meal: 'lunch' },
+        ],
+        regenerate: [{ day: 'fri', meal: 'lunch' }],
+        detail: '비빔밥',
+      },
     ]);
   });
 });

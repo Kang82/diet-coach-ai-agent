@@ -4,7 +4,20 @@ import { buildCriteria } from '../criteria.ts';
 import { validateProfile } from '../profile-validation.ts';
 import type { MenuClassification, Profile } from '../types.ts';
 import { classesA, profileA } from './persona-a.ts';
-import { classesB, classesC, classesD, classesE, profileB, profileC, profileD, profileE } from './personas.ts';
+import {
+  classesB,
+  classesC,
+  classesD,
+  classesE,
+  classesF,
+  classesG,
+  profileB,
+  profileC,
+  profileD,
+  profileE,
+  profileF,
+  profileG,
+} from './personas.ts';
 
 const personas: [string, Profile, MenuClassification[]][] = [
   ['A', profileA, classesA],
@@ -12,6 +25,8 @@ const personas: [string, Profile, MenuClassification[]][] = [
   ['C', profileC, classesC],
   ['D', profileD, classesD],
   ['E', profileE, classesE],
+  ['F', profileF, classesF],
+  ['G', profileG, classesG],
 ];
 
 describe.each(personas)('페르소나 %s', (_, profile, classes) => {

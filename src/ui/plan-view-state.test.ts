@@ -210,6 +210,19 @@ describe('toPlanViewState: 만들기', () => {
     });
   });
 
+  it('외식 메뉴가 적어 불가능(infeasible)이면 도구 안내로 error, 같은 조건이라 다시 시도는 없다 (B15)', () => {
+    const body = formatPlanRequest({ overrides: [] });
+    const infeasible: PlanToolOutput = {
+      status: 'infeasible',
+      message: '평일 점심 외식 메뉴가 적어 규칙에 맞는 식단표를 만들 수 없어요.',
+      shortMeals: [{ dayType: 'weekday', meal: 'lunch' }],
+    };
+    expect(toPlanViewState(input({ messages: [userMsg(body, 's1'), assistantMsg('s1', done(infeasible))] }))).toEqual({
+      kind: 'error',
+      message: '평일 점심 외식 메뉴가 적어 규칙에 맞는 식단표를 만들 수 없어요.',
+    });
+  });
+
   it('한 답에 도구 호출이 여러 번이면 마지막 것을 본다', () => {
     const state = toPlanViewState(input({ messages: [userMsg(CREATE, 's1'), assistantMsg('s1', done(quota), done(ok))] }));
     expect(state.kind).toBe('done');

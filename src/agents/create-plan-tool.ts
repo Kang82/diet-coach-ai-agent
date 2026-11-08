@@ -12,6 +12,7 @@ import type { PlanToolOutput } from '../core/plan-tool-output.ts';
 import type { MenuClassification } from '../core/types.ts';
 import { PLAN_TOOL_BUDGETS } from '../core/llm-timeout.ts';
 import { createPlan } from '../core/plan-loop.ts';
+import { planFeasibility, shortMealsMessage } from '../core/plan-feasibility.ts';
 import { steppedGenerator } from '../core/stepped-generator.ts';
 import { DUPLICATE_TOOL_MESSAGE, type ToolGate } from '../core/tool-gate.ts';
 import { buildPlanNotices } from '../core/plan-notices.ts';
@@ -99,6 +100,18 @@ export function createWeekPlanTool({
           }
           const { classes } = resolved;
           const ctx = planContext(interviewResult, classes);
+          // 사전 점검 (B15 T11-3): 외식 메뉴가 적어 규칙을 지키는 식단표가 없으면 LLM을 부르지 않고 모자란 끼니를 알린다.
+          // 가능하면 같은 메뉴 허용 횟수(늘어났을 수 있음)를 안내에 쓴다. checkPlan·프롬프트도 같은 값을 계산한다
+          const feasibility = planFeasibility(ctx.profile, classes, period?.events ?? []);
+          if (!feasibility.feasible) {
+            const output: PlanToolOutput = {
+              status: 'infeasible',
+              message: shortMealsMessage(feasibility.shortMeals),
+              shortMeals: feasibility.shortMeals,
+            };
+            log.info('식단표 사전 점검: 불가능', { shortMeals: feasibility.shortMeals.length });
+            return { output: toJson(output), terminate: true };
+          }
           // durable(B12): 복구 뒤 다시 돌아도 ID·시각·주 시작·예산 시작이 처음 값 그대로다
           const start = await step.do('start', () => ({
             planId: crypto.randomUUID(),
@@ -137,11 +150,11 @@ export function createWeekPlanTool({
                   plan: result.plan,
                   summary: formatCheckSummary(result.check.stats, ctx.profile),
                   // 고른 주가 이미 시작해 다음 주로 만들었으면 알린다 (T10-5)
-                  notices: buildPlanNotices(ctx.profile, {
-                    chosen: period?.weekStart,
-                    weekStart: start.weekStart,
-                    hasEvents: (period?.events.length ?? 0) > 0,
-                  }),
+                  notices: buildPlanNotices(
+                    ctx.profile,
+                    { chosen: period?.weekStart, weekStart: start.weekStart, hasEvents: (period?.events.length ?? 0) > 0 },
+                    feasibility.menuWeeklyMax,
+                  ),
                   stats,
                 }),
                 // 식단표는 도구 결과로 화면에 보여 준다. 모델이 14칸을 다시 풀어 쓰며 Neuron을 쓰지 않게 여기서 끝낸다.

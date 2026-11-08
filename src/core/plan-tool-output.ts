@@ -1,7 +1,7 @@
 // 식단표 생성 도구(create_week_plan)의 결과 모양 (스펙 4.4, 7.1).
 // 도구가 만들고, 화면(src/ui)과 평가 세트(src/evals)가 읽는다. 대화 메시지의 dynamic-tool 부분 output으로 전달된다.
 import type { TokenUsage } from './plan-generator.ts';
-import type { Plan, Slot, Violation } from './types.ts';
+import type { MealKey, Plan, Slot, Violation } from './types.ts';
 
 export interface PlanToolStats {
   seconds: number;
@@ -38,7 +38,12 @@ export type PlanToolOutput =
   /** `식단표 만들기:` 메시지 형식이 깨짐 (tasks.md T9-1). LLM을 부르지 않는다. 같은 메시지를 다시 보내도 같아서 다시 시도가 없다 */
   | { status: 'bad_request'; message: string }
   /** 모델이 한 응답에서 이 도구를 여러 번 불러 게이트에 진 호출 (tasks.md T10-2). LLM을 부르지 않는다. 화면은 건너뛴다 */
-  | { status: 'duplicate'; message: string };
+  | { status: 'duplicate'; message: string }
+  /**
+   * 외식 메뉴가 적어 규칙을 지키는 식단표가 없음 (B15 T11-3, plan-feasibility.ts). LLM을 부르지 않는다.
+   * shortMeals: 메뉴를 하나 더 넣으면 가능해지는 끼니. 같은 조건이면 결과가 같아 다시 시도가 없다
+   */
+  | { status: 'infeasible'; message: string; shortMeals: MealKey[] };
 
 /**
  * 칸 다시 추천 도구(edit_plan_cells)의 결과 (스펙 4.4-4).

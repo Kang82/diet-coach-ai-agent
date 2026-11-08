@@ -14,7 +14,18 @@
 // 같은 토큰으로는 6회째부터 막힌다. 평가 전에 로컬 `usage_daily`를 지운다(CLAUDE.md). 페르소나 E는 생성이 길어 시간 상한에 걸릴 수 있다(T8-6).
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { classesA, profileA } from '../core/__fixtures__/persona-a.ts';
-import { classesB, classesC, classesD, classesE, profileB, profileC, profileD, profileE } from '../core/__fixtures__/personas.ts';
+import {
+  classesB,
+  classesC,
+  classesD,
+  classesE,
+  classesG,
+  profileB,
+  profileC,
+  profileD,
+  profileE,
+  profileG,
+} from '../core/__fixtures__/personas.ts';
 import { checkPlan } from '../core/check-plan.ts';
 import { buildCriteria } from '../core/criteria.ts';
 import { isQuotaExceeded } from '../core/quota.ts';
@@ -41,6 +52,8 @@ const personas: Persona[] = [
   { name: '페르소나C', profile: profileC, classes: classesC }, // 혈당 관리
   { name: '페르소나D', profile: profileD, classes: classesD }, // 콜레스테롤 + 채식
   { name: '페르소나E', profile: profileE, classes: classesE }, // 외식 메뉴 많음 + 목표 2개 + 피할 음식 (B14 T8-6)
+  // 외식 메뉴가 적어 같은 메뉴 허용 횟수를 3번으로 늘린 경우 (B15 T11). 페르소나 F(불가능)는 LLM 없이 infeasible로 끝나 여기 넣지 않는다
+  { name: '페르소나G', profile: profileG, classes: classesG },
 ];
 
 let quotaHit = false;

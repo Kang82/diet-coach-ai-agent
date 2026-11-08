@@ -4,7 +4,8 @@
 import { useEffect, useState } from 'react';
 import { CRITERION_LABELS, MENU_CLASS_LABELS } from '../core/labels.ts';
 import type { MenuClassOverride } from '../core/menu-classification.ts';
-import { MENU_CLASSES, type MenuClass, type MenuClassification } from '../core/types.ts';
+import { classStepWarning } from '../core/plan-feasibility.ts';
+import { MENU_CLASSES, type MenuClass, type MenuClassification, type Profile, type Slot } from '../core/types.ts';
 import { draftKey } from './browser-store.ts';
 
 const MENU_CLASS_HINTS: Record<MenuClass, string> = {
@@ -16,10 +17,16 @@ const MENU_CLASS_HINTS: Record<MenuClass, string> = {
 export function MenuClassView({
   conversationId,
   classes,
+  profile,
+  events,
   onCreate,
 }: {
   conversationId: string;
   classes: MenuClassification[];
+  /** 사전 점검용 (B15 T11-4). 끝난 인터뷰의 프로필. 없으면 점검하지 않는다(서버가 다시 점검) */
+  profile: Profile | undefined;
+  /** 기간 화면에서 정한 일정 */
+  events: Slot[];
   onCreate: (overrides: MenuClassOverride[]) => void;
 }) {
   const key = draftKey('menuClasses', conversationId);
@@ -29,6 +36,8 @@ export function MenuClassView({
   const classOf = (c: MenuClassification): MenuClass => chosen[c.menu] ?? c.class;
   const overrides = classes.filter((c) => classOf(c) !== c.class).map((c) => ({ menu: c.menu, class: classOf(c) }));
   const usable = classes.length === 0 || classes.some((c) => classOf(c) !== 'avoid');
+  // 바꾼 분류와 일정으로 규칙을 지키는 식단표가 없으면 만들기를 막는다(서버도 같은 점검으로 LLM 전에 막는다)
+  const infeasible = usable && profile ? classStepWarning(profile, classes.map((c) => ({ ...c, class: classOf(c) })), events) : undefined;
 
   return (
     <section className="menu-classes">
@@ -92,7 +101,12 @@ export function MenuClassView({
             모든 메뉴를 피하면 외식 끼니에 넣을 메뉴가 없어요. 하나 이상은 다른 분류로 바꿔 주세요.
           </p>
         )}
-        <button type="button" className="primary" disabled={!usable} onClick={() => onCreate(overrides)}>
+        {infeasible && (
+          <p className="chat-alert" role="alert">
+            {infeasible} 분류를 바꾸거나 "처음부터 다시"로 외식 메뉴를 고쳐 주세요.
+          </p>
+        )}
+        <button type="button" className="primary" disabled={!usable || !!infeasible} onClick={() => onCreate(overrides)}>
           이 분류로 식단표 만들기
         </button>
         <p className="status-line">만드는 데 4분쯤 걸려요.</p>

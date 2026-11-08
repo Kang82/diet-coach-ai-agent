@@ -1,7 +1,8 @@
 // 스펙 4.3, 4.4의 LLM 프롬프트. 문장만 만들고 LLM은 부르지 않는다.
 // 규칙의 기준은 checkPlan(3.2)이다. 여기 적은 규칙은 LLM이 처음부터 지키도록 돕는 안내일 뿐이고,
 // 지켰는지는 checkPlan이 판정한다.
-import { MENU_WEEKLY_MAX, requiredSlots } from './check-plan.ts';
+import { menuWeeklyMaxFor } from './plan-feasibility.ts';
+import { requiredSlots } from './plan-slots.ts';
 import { dayType, expandAvoid, menuKey, slotOrder } from './helpers.ts';
 import { AVOID_TAG_LABELS, CRITERION_LABELS } from './labels.ts';
 import type { GeneratePlanInput, RegenerateCellsInput } from './plan-generator.ts';
@@ -42,7 +43,7 @@ const RULE_LABELS: Record<RuleId, string> = {
   tag_weekly_limit: '1주일 횟수 제한을 넘은 음식 종류',
   consecutive_menu: '바로 앞 끼니와 같은 메뉴',
   same_meal_consecutive_days: '전날 같은 끼니와 같은 메뉴',
-  menu_weekly_limit: `같은 메뉴를 1주일에 ${MENU_WEEKLY_MAX}번 넘게 넣음`,
+  menu_weekly_limit: '같은 메뉴를 1주일에 허용 횟수보다 많이 넣음', // describeViolation이 횟수를 넣는다
   cook_time_exceeded: '조리 시간 초과',
   reason_criterion: '이유의 근거(criterionIds)가 식단 기준에 없음',
 };
@@ -65,13 +66,14 @@ export function buildGeneratePrompt(input: GeneratePlanInput): string {
     '',
     sectionGoals(input.profile),
     sectionSlots(input.profile, input.classes, slots, input.events),
-    sectionRules(input.profile, input.rules),
+    sectionRules(input.profile, input.rules, menuWeeklyMaxFor(input.profile, input.classes, input.events)),
     sectionCellFormat(),
   ].join('\n');
 }
 
 /** 일부 칸만 다시 만드는 프롬프트 (스펙 4.4) */
 export function buildRegeneratePrompt(input: RegenerateCellsInput): string {
+  const weeklyMax = menuWeeklyMaxFor(input.profile, input.classes, input.plan.events);
   const lines = [
     FINISH_ONLY,
     `1주일 식단표에서 아래 "다시 만들 칸" ${input.targets.length}곳만 새로 만들어 finish 도구의 cells에 담아 주세요.`,
@@ -82,7 +84,7 @@ export function buildRegeneratePrompt(input: RegenerateCellsInput): string {
     lines.push('## 사용자 요청', input.userRequest, '');
   }
   if (input.violations.length > 0) {
-    lines.push('## 지금 식단표에서 지키지 못한 규칙', ...input.violations.map(describeViolation), '');
+    lines.push('## 지금 식단표에서 지키지 못한 규칙', ...input.violations.map((v) => describeViolation(v, weeklyMax)), '');
   }
   lines.push(
     '## 다시 만들 칸',
@@ -91,7 +93,7 @@ export function buildRegeneratePrompt(input: RegenerateCellsInput): string {
     sectionCurrentPlan(input.plan, input.targets),
     sectionGoals(input.profile),
     sectionSlots(input.profile, input.classes, input.targets, input.plan.events),
-    sectionRules(input.profile, input.rules),
+    sectionRules(input.profile, input.rules, weeklyMax),
     sectionCellFormat(),
   );
   return lines.join('\n');
@@ -145,7 +147,8 @@ function describeMenus(menus: readonly string[], classes: readonly MenuClassific
   return parts.join(' / ');
 }
 
-function sectionRules(profile: Profile, rules: CriteriaRules): string {
+/** weeklyMax: 같은 메뉴 허용 횟수. 외식 메뉴가 적으면 사전 점검이 늘린다 (B15, plan-feasibility.ts) */
+function sectionRules(profile: Profile, rules: CriteriaRules, weeklyMax: number): string {
   const avoid = expandAvoid(profile.avoid);
   const lines = ['## 지켜야 할 규칙'];
   if (avoid.length > 0) {
@@ -165,7 +168,7 @@ function sectionRules(profile: Profile, rules: CriteriaRules): string {
   lines.push(
     '- 바로 앞 끼니와 같은 메뉴는 넣지 않습니다.',
     '- 같은 끼니(점심끼리, 저녁끼리)에 전날과 같은 메뉴는 넣지 않습니다.',
-    `- 같은 메뉴는 1주일에 ${MENU_WEEKLY_MAX}번까지만 넣습니다. 메뉴를 다양하게 고릅니다.`,
+    `- 같은 메뉴는 1주일에 ${weeklyMax}번까지만 넣습니다. 메뉴를 다양하게 고릅니다.`,
     `- 식단 기준: ${rules.criteria.map((c) => `${CRITERION_LABELS[c]}(${c})`).join(', ')}`,
     '',
   );
@@ -201,10 +204,11 @@ function sectionCurrentPlan(plan: Plan, targets: readonly Slot[]): string {
   return lines.join('\n');
 }
 
-function describeViolation(v: Violation): string {
+function describeViolation(v: Violation, weeklyMax: number): string {
   const cells = v.cells.map(slotLabel).join(', ');
   const detail = v.detail ? ` [${v.detail}]` : '';
-  return `- ${RULE_LABELS[v.rule]}${detail}: ${cells || '(전체)'}`;
+  const label = v.rule === 'menu_weekly_limit' ? `같은 메뉴를 1주일에 ${weeklyMax}번 넘게 넣음` : RULE_LABELS[v.rule];
+  return `- ${label}${detail}: ${cells || '(전체)'}`;
 }
 
 /**

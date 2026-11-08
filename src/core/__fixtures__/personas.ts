@@ -233,3 +233,53 @@ export const classesE: MenuClassification[] = [
   e('우동', 'weekly_max_1', '밀가루 면이 주식이라 정제 탄수화물이 많음', [C], ['면 절반', '튀김 고명 빼기']),
   e('파스타', 'avoid', '흰 밀가루 면과 크림·치즈 소스라 열량과 정제 탄수화물이 많음', [P, C], ['토마토 소스로', '면 절반']),
 ];
+
+// F. 외식 메뉴가 적어 규칙상 식단표를 만들 수 없는 프로필 (tasks.md B15 T11). 배포본 사용자 프로필의 모양만 본떴다(메뉴 이름은 다름).
+// 평일 점심 외식 2개(1개 주 1회), 평일 저녁 외식 3개(1개 주 1회, 1개는 점심과 같은 이름), 주말 집밥.
+// 같은 메뉴 허용 횟수를 늘려도 바로 앞 끼니·같은 끼니 전날 금지 때문에 불가능하고, 평일 점심이나 저녁에 메뉴 하나만 더 있으면 가능하다(화요일 점심 일정이 있을 때. 일정이 없으면 점심 메뉴를 더해야 한다)
+export const profileF: Profile = {
+  userId: 'user-f',
+  version: 1,
+  goals: ['weight_loss', 'cholesterol'],
+  goalNote: '',
+  medication: 'none',
+  avoid: ['fish', 'shellfish'],
+  avoidNote: '',
+  meals: [
+    { dayType: 'weekday', meal: 'breakfast', place: 'skip', companions: 'alone' },
+    { dayType: 'weekday', meal: 'lunch', place: 'eat_out', companions: 'others', menus: ['샐러드', '주먹밥'] },
+    { dayType: 'weekday', meal: 'dinner', place: 'eat_out', companions: 'alone', menus: ['샐러드', '덮밥', '토스트'] },
+    { dayType: 'weekend', meal: 'breakfast', place: 'skip', companions: 'family' },
+    { dayType: 'weekend', meal: 'lunch', place: 'home', companions: 'family' },
+    { dayType: 'weekend', meal: 'dinner', place: 'home', companions: 'family' },
+  ],
+  consentedAt: CREATED,
+  updatedAt: CREATED,
+};
+
+export const classesF: MenuClassification[] = [
+  e('샐러드', 'often', '채소가 많아 열량이 낮고 식이섬유가 많음', [P, F], ['드레싱 따로']),
+  e('주먹밥', 'weekly_max_1', '흰쌀밥이 대부분이라 양 조절이 필요함', [P], ['하나만']),
+  e('덮밥', 'often', '밥 양만 줄이면 한 끼로 적당함', [P], ['밥 반 공기', '두부나 닭가슴살 토핑']),
+  e('토스트', 'weekly_max_1', '버터와 단 소스로 포화지방이 많음', [P, 'reduce_saturated_fat'], ['버터 빼기']),
+];
+
+// G. 외식 메뉴가 적지만 같은 메뉴 허용 횟수를 늘리면 가능한 프로필 (B15 T11). 평일 점심 외식 2개(둘 다 자주), 평일 저녁 집밥.
+// 평일 점심 5칸을 두 메뉴로 번갈아 채우면 한 메뉴가 3번이라 같은 메뉴를 주 3번까지 허용해야 한다
+export const profileG: Profile = {
+  userId: 'user-g',
+  version: 1,
+  goals: ['weight_loss'],
+  goalNote: '',
+  medication: 'none',
+  avoid: [],
+  avoidNote: '',
+  meals: mealsWith(['비빔밥', '칼국수'], 30),
+  consentedAt: CREATED,
+  updatedAt: CREATED,
+};
+
+export const classesG: MenuClassification[] = [
+  e('비빔밥', 'often', '채소가 많아 같은 양에 열량이 낮음', [P], ['고추장 절반']),
+  e('칼국수', 'often', '국물 위주라 면 양만 줄이면 열량이 적당함', [P], ['면 절반']),
+];

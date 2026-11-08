@@ -1,7 +1,12 @@
 // 스펙 3장 규칙 점검. 순수 함수이고 LLM을 부르지 않는다.
 // 프로필과 식단표가 스키마 검증을 통과했다고 가정한다.
 import { compareSlots, dayType, expandAvoid, menuKey, slotOrder, toSlot } from './helpers.ts';
+import { menuWeeklyMaxFor } from './plan-feasibility.ts';
+import { mealSettingOf, requiredSlots } from './plan-slots.ts';
 import { DAYS, MEAL_TYPES, NUTRITION_TAGS, RULE_IDS } from './types.ts';
+
+// 다른 모듈이 check-plan에서 가져다 쓰던 이름 (plan-slots.ts로 옮김)
+export { MENU_WEEKLY_MAX, requiredSlots } from './plan-slots.ts';
 import type {
   AvoidTag,
   CheckResult,
@@ -150,6 +155,8 @@ export function checkPlan(
   }
 
   // menu_weekly_limit: 같은 메뉴 주 2회 초과. 주 1회 이하·피하기로 분류된 메뉴는 더 엄격한 규칙이 맡는다.
+  // 외식 메뉴가 적으면 사전 점검이 정한 횟수까지 허용한다 (B15, plan-feasibility.ts). 프로필·분류·일정으로 결정돼 어디서 점검해도 같다
+  const weeklyMax = menuWeeklyMaxFor(profile, classes, plan.events);
   const strictKeys = new Set(classes.filter((c) => c.class !== 'often').map((c) => menuKey(c.menu)));
   const byMenu = new Map<string, PlanCell[]>();
   for (const cell of cells) {
@@ -160,11 +167,11 @@ export function checkPlan(
     byMenu.set(key, list);
   }
   for (const list of byMenu.values()) {
-    if (list.length > MENU_WEEKLY_MAX) {
+    if (list.length > weeklyMax) {
       violations.push({
         rule: 'menu_weekly_limit',
         cells: list.map(toSlot),
-        regenerate: list.slice(MENU_WEEKLY_MAX).map(toSlot),
+        regenerate: list.slice(weeklyMax).map(toSlot),
         detail: list[0]!.menuId,
       });
     }
@@ -189,27 +196,6 @@ export function checkPlan(
   const stats: CheckStats = { avoidTagCounts, limitedMenuCounts, limitedTagCounts, consecutiveCount };
   return { passed: violations.length === 0, violations: sortViolations(violations), stats };
 }
-
-function mealSettingOf(profile: Profile, slot: Slot): MealSetting | undefined {
-  return profile.meals.find((m) => m.dayType === dayType(slot.day) && m.meal === slot.meal);
-}
-
-/** 3.1 채워야 할 끼니: skip이 아니고 일정(회식, 약속)이 없는 끼니. 시간순. */
-export function requiredSlots(profile: Profile, events: readonly Slot[]): Slot[] {
-  const slots: Slot[] = [];
-  for (const day of DAYS) {
-    for (const meal of MEAL_TYPES) {
-      const slot = { day, meal };
-      const setting = mealSettingOf(profile, slot);
-      const isEvent = events.some((e) => e.day === day && e.meal === meal);
-      if (setting && setting.place !== 'skip' && !isEvent) slots.push(slot);
-    }
-  }
-  return slots;
-}
-
-/** 같은 메뉴는 주 2회까지 (스펙 3.2) */
-export const MENU_WEEKLY_MAX = 2;
 
 function pairKey(a: Slot, b: Slot): string {
   return `${slotOrder(a)}-${slotOrder(b)}`;
