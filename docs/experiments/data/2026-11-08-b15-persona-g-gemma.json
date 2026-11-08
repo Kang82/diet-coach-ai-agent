@@ -1,0 +1,339 @@
+[
+  {
+    "persona": "페르소나G",
+    "run": 1,
+    "result": "pass",
+    "output": {
+      "status": "ok",
+      "plan": {
+        "planId": "bf02df74-c404-4b28-b3f3-a2a6a7835481",
+        "userId": "demo",
+        "profileVersion": 0,
+        "weekStart": "2026-11-09",
+        "events": [],
+        "cells": [
+          {
+            "day": "mon",
+            "meal": "lunch",
+            "place": "eat_out",
+            "menuId": "비빔밥",
+            "title": "비빔밥 (나물 위주로)",
+            "ingredients": [
+              "밥",
+              "콩나물",
+              "시금치",
+              "계란",
+              "고추장"
+            ],
+            "tags": [
+              "soy",
+              "egg"
+            ],
+            "orderTip": "고추장은 조금만 넣어 달라고 하세요.",
+            "cookMinutes": 0,
+            "reason": "채소 위주의 식단으로 양 조절을 통해 열량을 낮춥니다.",
+            "criterionIds": [
+              "reduce_portion_calories"
+            ]
+          },
+          {
+            "day": "mon",
+            "meal": "dinner",
+            "place": "home",
+            "menuId": "두부 채소 볶음",
+            "title": "두부 채소 볶음",
+            "ingredients": [
+              "두부",
+              "브로콜리",
+              "버섯"
+            ],
+            "tags": [
+              "soy"
+            ],
+            "cookMinutes": 15,
+            "reason": "두부의 단백질과 채소로 포만감을 주면서 칼로리를 낮춥니다.",
+            "criterionIds": [
+              "reduce_portion_calories"
+            ]
+          },
+          {
+            "day": "tue",
+            "meal": "lunch",
+            "place": "eat_out",
+            "menuId": "칼국수",
+            "title": "칼국수 (면 양 적게)",
+            "ingredients": [
+              "밀가루 면",
+              "멸치 육수",
+              "애호박"
+            ],
+            "tags": [
+              "wheat",
+              "refined_carb_main"
+            ],
+            "orderTip": "면의 양을 평소보다 적게 달라고 요청하세요.",
+            "cookMinutes": 0,
+            "reason": "면의 양을 조절하여 탄수화물 섭취를 줄이고 열량을 조절합니다.",
+            "criterionIds": [
+              "reduce_portion_calories"
+            ]
+          },
+          {
+            "day": "tue",
+            "meal": "dinner",
+            "place": "home",
+            "menuId": "닭가슴살 샐러드",
+            "title": "닭가슴살 샐러드",
+            "ingredients": [
+              "닭가슴살",
+              "양상추",
+              "방울토마토"
+            ],
+            "tags": [
+              "meat",
+              "chicken"
+            ],
+            "cookMinutes": 15,
+            "reason": "고단백 저칼로리 식단으로 열량 섭취를 제한합니다.",
+            "criterionIds": [
+              "reduce_portion_calories"
+            ]
+          },
+          {
+            "day": "wed",
+            "meal": "lunch",
+            "place": "eat_out",
+            "menuId": "비빔밥",
+            "title": "비빔밥 (밥 적게)",
+            "ingredients": [
+              "밥",
+              "각종 나물",
+              "계란"
+            ],
+            "tags": [
+              "soy",
+              "egg"
+            ],
+            "orderTip": "밥 양을 반으로 줄여서 드세요.",
+            "cookMinutes": 0,
+            "reason": "밥 양을 줄여 탄수화물과 전체 열량을 관리합니다.",
+            "criterionIds": [
+              "reduce_portion_calories"
+            ]
+          },
+          {
+            "day": "wed",
+            "meal": "dinner",
+            "place": "home",
+            "menuId": "계란찜과 잡곡밥",
+            "title": "계란찜과 잡곡밥",
+            "ingredients": [
+              "계란",
+              "잡곡밥",
+              "파"
+            ],
+            "tags": [
+              "egg"
+            ],
+            "cookMinutes": 15,
+            "reason": "가벼운 계란 요리로 저녁 열량 섭취를 줄입니다.",
+            "criterionIds": [
+              "reduce_portion_calories"
+            ]
+          },
+          {
+            "day": "thu",
+            "meal": "lunch",
+            "place": "eat_out",
+            "menuId": "칼국수",
+            "title": "칼국수 (국물은 적게)",
+            "ingredients": [
+              "밀가루 면",
+              "육수",
+              "채소"
+            ],
+            "tags": [
+              "wheat",
+              "refined_carb_main"
+            ],
+            "orderTip": "국물을 다 마시지 않도록 주의하세요.",
+            "cookMinutes": 0,
+            "reason": "국물 섭취를 제한하여 염분과 칼로리를 조절합니다.",
+            "criterionIds": [
+              "reduce_portion_calories"
+            ]
+          },
+          {
+            "day": "thu",
+            "meal": "dinner",
+            "place": "home",
+            "menuId": "소고기 버섯 볶음",
+            "title": "소고기 버섯 볶음",
+            "ingredients": [
+              "소고기",
+              "느타리버섯",
+              "양파"
+            ],
+            "tags": [
+              "meat",
+              "beef"
+            ],
+            "cookMinutes": 20,
+            "reason": "버섯을 듬뿍 넣어 포만감을 높이고 열량을 낮춥니다.",
+            "criterionIds": [
+              "reduce_portion_calories"
+            ]
+          },
+          {
+            "day": "fri",
+            "meal": "lunch",
+            "place": "eat_out",
+            "menuId": "비빔밥",
+            "title": "비빔밥 (양념 적게)",
+            "ingredients": [
+              "밥",
+              "나물",
+              "계란"
+            ],
+            "tags": [
+              "soy",
+              "egg"
+            ],
+            "orderTip": "고추장을 평소의 절반만 넣어 달라고 하세요.",
+            "cookMinutes": 0,
+            "reason": "양념을 줄여 당분과 칼로리 섭취를 낮춥니다.",
+            "criterionIds": [
+              "reduce_portion_calories"
+            ]
+          },
+          {
+            "day": "fri",
+            "meal": "dinner",
+            "place": "home",
+            "menuId": "닭가슴살 구이",
+            "title": "닭가슴살 구이",
+            "ingredients": [
+              "닭가슴살",
+              "아스파라거스"
+            ],
+            "tags": [
+              "meat",
+              "chicken"
+            ],
+            "cookMinutes": 15,
+            "reason": "단백질 위주의 식사로 가볍게 저녁을 마무리합니다.",
+            "criterionIds": [
+              "reduce_portion_calories"
+            ]
+          },
+          {
+            "day": "sat",
+            "meal": "lunch",
+            "place": "home",
+            "menuId": "돈까스",
+            "title": "돈까스 (샐러드 곁들임)",
+            "ingredients": [
+              "돼지고기",
+              "빵가루",
+              "양배추"
+            ],
+            "tags": [
+              "meat",
+              "pork",
+              "fried"
+            ],
+            "cookMinutes": 30,
+            "reason": "튀긴 음식이지만 샐러드를 많이 곁들여 균형을 맞춥니다.",
+            "criterionIds": [
+              "reduce_portion_calories"
+            ]
+          },
+          {
+            "day": "sat",
+            "meal": "dinner",
+            "place": "home",
+            "menuId": "제육볶음",
+            "title": "제육볶음",
+            "ingredients": [
+              "돼지고기",
+              "양파",
+              "고추장"
+            ],
+            "tags": [
+              "meat",
+              "pork"
+            ],
+            "cookMinutes": 25,
+            "reason": "고기 위주의 식단이지만 채소를 많이 섞어 열량을 조절합니다.",
+            "criterionIds": [
+              "reduce_portion_calories"
+            ]
+          },
+          {
+            "day": "sun",
+            "meal": "lunch",
+            "place": "home",
+            "menuId": "요거트와 과일",
+            "title": "요거트와 과일 (달콤한 맛)",
+            "ingredients": [
+              "요거트",
+              "블루베리",
+              "꿀"
+            ],
+            "tags": [
+              "dairy",
+              "sugary"
+            ],
+            "cookMinutes": 5,
+            "reason": "적당한 당분 섭취로 스트레스를 풀되 양을 조절합니다.",
+            "criterionIds": [
+              "reduce_portion_calories"
+            ]
+          },
+          {
+            "day": "sun",
+            "meal": "dinner",
+            "place": "home",
+            "menuId": "생선구이",
+            "title": "생선구이",
+            "ingredients": [
+              "고등어",
+              "레몬"
+            ],
+            "tags": [
+              "fish"
+            ],
+            "cookMinutes": 20,
+            "reason": "담백한 생선 요리로 저녁 식사 칼로리를 낮춥니다.",
+            "criterionIds": [
+              "reduce_portion_calories"
+            ]
+          }
+        ],
+        "createdAt": "2026-11-08T01:35:46.691Z"
+      },
+      "summary": [
+        "같은 메뉴 연속 없음"
+      ],
+      "notices": [
+        "외식 메뉴가 적어 같은 메뉴를 1주일에 3번까지 넣었어요.",
+        "일반적인 식단 지침을 따른 추천이며, 의료 조언이 아닙니다."
+      ],
+      "stats": {
+        "seconds": 153,
+        "regenerations": 0,
+        "usages": [
+          {
+            "model": "cloudflare/@cf/google/gemma-4-26b-a4b-it",
+            "input": 1801,
+            "output": 8276
+          }
+        ],
+        "neurons": 242
+      }
+    },
+    "violations": [],
+    "conversationId": "e6c878a6e05b039e-eval-8f7e6631-7f6b-4f34-91d7-c8bd62101523",
+    "seconds": 161
+  }
+]

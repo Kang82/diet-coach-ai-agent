@@ -1,0 +1,16 @@
+{
+  "outcome": "completed",
+  "seconds": 4,
+  "toolCalls": 1,
+  "output": {
+    "status": "infeasible",
+    "message": "평일 점심 외식 메뉴가 적어 규칙에 맞는 식단표를 만들 수 없어요. 평일 점심에 외식 메뉴를 더 넣어 주세요.",
+    "shortMeals": [
+      {
+        "dayType": "weekday",
+        "meal": "lunch"
+      }
+    ]
+  },
+  "text": "System instructions updated. New tool available:\n- **create_week_plan** — 사용자의 프로필로 1주일 식단표를 만들고 규칙을 점검한다. 몇 분 걸린다.\nThe tool \"classify_menus\" is no longer available.\nAll available tools: task, create_week_plan"
+}

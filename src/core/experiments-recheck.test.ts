@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { classesA, profileA } from './__fixtures__/persona-a.ts';
 import { rulesA } from './__fixtures__/rules-a.ts';
-import { classesB, classesC, classesD, profileB, profileC, profileD } from './__fixtures__/personas.ts';
+import { classesB, classesC, classesD, classesG, profileB, profileC, profileD, profileG } from './__fixtures__/personas.ts';
 import { checkPlan } from './check-plan.ts';
 import { buildCriteria } from './criteria.ts';
 import type { MenuClassification, Plan, PlanCell, Profile } from './types.ts';
@@ -109,5 +109,20 @@ describe('2026-11-07 B11 추론 수준 low (T8-2)', () => {
     const { profile, classes } = personas[persona]!;
     expect(r.result).toBe('pass');
     expect(checkPlan(r.output.plan, profile, classes, buildCriteria(profile.goals)).violations).toEqual([]);
+  });
+});
+
+describe('2026-11-08 B15 페르소나 G (외식 메뉴 2개, 같은 메뉴 주 3번)', () => {
+  const [run] = load<{ result: string; output: { plan: Plan } }[]>('2026-11-08-b15-persona-g-gemma.json');
+
+  it('사전 점검이 정한 횟수(3번)로는 통과', () => {
+    expect(run!.result).toBe('pass');
+    expect(checkPlan(run!.output.plan, profileG, classesG, buildCriteria(profileG.goals)).violations).toEqual([]);
+  });
+
+  it('비빔밥 3번이라 예전 규칙(주 2번)이었다면 걸렸다', () => {
+    const counts = new Map<string, number>();
+    for (const c of run!.output.plan.cells) if (c.place === 'eat_out') counts.set(c.menuId, (counts.get(c.menuId) ?? 0) + 1);
+    expect(Math.max(...counts.values())).toBe(3);
   });
 });
