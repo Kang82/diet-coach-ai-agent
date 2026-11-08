@@ -3,7 +3,15 @@
 // gpt-oss-120b는 Flue의 두 번째 턴 메시지 형식(배열·null content)을 400으로 거절해 요청 본문을 문자열 content로 맞춘다.
 import { describe, expect, it } from 'vitest';
 import { MODEL_CANDIDATES } from './models.ts';
-import { capsByWorkersAiId, OUTPUT_CAPS, PAYLOAD_FIXES, stringContent, withOutputCaps } from './output-caps.ts';
+import { FINISH_ONLY } from '../core/plan-prompt.ts';
+import {
+  capsByWorkersAiId,
+  dropEarlierPrompts,
+  OUTPUT_CAPS,
+  PAYLOAD_FIXES,
+  stringContent,
+  withOutputCaps,
+} from './output-caps.ts';
 
 type Options = Record<string, unknown> & { onPayload?: (payload: unknown, model: unknown) => unknown };
 
@@ -149,5 +157,86 @@ describe('withOutputCaps: 요청 본문 보정', () => {
     const capped = withOutputCaps(provider, {}, { 'm-fix': (p) => ({ ...(p as object), fixed: true }) });
     capped.stream({ id: 'm-fix' }, {}, { onPayload: async () => undefined });
     expect(await calls[0]!.options!.onPayload!({ a: 1 }, {})).toEqual({ a: 1, fixed: true });
+  });
+});
+
+// B18(T14-1): 만들기 도구는 같은 harness로 생성 뒤 다시 추천을 불러, 다시 추천 요청에 생성 대화 전체(약 8천 토큰)가 갔다.
+// 다시 추천 프롬프트는 지금 식단표·위반·규칙을 다 담고 있어 앞 대화가 필요 없다
+describe('dropEarlierPrompts', () => {
+  const sys = { role: 'system', content: '시스템 지시' };
+  const gen = { role: 'user', content: `${FINISH_ONLY}\n1주일 식단표를 만들어 주세요` };
+  const genCall = { role: 'assistant', content: null, tool_calls: [{ id: 't1', function: { name: 'finish' } }] };
+  const genResult = { role: 'tool', tool_call_id: 't1', content: 'ok' };
+  const regen = { role: 'user', content: `${FINISH_ONLY}\n다시 만들 칸만` };
+
+  it('도구 안 프롬프트가 두 번이면 system과 마지막 프롬프트부터 끝까지만 남긴다', () => {
+    const payload = { model: 'm', messages: [sys, gen, genCall, genResult, regen] };
+    expect(dropEarlierPrompts(payload)).toEqual({ model: 'm', messages: [sys, regen] });
+  });
+
+  it('마지막 프롬프트 뒤의 도구 호출·결과·재요청 안내는 남긴다', () => {
+    const regenCall = { role: 'assistant', content: '', tool_calls: [{ id: 't2', function: { name: 'finish' } }] };
+    const regenResult = { role: 'tool', tool_call_id: 't2', content: '검증 실패' };
+    const followUp = { role: 'user', content: 'finish를 다시 불러 주세요' };
+    const payload = { messages: [sys, gen, genCall, genResult, regen, regenCall, regenResult, followUp] };
+    expect(dropEarlierPrompts(payload)).toEqual({ messages: [sys, regen, regenCall, regenResult, followUp] });
+  });
+
+  it('도구 안 프롬프트가 하나이거나 없으면(생성, 칸 수정, 분류, 바깥 턴) 그대로 돌려준다', () => {
+    const one = { messages: [sys, gen, genCall, genResult] };
+    const outer = { messages: [sys, { role: 'user', content: '식단표 만들기: {}' }, { role: 'assistant', content: '네' }] };
+    expect(dropEarlierPrompts(one)).toBe(one);
+    expect(dropEarlierPrompts(outer)).toBe(outer);
+  });
+
+  it('content가 텍스트 블록 배열이어도 알아본다 (gemma 모양)', () => {
+    const asBlocks = (m: { role: string; content: string }) => ({ ...m, content: [{ type: 'text', text: m.content }] });
+    const payload = { messages: [sys, asBlocks(gen), genCall, genResult, asBlocks(regen)] };
+    expect(dropEarlierPrompts(payload)).toEqual({ messages: [sys, asBlocks(regen)] });
+  });
+
+  it('messages가 없으면 그대로 돌려준다', () => {
+    const payload = { prompt: 'x' };
+    expect(dropEarlierPrompts(payload)).toBe(payload);
+  });
+});
+
+describe('withOutputCaps: 모든 모델 공통 보정', () => {
+  it('모든 모델에 걸고, 호출자 onPayload → 공통 보정 → 모델별 보정 순서다', async () => {
+    const { provider, calls } = fakeProvider();
+    const order: string[] = [];
+    const common = (p: unknown) => (order.push('common'), { ...(p as object), common: true });
+    const fix = (p: unknown) => (order.push('fix'), { ...(p as object), fixed: true });
+    const caller = async (p: unknown) => (order.push('caller'), { ...(p as object), caller: true });
+    const capped = withOutputCaps(provider, {}, { 'm-fix': fix }, common);
+
+    capped.stream({ id: 'other' }, {}, {});
+    capped.stream({ id: 'm-fix' }, {}, { onPayload: caller });
+
+    expect(await calls[0]!.options!.onPayload!({ a: 1 }, {})).toEqual({ a: 1, common: true });
+    order.length = 0;
+    expect(await calls[1]!.options!.onPayload!({ a: 1 }, {})).toEqual({ a: 1, caller: true, common: true, fixed: true });
+    expect(order).toEqual(['caller', 'common', 'fix']);
+  });
+
+  it('gpt-oss는 대화를 자른 뒤 문자열 content로 맞춘다', async () => {
+    const { provider, calls } = fakeProvider();
+    const capped = withOutputCaps(provider, {}, PAYLOAD_FIXES, dropEarlierPrompts);
+    capped.stream({ id: '@cf/openai/gpt-oss-120b' }, {}, {});
+
+    const payload = {
+      messages: [
+        { role: 'system', content: 's' },
+        { role: 'user', content: [{ type: 'text', text: `${FINISH_ONLY}\n생성` }] },
+        { role: 'assistant', content: null },
+        { role: 'user', content: [{ type: 'text', text: `${FINISH_ONLY}\n다시` }] },
+      ],
+    };
+    expect(await calls[0]!.options!.onPayload!(payload, {})).toEqual({
+      messages: [
+        { role: 'system', content: 's' },
+        { role: 'user', content: `${FINISH_ONLY}\n다시` },
+      ],
+    });
   });
 });

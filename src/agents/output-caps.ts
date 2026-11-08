@@ -9,6 +9,7 @@
 //
 // 공급자의 stream·streamSimple을 감싸 여기 적은 모델에만 적용한다(provider.ts). 새 후보 모델은 Workers AI 스키마의 max_tokens 기본값을 보고
 // OUTPUT_CAPS에 상한이나 null(상한 없음)을 적는다. 빠지면 타입 검사가 실패한다.
+import { FINISH_ONLY } from '../core/plan-prompt.ts';
 import { MODEL_CANDIDATES, type ModelId } from './models.ts';
 
 /** 후보 모델 → 출력 상한. null은 Workers AI 기본 상한이 없어 넣지 않는 모델. 값은 우리 쓰임(구조화 출력 수천~1만여 토큰)에 넉넉하게 */
@@ -50,6 +51,33 @@ export function stringContent(payload: Payload): Payload {
   };
 }
 
+type Message = { role?: unknown; content?: unknown };
+
+/** user 메시지가 도구 안 프롬프트(첫 줄 FINISH_ONLY)인지. content는 문자열이나 텍스트 블록 배열 */
+function isToolPrompt(m: Message): boolean {
+  if (m.role !== 'user') return false;
+  const first = Array.isArray(m.content) ? (m.content[0] as { text?: unknown } | undefined)?.text : m.content;
+  return typeof first === 'string' && first.startsWith(FINISH_ONLY);
+}
+
+/**
+ * 같은 harness의 앞 프롬프트 대화를 잘라 보낸다 (B18, tasks.md T14-1). 모든 모델에 건다.
+ * 만들기 도구는 같은 harness로 생성 뒤 다시 추천을 불러, 다시 추천 요청에 생성 대화(약 8천 토큰, 1회 약 200 Neuron)가 갔다.
+ * Flue에는 같은 도구 호출 안에서 새 대화를 여는 API가 없고 compact()는 LLM 요약이라 여기서 자른다.
+ * 맨 앞 system·developer 메시지와, 마지막 도구 안 프롬프트부터 끝(그 프롬프트의 finish 재요청 등)까지 남긴다.
+ * 도구 안 프롬프트가 하나뿐이면(생성, 칸 수정, 분류) 또는 바깥 턴이면 그대로다. 다시 추천 프롬프트는 지금 식단표·위반·규칙을 다 담는다
+ */
+export function dropEarlierPrompts(payload: Payload): Payload {
+  if (typeof payload !== 'object' || payload === null) return payload;
+  const messages = (payload as { messages?: unknown }).messages;
+  if (!Array.isArray(messages)) return payload;
+  const prompts = messages.flatMap((m: Message, i) => (isToolPrompt(m) ? [i] : []));
+  if (prompts.length < 2) return payload;
+  const head = messages.findIndex((m: Message) => m.role !== 'system' && m.role !== 'developer');
+  const last = prompts[prompts.length - 1]!;
+  return { ...payload, messages: [...messages.slice(0, head), ...messages.slice(last)] };
+}
+
 /** Workers AI ID → 요청 본문 보정 */
 export const PAYLOAD_FIXES: Readonly<Record<string, PayloadFix>> = {
   '@cf/openai/gpt-oss-120b': stringContent,
@@ -79,6 +107,8 @@ export function withOutputCaps<P extends { stream: StreamFn; streamSimple: Strea
   provider: P,
   caps: Readonly<Record<string, number>>,
   fixes: Readonly<Record<string, PayloadFix>> = {},
+  /** 모든 모델에 거는 보정. 모델별 보정보다 먼저 건다 (B18 dropEarlierPrompts) */
+  common?: PayloadFix,
 ): P {
   const wrap =
     (original: StreamFn): StreamFn =>
@@ -86,7 +116,9 @@ export function withOutputCaps<P extends { stream: StreamFn; streamSimple: Strea
       let next = options;
       const cap = ownCap(caps, model.id);
       if (cap !== undefined && next?.maxTokens === undefined) next = { ...next, maxTokens: cap };
-      const fix = ownFix(fixes, model.id);
+      const own = ownFix(fixes, model.id);
+      const fix: PayloadFix | undefined =
+        common && own ? (p) => own(common(p)) : (common ?? own);
       if (fix) {
         // 호출자의 onPayload(문서 첨부 변환 등)가 있으면 그 결과에 보정을 건다
         const caller = next?.onPayload;
