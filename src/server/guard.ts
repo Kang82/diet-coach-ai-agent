@@ -72,6 +72,8 @@ export function guardAgentRoutes(mount: string, options: GuardOptions): Middlewa
       if (!(await store.tryCountMessage(userId, day, USER_DAILY_MESSAGE_LIMIT))) {
         return c.json(errorBody('user_daily_limit'), 429);
       }
+      // 메시지가 가는 대화를 기록한다. "내 기록 모두 지우기"가 이 목록으로 대화(DO)를 지운다 (T15). DO 이름은 나열할 수 없다
+      await store.recordConversation(userId, conversation, at.toISOString());
       if (isExpensiveKind(kind)) {
         // 도구가 끝나면 에이전트가 지운다(agents/usage-meter.ts). 못 지워도 만료로 풀린다
         await store.reserve(conversation, RESERVE_NEURONS[kind], new Date(at.getTime() + RESERVATION_TTL_MS).toISOString());

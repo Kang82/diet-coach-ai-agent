@@ -313,3 +313,34 @@ describe('진행 중 예약 (T10-4)', () => {
     expect(store.reservationOf('abc-x')).toBeUndefined();
   });
 });
+
+describe('대화 기록 (T15 대화 기록 지우기)', () => {
+  const post = (conversation: string, body: string, token = TOKEN_A) =>
+    app.request(`${MOUNT}/${conversation}`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}` },
+      body: JSON.stringify({ kind: 'user', body }),
+    });
+
+  it('에이전트로 넘긴 메시지는 그 대화를 사용자 대화로 기록한다 (보통·비싼 메시지 모두)', async () => {
+    expect((await post('abc-1', '안녕하세요')).status).toBe(202);
+    expect((await post('abc-2', '식단표 만들기:\n{"overrides":[]}')).status).toBe(202);
+    expect((await post('abc-1', '다시')).status).toBe(202);
+    expect(await store.conversationsOf('abc')).toEqual(['abc-1', 'abc-2']);
+  });
+
+  it('막힌 요청과 읽기·abort는 기록하지 않는다', async () => {
+    await call('GET', `${MOUNT}/abc-1`, TOKEN_A);
+    await call('POST', `${MOUNT}/abc-1/abort`, TOKEN_A);
+    await post('abc-2', 'x', 'wrong'); // 401
+    await post('xyz-1', 'x'); // 403
+    await app.request(`${MOUNT}/abc-3`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${TOKEN_A}` },
+      body: JSON.stringify({ kind: 'signal', type: 't', body: 'x' }),
+    }); // 400
+    store.setNeurons('2026-11-06T11', GLOBAL_DAILY_NEURON_LIMIT);
+    expect((await post('abc-4', 'x')).status).toBe(429);
+    expect(await store.conversationsOf('abc')).toEqual([]);
+  });
+});

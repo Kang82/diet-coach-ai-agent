@@ -8,16 +8,31 @@ import { MemoryStorage } from '../storage/memory-storage.ts';
 import { profileRoutes } from './profile-routes.ts';
 
 let storage: MemoryStorage;
+let guardStore: MemoryGuardStore;
+let wiped: string[];
+let failOn: string | undefined;
 let app: Hono;
 
 beforeEach(async () => {
   storage = new MemoryStorage();
-  const guardStore = new MemoryGuardStore([
+  wiped = [];
+  failOn = undefined;
+  guardStore = new MemoryGuardStore([
     { userId: 'u1', tokenHash: await hashToken('t1') },
     { userId: 'u2', tokenHash: await hashToken('t2') },
   ]);
   app = new Hono();
-  app.route('/api/profile', profileRoutes({ getGuardStore: () => guardStore, getStorage: () => storage }));
+  app.route(
+    '/api/profile',
+    profileRoutes({
+      getGuardStore: () => guardStore,
+      getStorage: () => storage,
+      getWipeOne: () => async (id) => {
+        if (id === failOn) throw new Error('network');
+        wiped.push(id);
+      },
+    }),
+  );
 });
 
 const call = (method: string, token?: string) =>
@@ -45,9 +60,46 @@ describe('/api/profile', () => {
     await storage.saveProfile({ ...profileA, userId: 'u1' });
     await storage.savePlan({ ...planA, userId: 'u1' });
     await storage.saveProfile({ ...profileA, userId: 'u2' });
-    expect((await call('DELETE', 't1')).status).toBe(204);
+    const res = await call('DELETE', 't1');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ failed: 0 });
     expect(await (await call('GET', 't1')).json()).toBeNull();
     expect(await storage.getLatestPlan('u1')).toBeNull();
     expect(await storage.getProfile('u2')).not.toBeNull();
+  });
+});
+
+describe('DELETE /api/profile: 대화 기록도 지운다 (T15)', () => {
+  it('저장 동의와 관계없이 그 사용자의 기록된 대화(DO)를 모두 지운다. 다른 사용자 대화는 그대로', async () => {
+    await guardStore.recordConversation('u1', 'u1-a', '2026-11-08T01:00:00.000Z');
+    await guardStore.recordConversation('u1', 'u1-b', '2026-11-08T02:00:00.000Z');
+    await guardStore.recordConversation('u2', 'u2-a', '2026-11-08T01:00:00.000Z');
+
+    const res = await call('DELETE', 't1');
+
+    expect(await res.json()).toEqual({ failed: 0 });
+    expect(wiped).toEqual(['u1-a', 'u1-b']);
+    expect(await guardStore.conversationsOf('u1')).toEqual([]);
+    expect(await guardStore.conversationsOf('u2')).toEqual(['u2-a']);
+  });
+
+  it('못 지운 대화 수를 알려 주고, 그 대화는 기록에 남는다. D1 프로필은 지운다', async () => {
+    await storage.saveProfile({ ...profileA, userId: 'u1' });
+    await guardStore.recordConversation('u1', 'u1-a', '2026-11-08T01:00:00.000Z');
+    await guardStore.recordConversation('u1', 'u1-b', '2026-11-08T02:00:00.000Z');
+    failOn = 'u1-b';
+
+    const res = await call('DELETE', 't1');
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ failed: 1 });
+    expect(await guardStore.conversationsOf('u1')).toEqual(['u1-b']);
+    expect(await storage.getProfile('u1')).toBeNull();
+  });
+
+  it('토큰이 없으면 아무것도 지우지 않는다', async () => {
+    await guardStore.recordConversation('u1', 'u1-a', '2026-11-08T01:00:00.000Z');
+    expect((await call('DELETE')).status).toBe(401);
+    expect(wiped).toEqual([]);
   });
 });

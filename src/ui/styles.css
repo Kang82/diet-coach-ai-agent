@@ -1008,3 +1008,25 @@ button:disabled {
     width: 100%;
   }
 }
+
+/* 내 기록 모두 지우기 (T15). 모든 화면 아래 */
+.forget {
+  margin-top: 48px;
+  padding-top: 16px;
+  border-top: 1px solid var(--tray-light);
+}
+
+.forget-message {
+  margin: 0 0 8px;
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+}
+
+.forget .choices {
+  margin-top: 8px;
+}
+
+.forget button.danger {
+  border-color: var(--alert);
+  color: var(--alert);
+}

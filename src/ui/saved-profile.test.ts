@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { profileA } from '../core/__fixtures__/persona-a.ts';
 import { memoryStore } from './__fixtures__/memory-store.ts';
 import { PROFILE_KEY } from './browser-store.ts';
-import { clearLegacyProfile, deleteSavedProfile, fetchSavedProfile, parseSavedProfile } from './saved-profile.ts';
+import { clearLegacyProfile, deleteMyRecords, fetchSavedProfile, parseSavedProfile } from './saved-profile.ts';
 
 const { goals, goalNote, medication, avoid, avoidNote, meals } = profileA;
 const result = { goals, goalNote, medication, avoid, avoidNote, meals, consentedAt: '2026-11-06T01:00:00.000Z' };
@@ -50,12 +50,19 @@ describe('fetchSavedProfile', () => {
   });
 });
 
-describe('deleteSavedProfile', () => {
-  it('DELETE를 보내고 성공 여부를 돌려준다', async () => {
-    const ok = fakeFetch(() => new Response(null, { status: 204 }));
-    expect(await deleteSavedProfile('tok', ok.fn)).toBe(true);
+describe('deleteMyRecords (T15)', () => {
+  it('DELETE를 보내고 못 지운 대화 수를 돌려준다', async () => {
+    const ok = fakeFetch(() => Response.json({ failed: 0 }));
+    expect(await deleteMyRecords('tok', ok.fn)).toEqual({ ok: true, failed: 0 });
+    expect(ok.calls[0]?.input).toBe('/api/profile');
     expect(ok.calls[0]?.init?.method).toBe('DELETE');
-    expect(await deleteSavedProfile('tok', fakeFetch(() => new Response('', { status: 500 })).fn)).toBe(false);
+    expect(await deleteMyRecords('tok', fakeFetch(() => Response.json({ failed: 2 })).fn)).toEqual({ ok: true, failed: 2 });
+  });
+
+  it('실패 응답, 네트워크 에러, 이상한 본문은 실패', async () => {
+    expect(await deleteMyRecords('tok', fakeFetch(() => new Response('', { status: 500 })).fn)).toEqual({ ok: false });
+    expect(await deleteMyRecords('tok', fakeFetch(() => Promise.reject(new Error('offline'))).fn)).toEqual({ ok: false });
+    expect(await deleteMyRecords('tok', fakeFetch(() => new Response('깨짐')).fn)).toEqual({ ok: false });
   });
 });
 

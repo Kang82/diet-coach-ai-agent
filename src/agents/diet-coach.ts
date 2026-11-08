@@ -18,6 +18,7 @@ import { AFTER_INTERVIEW_STEPS } from './agent-instructions.ts';
 import { userIdFromConversation } from '../core/profile-store.ts';
 import type { UserStore } from './plan-tool-support.ts';
 import { agentStorage } from './storage-binding.ts';
+import { wipeExtension } from './wipe-extension.ts';
 
 // 인터뷰는 화면에서 진행하고 끝나면 제출 메시지를 한 번 보낸다 (tasks.md B4).
 // 인터뷰가 끝나기 전에는 submit_interview만, 끝난 뒤에는 메시지 종류(접두어)에 맞는 도구 하나만 마운트한다 (T10-2).
@@ -103,6 +104,9 @@ export function DietCoach({ id }: AgentProps) {
   }
   return [...intro, AFTER_INTERVIEW_STEPS[kind]].join('\n');
 }
+
+// 대화 기록 지우기용 RPC 메서드 wipeConversation (T15, wipe-extension.ts). Flue는 이 모듈의 `cloudflare` export를 생성 클래스에 건다
+export const cloudflare = wipeExtension;
 
 // 제출 하나의 복구 한도: 3회, 20분 (B12, core/llm-timeout.ts). Flue 기본(10회·1시간)이면 복구가 되풀이될 때 Neuron을 많이 쓴다
 DietCoach.durability = { ...SUBMISSION_DURABILITY };

@@ -1,5 +1,6 @@
 // 스펙 11.4 한도 보호의 저장소: 토큰 해시 → 사용자, 날짜별 사용자 메시지 수, 시간별 Worker 전체 Neuron 추정치.
-// 테이블은 migrations/0002_guard.sql(users, usage_daily), 0003_usage_hourly.sql, 0004_usage_reservations.sql. 계약 테스트는 guard-store-contract.ts.
+// 테이블은 migrations/0002_guard.sql(users, usage_daily), 0003_usage_hourly.sql, 0004_usage_reservations.sql,
+// 0005_conversations.sql(사용자별 대화 ID, 대화 기록 지우기용). 계약 테스트는 guard-store-contract.ts.
 import type { ExpensiveKind } from '../core/message-kind.ts';
 import type { D1Like } from './d1-storage.ts';
 
@@ -20,6 +21,12 @@ export interface GuardStore {
   reservedNeurons(now: string, exceptKey?: string): Promise<number>;
   /** 예약을 지운다. 없으면 아무 일도 없다 */
   release(key: string): Promise<void>;
+  /** 메시지가 간 대화를 기록한다. 이미 있으면 그대로 (T15 대화 기록 지우기) */
+  recordConversation(userId: string, conversationId: string, at: string): Promise<void>;
+  /** 그 사용자의 대화 ID. 처음 기록한 순서 */
+  conversationsOf(userId: string): Promise<string[]>;
+  /** 그 사용자의 대화 중 준 ID를 기록에서 뺀다 (DO를 지운 뒤) */
+  forgetConversations(userId: string, conversationIds: readonly string[]): Promise<void>;
 }
 
 const userKey = (userId: string) => `user:${userId}`;
@@ -30,6 +37,7 @@ export class MemoryGuardStore implements GuardStore {
   private readonly calls = new Map<string, number>();
   private readonly neurons = new Map<string, number>();
   private readonly reservations = new Map<string, { neurons: number; expiresAt: string }>();
+  private readonly conversations = new Map<string, { userId: string; at: string }>();
 
   constructor(users: readonly { userId: string; tokenHash: string }[] = []) {
     this.users = new Map(users.map((u) => [u.tokenHash, u.userId]));
@@ -66,6 +74,21 @@ export class MemoryGuardStore implements GuardStore {
 
   async release(key: string): Promise<void> {
     this.reservations.delete(key);
+  }
+
+  async recordConversation(userId: string, conversationId: string, at: string): Promise<void> {
+    if (!this.conversations.has(conversationId)) this.conversations.set(conversationId, { userId, at });
+  }
+
+  async conversationsOf(userId: string): Promise<string[]> {
+    return [...this.conversations]
+      .filter(([, c]) => c.userId === userId)
+      .sort(([, a], [, b]) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
+      .map(([id]) => id);
+  }
+
+  async forgetConversations(userId: string, conversationIds: readonly string[]): Promise<void> {
+    for (const id of conversationIds) if (this.conversations.get(id)?.userId === userId) this.conversations.delete(id);
   }
 
   /** 테스트용: 지금 예약 */
@@ -161,5 +184,33 @@ export class D1GuardStore implements GuardStore {
 
   async release(key: string): Promise<void> {
     await this.db.prepare('DELETE FROM usage_reservations WHERE key = ?').bind(key).run();
+  }
+
+  async recordConversation(userId: string, conversationId: string, at: string): Promise<void> {
+    await this.db
+      .prepare('INSERT OR IGNORE INTO conversations (conversation_id, user_id, created_at) VALUES (?1, ?2, ?3)')
+      .bind(conversationId, userId, at)
+      .run();
+  }
+
+  async conversationsOf(userId: string): Promise<string[]> {
+    // D1Like에는 first·run만 있어 JSON 배열 한 행으로 받는다
+    const row = await this.db
+      .prepare(
+        `SELECT json_group_array(conversation_id) AS ids FROM
+         (SELECT conversation_id FROM conversations WHERE user_id = ? ORDER BY created_at, conversation_id)`,
+      )
+      .bind(userId)
+      .first<{ ids: string }>();
+    return row ? (JSON.parse(row.ids) as string[]) : [];
+  }
+
+  async forgetConversations(userId: string, conversationIds: readonly string[]): Promise<void> {
+    if (conversationIds.length === 0) return;
+    await this.db.batch(
+      conversationIds.map((id) =>
+        this.db.prepare('DELETE FROM conversations WHERE conversation_id = ? AND user_id = ?').bind(id, userId),
+      ),
+    );
   }
 }

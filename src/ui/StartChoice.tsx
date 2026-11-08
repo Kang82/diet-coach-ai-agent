@@ -7,7 +7,6 @@ export function StartChoice({
   onUseSaved,
   onEditSaved,
   onFresh,
-  onForget,
 }: {
   saved: SavedProfile;
   /** 지난 프로필 그대로 제출 */
@@ -16,13 +15,11 @@ export function StartChoice({
   onEditSaved: () => void;
   /** 인터뷰 처음부터 */
   onFresh: () => void;
-  /** 저장한 내 정보(서버의 프로필·식단표, 이 브라우저의 진행 값) 지우기 */
-  onForget: () => void;
 }) {
   return (
     <section className="intro">
       <h1 className="display">다시 오셨네요</h1>
-      <p className="lede">지난번에 저장에 동의한 프로필이에요. 원하지 않으면 아래에서 지울 수 있어요.</p>
+      <p className="lede">지난번에 저장에 동의한 프로필이에요. 원하지 않으면 화면 아래 “내 기록 모두 지우기”로 지울 수 있어요.</p>
       <ul className="interview-summary">
         {summarizeInterviewResult(saved.result).map((line) => (
           <li key={line}>{line}</li>
@@ -39,9 +36,6 @@ export function StartChoice({
           인터뷰 처음부터
         </button>
       </div>
-      <button type="button" className="link" onClick={onForget}>
-        저장한 내 정보 지우기
-      </button>
     </section>
   );
 }

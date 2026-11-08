@@ -81,5 +81,28 @@ export function guardStoreContract(
       expect(await store.tryCountMessage('u1', '2026-11-06', 1)).toBe(true);
       expect(await store.neuronsSince('2026-11-06T00')).toBeCloseTo(50);
     });
+
+    // 대화 기록 지우기 (tasks.md T15): DO 이름은 나열할 수 없어 사용자별 대화 ID를 따로 기록한다
+    it('대화는 중복 없이 기록하고, 사용자별로 처음 기록한 순서대로 나열한다', async () => {
+      const store = await create([]);
+      await store.recordConversation('u1', 'u1-a', '2026-11-08T01:00:00.000Z');
+      await store.recordConversation('u1', 'u1-b', '2026-11-08T02:00:00.000Z');
+      await store.recordConversation('u1', 'u1-a', '2026-11-08T03:00:00.000Z');
+      await store.recordConversation('u2', 'u2-a', '2026-11-08T01:30:00.000Z');
+      expect(await store.conversationsOf('u1')).toEqual(['u1-a', 'u1-b']);
+      expect(await store.conversationsOf('u2')).toEqual(['u2-a']);
+      expect(await store.conversationsOf('u3')).toEqual([]);
+    });
+
+    it('forgetConversations는 그 사용자의 준 ID만 뺀다', async () => {
+      const store = await create([]);
+      await store.recordConversation('u1', 'u1-a', '2026-11-08T01:00:00.000Z');
+      await store.recordConversation('u1', 'u1-b', '2026-11-08T02:00:00.000Z');
+      await store.recordConversation('u2', 'u2-a', '2026-11-08T01:00:00.000Z');
+      await store.forgetConversations('u1', ['u1-a', 'u2-a']);
+      await store.forgetConversations('u1', []);
+      expect(await store.conversationsOf('u1')).toEqual(['u1-b']);
+      expect(await store.conversationsOf('u2')).toEqual(['u2-a']);
+    });
   });
 }

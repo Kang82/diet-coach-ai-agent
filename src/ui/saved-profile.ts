@@ -42,12 +42,18 @@ export async function fetchSavedProfile(token: string, fetchFn: FetchLike = fetc
   }
 }
 
-/** 서버에 저장한 프로필과 식단표를 지운다. 성공하면 true */
-export async function deleteSavedProfile(token: string, fetchFn: FetchLike = fetch): Promise<boolean> {
+/** failed: 서버가 못 지운 대화 수 (T15) */
+export type DeleteResult = { ok: true; failed: number } | { ok: false };
+
+/** 서버에 남은 내 기록(저장한 프로필·식단표, 이 링크로 남긴 대화)을 모두 지운다 (T15) */
+export async function deleteMyRecords(token: string, fetchFn: FetchLike = fetch): Promise<DeleteResult> {
   try {
-    return (await fetchFn('/api/profile', { method: 'DELETE', headers: auth(token) })).ok;
+    const res = await fetchFn('/api/profile', { method: 'DELETE', headers: auth(token) });
+    if (!res.ok) return { ok: false };
+    const body = (await res.json()) as { failed?: unknown };
+    return typeof body?.failed === 'number' ? { ok: true, failed: body.failed } : { ok: false };
   } catch {
-    return false;
+    return { ok: false };
   }
 }
 

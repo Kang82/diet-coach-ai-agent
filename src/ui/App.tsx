@@ -1,6 +1,7 @@
 // (첫 화면 분기) → 인터뷰 → 프로필 확인 → 기간 선택 → 메뉴 분류 확인 → 식단표 (스펙 7장, tasks.md B4~B6).
 // 단계마다 앞 단계가 끝난 뒤의 메시지를 다음 화면 상태에 넘긴다. 식단표는 끝난 인터뷰와 확인한 메뉴 분류, 기간으로 만든다.
 // 프로필은 저장에 동의했을 때만 서버(D1)에 남는다. 화면은 /api/profile로 불러오고 지운다 (saved-profile.ts, T6-2).
+// 화면 아래 "내 기록 모두 지우기"는 저장 동의와 관계없이 대화 기록(DO)까지 지운다 (ForgetLink.tsx, T15).
 // 대화별 진행 값(인터뷰 답, 일정, 고르던 분류)은 그 단계가 끝나면 지운다 (browser-store.ts, 리뷰 4번).
 // 대화 ID를 localStorage에 두어 새로고침하거나 창을 닫았다 열어도 같은 대화(진행 상태나 결과)를 다시 읽는다.
 // 대화 ID는 "<userId>-<UUID>"이고, 모든 요청에 사용자 링크 토큰을 붙인다 (스펙 11.4-1, AccessGate.tsx).
@@ -18,7 +19,8 @@ import { clearAll, clearDrafts, CONVERSATION_KEY, defaultStore, draftKey } from 
 import { progressFromResult } from './interview-form-state.ts';
 import { loadCarryClasses, prepareMenuEdit } from './menu-edit.ts';
 import { PeriodView } from './PeriodView.tsx';
-import { clearLegacyProfile, deleteSavedProfile, fetchSavedProfile, type SavedProfile } from './saved-profile.ts';
+import { ForgetLink } from './ForgetLink.tsx';
+import { clearLegacyProfile, deleteMyRecords, fetchSavedProfile, type DeleteResult, type SavedProfile } from './saved-profile.ts';
 import { defaultConsentFor, shouldOfferSaved, type StartChoice as StartChoiceKind } from './start-choice-state.ts';
 import { StartChoice } from './StartChoice.tsx';
 import { InterviewView } from './InterviewView.tsx';
@@ -135,11 +137,17 @@ export function App({ token, userId }: { token: string; userId: string }) {
     setChoice('edit_saved');
   }
 
-  /** 저장한 내 정보(서버의 프로필·식단표, 이 브라우저의 대화별 진행 값)를 모두 지운다. 대화 기록은 남는다(스펙 5장) */
-  async function forgetAll() {
+  /**
+   * 내 기록 모두 지우기 (T15): 서버의 프로필·식단표와 이 링크로 남긴 대화(DO), 이 브라우저의 진행 값을 지운다.
+   * 지금 화면의 대화도 지워졌으므로 새 대화로 옮긴다. 서버가 실패하면 아무것도 바꾸지 않는다
+   */
+  async function forgetAll(): Promise<DeleteResult> {
+    const result = await deleteMyRecords(token);
+    if (!result.ok) return result;
     clearAll();
     setSaved(undefined);
-    await deleteSavedProfile(token);
+    moveToNewConversation();
+    return result;
   }
 
   /** 식단표 만들기 실패 뒤 같은 대화에 같은 메시지(바꾼 분류 포함)를 다시 보낸다 (리뷰 3번) */
@@ -200,7 +208,6 @@ export function App({ token, userId }: { token: string; userId: string }) {
           onUseSaved={startWithSaved}
           onEditSaved={editSaved}
           onFresh={() => setChoice('fresh')}
-          onForget={forgetAll}
         />
       )}
 
@@ -294,6 +301,7 @@ export function App({ token, userId }: { token: string; userId: string }) {
           </div>
         </section>
       )}
+      <ForgetLink key={userId} onForget={forgetAll} />
     </main>
   );
 }
