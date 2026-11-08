@@ -58,7 +58,7 @@ export async function handleClassifyRequest({
   } catch (error) {
     // 던지면 바깥 모델이 이 도구를 다시 부를 수 있다 (리뷰 1번). 결과로 답한다
     const kind = failureKind(error);
-    return { output: { status: kind, message: failureMessage(kind), stats: { ...empty, seconds: seconds() } }, failure: { kind, error } };
+    return { output: { status: kind, message: failureMessage(kind, error), stats: { ...empty, seconds: seconds() } }, failure: { kind, error } };
   }
   const stats: ClassifyToolStats = { seconds: seconds(), usages: out.usages, neurons: neurons(out.usages) };
   if (out.kind !== 'ok') return { output: { status: out.kind, message: failureMessage(out.kind), stats } };

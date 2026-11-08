@@ -1,5 +1,6 @@
 // 스펙 4.3, 4.4. 식단표를 만드는 LLM 호출의 포트.
 // 점검·다시 추천 루프(4.4)는 이 인터페이스만 알고, 실제 구현(Flue)은 src/agents에 둔다.
+import type { StreamStats } from './llm-timeout.ts';
 import type {
   CriteriaRules,
   MenuClassification,
@@ -17,6 +18,11 @@ export interface TokenUsage {
   model: string;
   input: number;
   output: number;
+  /**
+   * 이 호출 동안 Workers AI 응답 스트림을 지켜본 결과 (B19, agents/stream-watch.ts). 바인딩 요청을 하나라도 봤을 때만.
+   * 도구 결과 stats.usages와 평가 기록에 남아 실제 첫 바이트·최장 간격을 볼 수 있다
+   */
+  stream?: StreamStats;
 }
 
 export interface LlmResult<T> {

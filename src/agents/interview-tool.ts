@@ -57,7 +57,7 @@ export function submitInterviewTool({
         const seconds = Math.round((Date.now() - startedAt) / 1000);
         log.error('인터뷰 제출 실패', { kind, message: error instanceof Error ? error.message : String(error), seconds });
         const status = kind === 'quota' ? 'quota' : kind === 'timeout' ? 'timeout' : 'error';
-        return done({ status, message: { text: failureMessage(kind) }, stats: { seconds, usages: [], neurons: 0 } });
+        return done({ status, message: { text: failureMessage(kind, error) }, stats: { seconds, usages: [], neurons: 0 } });
       }
       const stats = {
         seconds: Math.round((Date.now() - startedAt) / 1000),

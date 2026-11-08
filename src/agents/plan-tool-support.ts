@@ -4,7 +4,7 @@ import { buildCriteria } from '../core/criteria.ts';
 import { profileFromInterview, type InterviewResult } from '../core/interview.ts';
 import { totalNeurons } from '../core/neurons.ts';
 import { PlanLoopError } from '../core/plan-loop.ts';
-import { failureKind, failureMessage } from '../core/tool-failure.ts';
+import { failureKind, failureMessage, timeoutDetail } from '../core/tool-failure.ts';
 import type { PlanGenerator, TokenUsage } from '../core/plan-generator.ts';
 import type { PlanContext } from '../core/plan-loop.ts';
 import type { InterviewToolOutput } from '../core/interview-tool-output.ts';
@@ -97,8 +97,16 @@ export function planFailure(
   const kind = failureKind(error);
   const loop = error instanceof PlanLoopError ? error : { usages: [], regenerations: 0 };
   const stats = toolStats(startedAt, loop, log);
-  log.error('식단 도구 실패', { kind, message: error instanceof Error ? error.message : String(error), ...stats });
-  return { status: kind, message: failureMessage(kind), stats };
+  // 시간 초과면 원인(stalled·budget·call_limit)과 스트림 관찰 결과도 남긴다 (B19). 내용 없이 시각·횟수만
+  const { reason, stream } = timeoutDetail(error);
+  log.error('식단 도구 실패', {
+    kind,
+    message: error instanceof Error ? error.message : String(error),
+    ...(reason ? { reason } : {}),
+    ...(stream ? { stream } : {}),
+    ...stats,
+  });
+  return { status: kind, message: failureMessage(kind, error), stats };
 }
 
 /** 도구 출력은 JSON 값이어야 한다. 인터페이스(Plan 등)를 JsonValue로 넘기려고 한 번 직렬화한다. 모양은 타입으로 검사한다. */

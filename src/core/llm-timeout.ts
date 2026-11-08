@@ -2,15 +2,66 @@
 // 모델이 계속 틀리면 몇 분씩 돌며 한도를 쓰므로, 어댑터(src/agents/prompt-call.ts)가 시간 제한을 걸고
 // 넘으면 이 에러로 바꿔 던진다. 실험 기록: docs/experiments/2026-11-06-b6-end-to-end.md
 
+/**
+ * 시간 초과 원인 (B19, tasks.md T8-8). 11-08 배포본 실패는 모델이 300초 동안 한 바이트도 보내지 않은 경우였는데
+ * 예전에는 "답을 길게 쓰다 시간을 넘긴 경우"와 같은 문구였다.
+ * - stalled: 모델이 바이트를 보내지 않은 간격이 STALL_MS 이상 (Workers AI 일시 멈춤 등)
+ * - budget: 도구 전체 시간 예산이 남지 않아 호출 상한이 줄어든 상태에서 넘김
+ * - call_limit: 응답은 오는데 호출별 상한을 넘김 (출력이 길거나 Flue 재요청이 이어짐)
+ */
+export type TimeoutReason = 'stalled' | 'budget' | 'call_limit';
+
+/**
+ * 무응답으로 볼 간격. Flue의 무응답 감지(streamIdleTimeoutMs 기본 5분)보다 짧게 둬 그 안의 멈춤도 잡는다.
+ * gpt-oss는 추론을 흘려보내 간격이 짧을 것으로 본다. 실측(usage.stream.maxGapMs)으로 다시 볼 값이다
+ */
+export const STALL_MS = 2 * 60_000;
+
+/** 한 LLM 호출 동안 Workers AI 응답 스트림을 지켜본 결과 (agents/stream-watch.ts). 본문 내용은 보지 않고 시각만 잰다 */
+export interface StreamStats {
+  /** 바인딩 요청 수. Flue의 구조화 출력 재요청·무응답 재요청이 있으면 2 이상 */
+  requests: number;
+  /** 호출 시작부터 첫 바이트까지 (ms). 한 바이트도 안 왔으면 null */
+  firstByteMs: number | null;
+  /** 바이트 없이 지난 가장 긴 간격 (ms). 요청 시작부터 첫 바이트까지, 끝난 순간까지의 마지막 간격도 포함 */
+  maxGapMs: number;
+}
+
+/** 판정 순서는 stalled → budget → call_limit. 관찰한 요청이 없으면(스트림을 못 봄) 무응답이라고 하지 않는다 */
+export function timeoutReason(input: {
+  requests: number;
+  maxGapMs: number;
+  byBudget: boolean;
+  stallMs?: number;
+}): TimeoutReason {
+  if (input.requests > 0 && input.maxGapMs >= (input.stallMs ?? STALL_MS)) return 'stalled';
+  return input.byBudget ? 'budget' : 'call_limit';
+}
+
 export class LlmTimeoutError extends Error {
-  constructor(readonly limitMs: number, options?: { cause?: unknown }) {
+  readonly reason?: TimeoutReason;
+  readonly stream?: StreamStats;
+
+  constructor(
+    readonly limitMs: number,
+    options?: { cause?: unknown; reason?: TimeoutReason; stream?: StreamStats },
+  ) {
     super(`LLM 호출이 ${Math.round(limitMs / 1000)}초 안에 끝나지 않아 멈췄습니다.`, options);
     this.name = 'LlmTimeoutError';
+    if (options?.reason) this.reason = options.reason;
+    if (options?.stream) this.stream = options.stream;
   }
 }
 
-/** 사용자에게 보여 줄 안내 */
+/** 사용자에게 보여 줄 안내 (원인을 모를 때와 call_limit) */
 export const LLM_TIMEOUT_MESSAGE = '응답이 너무 오래 걸려 멈췄어요. 잠시 뒤 다시 시도해 주세요.';
+
+/** 원인별 안내 (B19). 화면은 도구 결과의 message를 그대로 보여 준다 */
+export const TIMEOUT_MESSAGES: Record<TimeoutReason, string> = {
+  stalled: 'AI 모델이 응답하지 않아 멈췄어요. 모델 서비스가 잠시 불안정할 수 있어요. 잠시 뒤 다시 시도해 주세요.',
+  budget: '정해 둔 시간 안에 끝내지 못해 멈췄어요. 잠시 뒤 다시 시도해 주세요.',
+  call_limit: LLM_TIMEOUT_MESSAGE,
+};
 
 /** 호출별 시간 제한 (ms). 측정값(스펙 11.5)의 2배쯤으로 둔다 */
 export const LLM_TIME_LIMITS = {

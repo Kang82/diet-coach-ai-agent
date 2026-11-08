@@ -11,6 +11,7 @@ import type { PlanCell } from '../core/types.ts';
 import { createFluePlanGenerator, type PromptHarness } from './flue-plan-generator.ts';
 import { MODEL_CANDIDATES, NEURON_PRICES } from './models.ts';
 import { PlanCellsResultSchema } from './plan-schema.ts';
+import { watchBinding } from './stream-watch.ts';
 
 const generateInput = () => ({
   profile: structuredClone(profileA),
@@ -90,6 +91,22 @@ describe('createFluePlanGenerator', () => {
     const { value } = await createFluePlanGenerator(harness).generatePlan(generateInput());
 
     expect(value[0]).toMatchObject({ title: '회덮밥', orderTip: '초장 절반' });
+  });
+
+  it('Workers AI 응답을 지켜봤으면 사용량에 스트림 관찰 결과를 싣는다 (B19)', async () => {
+    const binding = watchBinding({ run: async (..._args: unknown[]) => new Response('chunk') });
+    const harness = {
+      prompt: (async () => {
+        const res = (await binding.run('@cf/m', {})) as Response;
+        await res.text();
+        return { data: { cells: structuredClone(planA.cells) }, usage: usage(10, 20), model: { provider: 'cloudflare', id: 'm' } };
+      }) as unknown as PromptHarness['prompt'],
+    };
+
+    const { usage: u } = await createFluePlanGenerator(harness).generatePlan(generateInput());
+
+    expect(u.stream).toMatchObject({ requests: 1 });
+    expect(u.stream?.firstByteMs).not.toBeNull();
   });
 
   it('다시 추천은 다시 추천 프롬프트로 부른다', async () => {

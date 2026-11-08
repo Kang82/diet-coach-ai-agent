@@ -4,10 +4,10 @@ import type { FlueHarness, PromptResultResponse, ThinkingLevel } from '@flue/run
 import type { PlanGenerator, TokenUsage } from '../core/plan-generator.ts';
 import { finishCells } from '../core/plan-cells.ts';
 import { buildGeneratePrompt, buildRegeneratePrompt } from '../core/plan-prompt.ts';
-import { callLimit, LLM_TIME_LIMITS } from '../core/llm-timeout.ts';
+import { callLimit, LLM_TIME_LIMITS, type StreamStats } from '../core/llm-timeout.ts';
 import type { PlanCell } from '../core/types.ts';
 import { PlanCellsResultSchema } from './plan-schema.ts';
-import { promptWithLimit } from './prompt-call.ts';
+import { promptWatched } from './prompt-call.ts';
 
 /** harness 중 이 구현이 쓰는 부분. 테스트에서 가짜를 넣기 쉽게 좁혀 둔다. */
 export type PromptHarness = Pick<FlueHarness, 'prompt'>;
@@ -26,29 +26,39 @@ export function createFluePlanGenerator(harness: PromptHarness, options: FluePla
   };
   return {
     async generatePlan(input, callOptions) {
-      const limitMs = callLimit(LLM_TIME_LIMITS.generatePlan, callOptions?.limitMs);
-      const res = await call(harness, buildGeneratePrompt(input), extra, limitMs);
-      return { value: finishCells(res.data.cells, input.profile, input.classes), usage: toTokenUsage(res) };
+      const callMaxMs = LLM_TIME_LIMITS.generatePlan;
+      const { res, stream } = await call(harness, buildGeneratePrompt(input), extra, callLimit(callMaxMs, callOptions?.limitMs), callMaxMs);
+      return { value: finishCells(res.data.cells, input.profile, input.classes), usage: withStream(toTokenUsage(res), stream) };
     },
     async regenerateCells(input, callOptions) {
-      const limitMs = callLimit(LLM_TIME_LIMITS.regenerateCells, callOptions?.limitMs);
-      const res = await call(harness, buildRegeneratePrompt(input), extra, limitMs);
-      return { value: finishCells(res.data.cells, input.profile, input.classes), usage: toTokenUsage(res) };
+      const callMaxMs = LLM_TIME_LIMITS.regenerateCells;
+      const { res, stream } = await call(harness, buildRegeneratePrompt(input), extra, callLimit(callMaxMs, callOptions?.limitMs), callMaxMs);
+      return { value: finishCells(res.data.cells, input.profile, input.classes), usage: withStream(toTokenUsage(res), stream) };
     },
   } satisfies PlanGenerator;
 }
 
 type CellsResponse = PromptResultResponse<{ cells: PlanCell[] }>;
 
-/** 한도 초과는 QuotaExceededError(루프가 즉시 멈춤), 시간 초과는 LlmTimeoutError로 바뀐다 (prompt-call.ts) */
+/**
+ * 한도 초과는 QuotaExceededError(루프가 즉시 멈춤), 시간 초과는 원인을 실은 LlmTimeoutError로 바뀐다 (prompt-call.ts).
+ * callMaxMs: 호출별 원래 상한. limitMs가 더 짧으면 도구 시간 예산이 줄인 호출이다 (B19)
+ */
 async function call(
   harness: PromptHarness,
   text: string,
   extra: { thinkingLevel?: ThinkingLevel; model?: string },
   limitMs: number,
-): Promise<CellsResponse> {
+  callMaxMs: number,
+): Promise<{ res: CellsResponse; stream: StreamStats }> {
+  const out = await promptWatched(harness, text, { result: PlanCellsResultSchema, ...extra }, limitMs, { callMaxMs });
   // valibot 출력 타입의 tags 등은 PlanCell과 같은 리터럴 유니온이다.
-  return (await promptWithLimit(harness, text, { result: PlanCellsResultSchema, ...extra }, limitMs)) as CellsResponse;
+  return { res: out.response as CellsResponse, stream: out.stream };
+}
+
+/** 바인딩 요청을 하나라도 봤을 때만 싣는다(단위 테스트의 가짜 harness나 관찰이 끊긴 경우는 뺀다) */
+function withStream(usage: TokenUsage, stream: StreamStats): TokenUsage {
+  return stream.requests > 0 ? { ...usage, stream } : usage;
 }
 
 /** Flue는 모델을 { provider, id }로 나눠 준다. NEURON_PRICES 키(models.ts)와 같은 'provider/id' 모양으로 잇는다. */

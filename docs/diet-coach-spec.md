@@ -462,6 +462,12 @@ regenerateCells(input: {
 - 새로 만들기가 위반으로 실패하면 식단표는 보여 주지 않지만, 평가 세트와 디버깅을 위해 마지막 시도(`lastPlan`)를 결과에 남긴다.
 - 루프는 입력 식단표를 고치지 않고, 성공한 LLM 호출의 토큰 사용량(`usages`)을 함께 돌려준다. 한도 초과가 아닌 에러는 그때까지의 `usages`를 붙인 `PlanLoopError`로 던진다. 호출자는 실패한 경우에도 이 사용량을 안전선(11.4-3)에 더한다.
 - **도구 전체 시간 예산 (T8-4):** 만들기 10분, 칸 수정 5분(`core/llm-timeout.ts`의 `PLAN_TOOL_BUDGETS`). 루프는 호출마다 남은 시간을 제한으로 넘기고, 구현은 호출별 상한(생성 8분, 다시 추천 4분)과 짧은 쪽을 쓴다. 남은 시간이 `MIN_REGENERATE_MS`(2분)보다 적으면 다시 추천을 새로 부르지 않고 지금 결과로 끝낸다(위반이면 `violations`, 결과에 `stoppedForTime: true`). 남은 예산으로 줄여 건 다시 추천이 시간 초과로 끝나도 같게 처리한다. 예산이 남았는데 호출별 상한에 걸린 시간 초과는 `timeout`이다. 칸 수정의 첫 호출(사용자 요청)은 남은 시간과 관계없이 부른다. 값은 B11 실측 뒤 다시 맞춘다.
+- **시간 초과 원인 (B19, 2026-11-08):** 시간 초과 결과의 안내 문구를 원인으로 나눈다(`core/llm-timeout.ts`의 `timeoutReason`, `TIMEOUT_MESSAGES`). 판정 순서는 아래 순서다. 화면은 도구 결과의 `message`를 그대로 보여 주고, 다시 시도는 세 경우 모두 있다. 메뉴 분류·목표 메모 확인도 같은 문구를 쓴다.
+  - `stalled`(모델 무응답): 이 호출에서 응답 바이트 없이 지난 최장 간격이 2분(`STALL_MS`) 이상이다. 시간 초과 순간까지의 마지막 간격도 넣는다. "AI 모델이 응답하지 않아 멈췄어요…"
+  - `budget`: 호출 상한이 도구 예산 때문에 줄어든 상태에서 넘겼다. "정해 둔 시간 안에 끝내지 못해 멈췄어요…"
+  - `call_limit`: 그 밖의 경우. 예전 문구 그대로다.
+  - 관찰 방법: Flue가 우리 signal을 감싸 공급자에 넘기고 무응답 재요청을 알려 주지 않아서, 호출마다 AsyncLocalStorage 저장소를 연다(`agents/prompt-call.ts`의 `promptWatched`). Workers AI 바인딩의 `run`을 감싸 응답 본문 바이트 시각만 잰다(`agents/stream-watch.ts`, 본문 내용은 보지 않음). 관찰한 요청이 없으면 `stalled`로 보지 않는다.
+  - 식단 생성·다시 추천이 성공하면 관찰 결과(요청 수, 첫 바이트 시간, 최장 간격)를 `usage.stream`에 싣는다.
 - **재시작 뒤 이어 가기 (B12):** 식단 도구 2개(`create_week_plan`, `edit_plan_cells`)는 Flue durable 도구다. LLM 호출은 호출 순번 이름(`llm:1`, `llm:2`…)의 `step.do`로 감싸고(`core/stepped-generator.ts`), planId·만든 시각·주 시작·예산 시작 시각은 `start` step, D1 저장은 `persist` step에 둔다. Durable Object가 재시작되면 끝난 step은 기록값을 돌려주고 끊긴 호출부터 다시 부른다. 예산은 `start`의 시각부터 재므로 복구가 있어도 도구 전체 예산을 넘지 않는다. 에이전트 상태 쓰기(`savePlan` 등)는 도구 결과와 함께 커밋되므로 step 밖에 둔다. 제출 하나의 복구 한도는 3회·20분(`SUBMISSION_DURABILITY`).
 
 ## 5. 저장 (Cloudflare)
