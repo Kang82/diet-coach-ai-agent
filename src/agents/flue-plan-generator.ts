@@ -1,11 +1,11 @@
 // 스펙 4.3, 4.4. PlanGenerator 포트의 Flue 구현.
 // harness.prompt(..., { result })로 칸을 받고, 사용량과 한도 초과 에러를 core의 모양으로 바꾼다.
 import type { FlueHarness, PromptResultResponse, ThinkingLevel } from '@flue/runtime';
-import { dayType } from '../core/helpers.ts';
 import type { PlanGenerator, TokenUsage } from '../core/plan-generator.ts';
-import { buildGeneratePrompt, buildRegeneratePrompt, normalizeMenuId } from '../core/plan-prompt.ts';
+import { finishCells } from '../core/plan-cells.ts';
+import { buildGeneratePrompt, buildRegeneratePrompt } from '../core/plan-prompt.ts';
 import { callLimit, LLM_TIME_LIMITS } from '../core/llm-timeout.ts';
-import type { PlanCell, Profile } from '../core/types.ts';
+import type { PlanCell } from '../core/types.ts';
 import { PlanCellsResultSchema } from './plan-schema.ts';
 import { promptWithLimit } from './prompt-call.ts';
 
@@ -28,12 +28,12 @@ export function createFluePlanGenerator(harness: PromptHarness, options: FluePla
     async generatePlan(input, callOptions) {
       const limitMs = callLimit(LLM_TIME_LIMITS.generatePlan, callOptions?.limitMs);
       const res = await call(harness, buildGeneratePrompt(input), extra, limitMs);
-      return { value: normalizeCells(res.data.cells, input.profile), usage: toTokenUsage(res) };
+      return { value: finishCells(res.data.cells, input.profile, input.classes), usage: toTokenUsage(res) };
     },
     async regenerateCells(input, callOptions) {
       const limitMs = callLimit(LLM_TIME_LIMITS.regenerateCells, callOptions?.limitMs);
       const res = await call(harness, buildRegeneratePrompt(input), extra, limitMs);
-      return { value: normalizeCells(res.data.cells, input.profile), usage: toTokenUsage(res) };
+      return { value: finishCells(res.data.cells, input.profile, input.classes), usage: toTokenUsage(res) };
     },
   } satisfies PlanGenerator;
 }
@@ -54,13 +54,4 @@ async function call(
 /** Flue는 모델을 { provider, id }로 나눠 준다. NEURON_PRICES 키(models.ts)와 같은 'provider/id' 모양으로 잇는다. */
 export function toTokenUsage(res: Pick<CellsResponse, 'usage' | 'model'>): TokenUsage {
   return { model: `${res.model.provider}/${res.model.id}`, input: res.usage.input, output: res.usage.output };
-}
-
-/** 스펙 1.4 menuId 정규화. 외식 칸은 그 끼니의 메뉴 목록 글자에 맞춘다. */
-function normalizeCells(cells: PlanCell[], profile: Profile): PlanCell[] {
-  return cells.map((cell) => {
-    const setting = profile.meals.find((m) => m.dayType === dayType(cell.day) && m.meal === cell.meal);
-    const menus = cell.place === 'eat_out' ? (setting?.menus ?? []) : [];
-    return { ...cell, menuId: normalizeMenuId(cell.menuId, menus) };
-  });
 }

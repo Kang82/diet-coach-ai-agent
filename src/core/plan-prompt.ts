@@ -29,7 +29,7 @@ const NUTRITION_TAG_LABELS: Record<NutritionTag, string> = {
   fried: '튀김',
   fatty_meat: '기름진 고기(삼겹살, 갈비, 곱창 등)',
   processed_meat: '햄, 소시지 같은 가공육',
-  refined_carb_main: '흰 면이나 흰 빵이 주식',
+  refined_carb_main: '흰 면이나 흰 빵이 주식, 흰쌀밥은 해당 없음',
   sugary: '단 소스나 디저트',
 };
 
@@ -171,6 +171,9 @@ function sectionRules(profile: Profile, rules: CriteriaRules, weeklyMax: number)
     '- 같은 끼니(점심끼리, 저녁끼리)에 전날과 같은 메뉴는 넣지 않습니다.',
     `- 같은 메뉴는 1주일에 ${weeklyMax}번까지만 넣습니다. 메뉴를 다양하게 고릅니다.`,
     `- 식단 기준: ${rules.criteria.map((c) => `${CRITERION_LABELS[c]}(${c})`).join(', ')}`,
+    // B17 T13-1: 감량·LDL 목표에 집밥 삼겹살 구이가 나왔다(규칙 안이지만 목표와 어긋남)
+    '- 집밥 메뉴는 식단 기준에 맞는 쪽을 고릅니다.' +
+      (rules.criteria.includes('reduce_saturated_fat') ? ' (예: 포화지방 줄이기면 삼겹살·갈비보다 살코기나 생선)' : ''),
     '',
   );
   return lines.join('\n');
@@ -182,13 +185,20 @@ function sectionCellFormat(): string {
     '- day, meal: 위 목록의 영문 값 (예: mon, lunch)',
     '- place: 외식이면 eat_out, 집밥이면 home',
     '- menuId: 외식은 메뉴 목록의 이름을 글자 그대로, 집밥은 설명을 뺀 메뉴 이름 (예: 두부 채소 볶음)',
-    '- title: 화면에 보일 이름. 주문 방법이나 조리 포인트를 괄호로 덧붙여도 됩니다 (예: 회덮밥 (초장 절반))',
+    // B17 T13-3: 괄호 팁을 허용하자 제목에만 팁을 쓰고 orderTip을 비웠다. 외식 제목은 코드가 메뉴 이름으로 정한다(plan-cells.ts)
+    '- title: 메뉴 이름만. 괄호로 주문 방법이나 조리 포인트를 덧붙이지 않습니다 (외식은 메뉴 목록의 이름이 그대로 제목이 됩니다)',
     '- ingredients: 주요 재료',
     `- tags: 해당하는 것을 빠짐없이. 재료 태그 ${AVOID_TAGS.join(', ')} / 음식 종류 태그 ${NUTRITION_TAGS.join(', ')}`,
     '  고기가 들어가면 meat와 함께 pork, beef, chicken 중 해당하는 것도 붙입니다.',
-    '- orderTip: 외식일 때 그 메뉴의 주문 팁 한 줄. 위 "주문 팁"에 그 메뉴가 있으면 그 팁을 쓰고, 다른 메뉴의 팁은 옮기지 않습니다',
+    // B17 T13-4: 흰 식빵 샌드위치에 누락(B14 기록). 정의는 스펙 2.2
+    '  refined_carb_main은 흰 면(국수, 라면, 우동, 파스타, 쌀국수 등)이나 흰 빵(식빵, 샌드위치, 토스트, 버거 등)이 주식인 메뉴에 붙입니다. 흰쌀밥에는 붙이지 않습니다.',
+    // B17 T13-2: 분류에 팁이 있으면 코드가 그 팁으로 채운다(plan-cells.ts)
+    '- orderTip: 외식 칸에서 위 "주문 팁"에 없는 메뉴만 주문 팁 한 줄. 주문 팁이 있는 메뉴는 비워 두면 그 팁이 들어갑니다',
     '- cookMinutes: 집밥은 조리 시간(분), 외식은 0',
     '- reason: 이 메뉴를 고른 이유를 한국어 한두 문장으로. 식단 기준과 연결해서',
+    // B17 T13-1: "된장은 정제 탄수화물을 줄이는 데 도움", 외식 "저염 된장" 같은 근거가 나왔다(B14 기록)
+    '  이 칸의 재료와 주문 팁에서 확인되는 사실만 근거로 씁니다. 외식에서 알 수 없는 조리 방식(저염, 저칼로리 양념 등)은 쓰지 않습니다.',
+    '  된장·간장·고추장 같은 양념이나 장류를 열량이나 탄수화물을 줄이는 근거로 쓰지 않습니다.',
     '- criterionIds: reason의 근거가 된 식단 기준 ID를 1개 이상 (위 "식단 기준"의 영문 값만)',
   ].join('\n');
 }

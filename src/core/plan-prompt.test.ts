@@ -50,7 +50,9 @@ describe('buildGeneratePrompt', () => {
     const prompt = buildGeneratePrompt(generateInput({ classes }));
 
     expect(prompt).toContain('글자 그대로: 백반, 회덮밥');
-    expect(prompt).not.toMatch(/쌀국수/);
+    // 메뉴 목록·주문 팁 줄에 없어야 한다 (태그 설명 예시의 "쌀국수"는 별개, B17)
+    const eatOutLine = prompt.split('\n').find((l) => l.includes('외식 (place: eat_out)'))!;
+    expect(eatOutLine).not.toMatch(/쌀국수/);
   });
 
   it('피할 음식, 태그 제한, 다양성 규칙, 식단 기준을 알린다', () => {
@@ -72,6 +74,39 @@ describe('buildGeneratePrompt', () => {
     expect(buildGeneratePrompt(generateInput({ profile }))).toContain(
       '피할 음식: 고기(meat), 돼지고기(pork), 소고기(beef), 닭고기(chicken)',
     );
+  });
+
+  it('제목은 메뉴 이름만, 주문 팁은 목록에 없는 메뉴만 쓰라고 알린다 (B17 T13-2·3)', () => {
+    const prompt = buildGeneratePrompt(generateInput());
+
+    expect(prompt).toContain('- title: 메뉴 이름만. 괄호로 주문 방법이나 조리 포인트를 덧붙이지 않습니다');
+    expect(prompt).not.toContain('회덮밥 (초장 절반)');
+    expect(prompt).toContain('비워 두면 그 팁이 들어갑니다');
+  });
+
+  it('이유는 칸에서 확인되는 사실만 근거로 쓰라고 알린다 (B17 T13-1)', () => {
+    const prompt = buildGeneratePrompt(generateInput());
+
+    expect(prompt).toContain('이 칸의 재료와 주문 팁에서 확인되는 사실만 근거로');
+    expect(prompt).toContain('저염, 저칼로리 양념');
+    expect(prompt).toContain('된장·간장·고추장 같은 양념이나 장류를 열량이나 탄수화물을 줄이는 근거로 쓰지 않습니다');
+  });
+
+  it('refined_carb_main을 붙일 메뉴와 흰쌀밥 제외를 알린다 (B17 T13-4, 스펙 2.2)', () => {
+    const prompt = buildGeneratePrompt(generateInput());
+
+    expect(prompt).toContain('refined_carb_main은 흰 면(국수, 라면, 우동, 파스타, 쌀국수 등)이나 흰 빵(식빵, 샌드위치, 토스트, 버거 등)이 주식인 메뉴에 붙입니다. 흰쌀밥에는 붙이지 않습니다');
+  });
+
+  it('포화지방 기준이 있을 때만 집밥 메뉴 예시를 알린다 (B17 T13-1)', () => {
+    const withFat = buildGeneratePrompt(generateInput());
+    const rules = { ...structuredClone(rulesA), criteria: ['reduce_portion_calories' as const, 'increase_fiber' as const] };
+    const withoutFat = buildGeneratePrompt(generateInput({ rules }));
+
+    expect(withFat).toContain('집밥 메뉴는 식단 기준에 맞는 쪽을 고릅니다');
+    expect(withFat).toContain('삼겹살·갈비보다 살코기나 생선');
+    expect(withoutFat).toContain('집밥 메뉴는 식단 기준에 맞는 쪽을 고릅니다');
+    expect(withoutFat).not.toContain('삼겹살·갈비보다');
   });
 
   it('일정이 있는 끼니는 빼고, 칸을 만들지 말라고 알린다', () => {

@@ -153,10 +153,10 @@ interface MenuClassification {
 interface PlanCell extends Slot {
   place: "eat_out" | "home";
   menuId: string;          // 같은 메뉴 판정용 (아래 규칙 참조)
-  title: string;           // 화면 표시용 ("회덮밥 (초장 절반)")
+  title: string;           // 화면 표시용 메뉴 이름. 외식은 menuId와 같다 (B17)
   ingredients: string[];
   tags: Tag[];
-  orderTip?: string;       // 외식일 때
+  orderTip?: string;       // 외식일 때. 그 메뉴 분류의 orderTips가 우선 (B17)
   cookMinutes: number;     // 집밥일 때 필수, 외식이면 0
   reason: string;          // 한두 문장
   criterionIds: CriterionId[];  // reason의 근거. 1개 이상
@@ -175,7 +175,7 @@ interface Plan {
 
 **`menuId` 규칙:**
 
-- 외식 칸의 `menuId`는 그 끼니 설정의 `menus` 중 하나와 정확히 같은 문자열이다. "백반 (생선 반찬)"처럼 설명이 붙은 이름은 `title`에만 쓴다.
+- 외식 칸의 `menuId`는 그 끼니 설정의 `menus` 중 하나와 정확히 같은 문자열이다. 주문 방법은 `title`이 아니라 `orderTip`에 둔다(B17, 2026-11-08: 제목에 괄호 팁을 허용하자 모델이 제목에만 팁을 쓰고 `orderTip`을 비웠다).
 - 집밥 칸의 `menuId`는 설명을 뺀 메뉴 이름이다 ("두부 채소 볶음").
 - 정규화(앞뒤 공백 제거, 괄호 설명 제거)는 LLM 출력 검증 단계에서 한다. 외식 메뉴 목록과 분류는 정확히 일치하는지로 비교한다.
 - 사용자가 메뉴 이름에 괄호 메모를 넣은 경우("포케볼(생선 x)"): LLM 출력이 목록 이름과 그대로 같거나, 괄호를 뗀 모양끼리 같으면 목록의 글자로 맞춘다(2026-11-08, 배포본에서 이런 메뉴가 매번 `eat_out_not_in_list`로 걸려 다시 추천이 돌았다).
@@ -421,6 +421,8 @@ generatePlan(input: {
   events: Plan["events"];
 }): PlanCell[]
 ```
+
+**출력 정리 (B17, 2026-11-08)**: 생성·다시 추천(칸 수정 포함)의 칸은 `finishCells`(`core/plan-cells.ts`)를 거친다. menuId 정규화(1.4), 외식 칸 `title` = menuId, 외식 칸 `orderTip` = 그 메뉴 분류의 `orderTips`를 ", "로 이은 것(없으면 모델이 쓴 팁). 태그와 이유는 고치지 않고 프롬프트로 안내한다: 이유는 칸의 재료·주문 팁에서 확인되는 사실만, 양념·장류를 열량·탄수화물 근거로 쓰지 않기, `refined_carb_main` 정의(흰쌀밥 제외)와 예시, 집밥 메뉴는 식단 기준에 맞는 쪽.
 
 LLM에는 칸(`cells`)만 받는다. `planId`, `userId`, `profileVersion`, `weekStart`, `events`, `createdAt`은 루프가 입력 값으로 채운다. LLM이 일정이나 날짜를 바꿔 점검을 비켜 가지 못하게 하려는 것이다.
 

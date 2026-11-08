@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { classesA, planA, profileA } from '../core/__fixtures__/persona-a.ts';
 import { rulesA } from '../core/__fixtures__/rules-a.ts';
 import { estimateNeurons } from '../core/neurons.ts';
+import { finishCells } from '../core/plan-cells.ts';
 import { buildGeneratePrompt } from '../core/plan-prompt.ts';
 import { QuotaExceededError } from '../core/quota.ts';
 import type { PlanCell } from '../core/types.ts';
@@ -57,7 +58,7 @@ describe('createFluePlanGenerator', () => {
     const res = await createFluePlanGenerator(harness).generatePlan(generateInput());
 
     expect(prompts).toEqual([{ text: buildGeneratePrompt(generateInput()), result: PlanCellsResultSchema }]);
-    expect(res.value).toEqual(planA.cells);
+    expect(res.value).toEqual(finishCells(planA.cells, profileA, classesA));
     expect(res.usage).toEqual({ model: 'cloudflare/@cf/google/gemma-4-26b-a4b-it', input: 1_648, output: 6_226 });
   });
 
@@ -81,6 +82,16 @@ describe('createFluePlanGenerator', () => {
     expect(value[1]!.menuId).toBe('두부 채소 볶음');
   });
 
+  it('외식 칸의 제목은 메뉴 이름, 주문 팁은 분류의 팁으로 정리한다 (B17)', async () => {
+    const cells = structuredClone(planA.cells);
+    delete cells[0]!.orderTip; // 월요일 점심 회덮밥, 제목 '회덮밥 (초장 절반)'
+    const { harness } = fakeHarness(cells);
+
+    const { value } = await createFluePlanGenerator(harness).generatePlan(generateInput());
+
+    expect(value[0]).toMatchObject({ title: '회덮밥', orderTip: '초장 절반' });
+  });
+
   it('다시 추천은 다시 추천 프롬프트로 부른다', async () => {
     const { harness, prompts } = fakeHarness([planA.cells[2]!]);
 
@@ -94,7 +105,8 @@ describe('createFluePlanGenerator', () => {
 
     expect(prompts[0]!.text).toContain('"다시 만들 칸" 1곳만');
     expect(prompts[0]!.text).toContain('생선 말고');
-    expect(res.value).toEqual([planA.cells[2]]);
+    // 다시 추천(칸 수정 포함)도 같은 정리를 거친다: 화요일 점심 백반
+    expect(res.value).toEqual([{ ...planA.cells[2], title: '백반', orderTip: '생선 반찬 고르기' }]);
   });
 
   it('추론 수준을 정하면 생성과 다시 추천 모두에 실어 보내고, 없으면 보내지 않는다', async () => {
