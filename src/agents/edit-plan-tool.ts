@@ -20,6 +20,7 @@ import type { NeuronMeter } from './metered-harness.ts';
 import { persistPlan } from '../storage/persist.ts';
 import {
   metered,
+  markPlanQuietly,
   persistQuietly,
   pickGenerator,
   planContext,
@@ -109,6 +110,7 @@ export function editPlanCellsTool({
               if (store) {
                 const plan = result.plan;
                 await persistQuietly(log, '고친 식단표', () => step.do('persist', () => persistPlan(store.storage, store.userId, plan)));
+                await markPlanQuietly(log, step, store, plan);
               }
               return done({
                 status: 'ok',

@@ -104,5 +104,35 @@ export function guardStoreContract(
       expect(await store.conversationsOf('u1')).toEqual(['u1-b']);
       expect(await store.conversationsOf('u2')).toEqual(['u2-a']);
     });
+
+    // 지난 식단표 목록 (T17): 식단표를 만들었거나 고친 대화만, 최근 순. D1 구현은 테스트끼리 같은 DB라 사용자 ID를 따로 쓴다
+    it('식단표를 표시한 대화만 최근 순으로 나열하고, 다른 사용자 대화는 빼며 limit을 지킨다', async () => {
+      const store = await create([]);
+      for (const id of ['l1-a', 'l1-b', 'l1-c', 'l1-d']) await store.recordConversation('l1', id, '2026-11-08T00:00:00.000Z');
+      await store.recordConversation('l2', 'l2-a', '2026-11-08T00:00:00.000Z');
+      await store.markConversationPlan('l1-a', '2026-11-09', '2026-11-08T01:00:00.000Z');
+      await store.markConversationPlan('l1-b', '2026-11-16', '2026-11-08T03:00:00.000Z');
+      await store.markConversationPlan('l1-c', '2026-11-09', '2026-11-08T02:00:00.000Z');
+      await store.markConversationPlan('l2-a', '2026-11-09', '2026-11-08T04:00:00.000Z');
+      expect(await store.planConversations('l1')).toEqual([
+        { conversationId: 'l1-b', weekStart: '2026-11-16', planAt: '2026-11-08T03:00:00.000Z' },
+        { conversationId: 'l1-c', weekStart: '2026-11-09', planAt: '2026-11-08T02:00:00.000Z' },
+        { conversationId: 'l1-a', weekStart: '2026-11-09', planAt: '2026-11-08T01:00:00.000Z' },
+      ]);
+      expect((await store.planConversations('l1', 2)).map((c) => c.conversationId)).toEqual(['l1-b', 'l1-c']);
+    });
+
+    it('다시 표시하면(칸 수정) 시각이 바뀌어 위로 오고, 기록 없는 대화 표시는 무시하며, 지우면 빠진다', async () => {
+      const store = await create([]);
+      await store.recordConversation('r1', 'r1-a', '2026-11-08T00:00:00.000Z');
+      await store.recordConversation('r1', 'r1-b', '2026-11-08T00:00:00.000Z');
+      await store.markConversationPlan('r1-a', '2026-11-09', '2026-11-08T01:00:00.000Z');
+      await store.markConversationPlan('r1-b', '2026-11-09', '2026-11-08T02:00:00.000Z');
+      await store.markConversationPlan('r1-a', '2026-11-09', '2026-11-08T05:00:00.000Z');
+      await store.markConversationPlan('r1-zzz', '2026-11-09', '2026-11-08T06:00:00.000Z');
+      expect((await store.planConversations('r1')).map((c) => c.conversationId)).toEqual(['r1-a', 'r1-b']);
+      await store.forgetConversations('r1', ['r1-a']);
+      expect((await store.planConversations('r1')).map((c) => c.conversationId)).toEqual(['r1-b']);
+    });
   });
 }

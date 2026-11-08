@@ -491,6 +491,7 @@ interface Storage {
 - **서버 저장 (T6-2, B9):** 동의한 사용자만 D1에 남긴다(`storage/persist.ts`). 인터뷰 제출이 동의면 `saveProfile`(버전 +1), 동의하지 않으면 `deleteUser`로 그 사용자의 프로필과 식단표를 지운다. 식단표는 만들기·칸 수정이 성공했을 때 동의한 프로필이 있으면 새 행으로 저장한다(`userId`, `profileVersion`은 저장된 프로필 기준, 같은 `planId`도 새 행). 사용자 ID는 대화 ID `<userId>-…`에서 얻는다(에이전트 `props.id`). 저장 실패는 도구 결과를 깨지 않고 경고 로그만 남긴다.
 - **불러오기·지우기:** `GET /api/profile`(토큰 필요)이 저장한 프로필을 인터뷰 결과 모양 `{ result }`나 `null`로 돌려주고, 첫 화면 분기가 쓴다. `DELETE /api/profile`은 `deleteUser`와 대화 기록 지우기(아래)를 함께 하고 `{ failed }`(못 지운 대화 수)를 돌려준다("내 기록 모두 지우기").
 - **서버에 남는 대화 기록 (결정, B9):** 동의와 상관없이 에이전트 대화(Durable Object)에 인터뷰 제출 메시지, `interviewResult`, 분류, 식단표가 남는다. 프로필 확인 화면의 저장 동의 설명에 대화 기록으로 남는다는 것과 지우는 방법을 안내한다. 대화는 토큰의 사용자만 읽을 수 있다(11.4-1).
+- **지난 식단표 목록 (T17, 2026-11-08):** `conversations`에 `plan_week_start`·`plan_at`(마이그레이션 0006, 날짜만)을 두고, 만들기·칸 수정 도구가 성공하면 `mark` step에서 표시한다(저장 동의와 관계없음, `plan-tool-support.ts`의 `markPlanQuietly`). `GET /api/conversations`가 식단표가 있는 그 사용자 대화를 최근 순으로 20개까지 준다. 이 열 전에 만든 식단표는 표시가 없어 목록에 없다.
 - **대화 기록 지우기 (T15, 2026-11-08):** 모든 화면 아래 "내 기록 모두 지우기"(저장 동의와 관계없음, 그 자리에서 한 번 더 확인)가 `DELETE /api/profile`을 부른다. 서버는 D1 프로필·식단표를 지우고, 기록된 대화마다 Durable Object를 지운다. 지우고 나면 화면은 새 대화로 옮긴다.
   - 대화 목록: DO 이름은 나열할 수 없어 한도 보호 미들웨어가 메시지 POST를 넘기기 직전에 `conversations`(마이그레이션 0005)에 `INSERT OR IGNORE`한다. 이 테이블 전에 생긴 대화는 목록이 없어 지울 수 없다.
   - DO 지우기: Flue에 API가 없어 `extend({ base })`로 생성 클래스에 RPC 메서드 `wipeConversation`(Agents SDK `Agent.destroy()`: 테이블·알람·`storage.deleteAll()`)을 더했다(`agents/wipe-extension.ts`). Worker는 Flue와 같은 `getAgentByName(env.FLUE_DIET_COACH_AGENT, 대화ID)`로 찾는다. isolate가 끝나며 나는 "destroyed" abort 에러는 지운 것으로 본다. 실패한 대화는 목록에 남아 다시 누르면 다시 지운다(`server/conversation-wipe.ts`).
@@ -534,6 +535,7 @@ formatCheckSummary(stats: CheckStats, profile: Pick<Profile, 'avoid'>): string[]
 
 - 프로필 확인은 인터뷰 단계가 끝난 뒤, 제출 전에 화면에서 한다. 항목별 "고치기"는 그 항목만 초안에서 비우고(`core/profile-edit.ts`의 `reopenSection`) 그 단계를 다시 묻는다. 다 답하면 확인 화면으로 돌아온다. 다시 묻는 단계는 이전 답을 채워 둔다(T16, `ui/interview-form-state.ts`의 `stepDefaults`): 목표·메모, 피할 음식·메모, 6끼의 장소·같이 먹는 사람, 메뉴 입력란은 채우고, 한 번 눌러 답하는 복용약·조리 시간은 이전 답에 "지금 답"을 표시한다. 끼니 표를 고치면 장소가 같은 끼니의 메뉴·조리 시간은 이어 붙여(`core/profile-edit.ts`의 `carryMealDetails`) 장소를 바꾼 끼니만 다시 묻는다. 식단 기준은 `buildCriteria` 결과를 `criteriaText`로 보여 준다.
 - 저장 동의는 선택이다. 제출 메시지의 `consent: true`면 도구가 서버 시각으로 `consentedAt`을 채운다. 동의한 프로필은 서버 D1에 저장하고, 동의하지 않고 진행하면 서버에서 지운다(5장, B9).
+- 화면 아래에 "지난 식단표"(T17)와 "내 기록 모두 지우기"(T15)가 늘 있다. "지난 식단표"는 그 자리에 목록("11/9(월)부터 1주일 · 11/8 20:43", 한국 시간)을 펼치고, 누르면 그 대화로 옮긴다. 대화를 다시 읽으므로 식단표와 칸 수정이 그대로 이어진다. 지금 보는 대화는 "지금 보는 식단표"로 표시한다. 옮길 때 지금 대화의 브라우저 진행 값은 지운다.
 - 첫 화면 분기: 새 대화이고 저장한 프로필이 있으면 "지난 프로필로 시작"(바로 제출) / "바뀐 항목 고치기"(확인 화면부터) / "인터뷰 처음부터". 지우기는 화면 아래 "내 기록 모두 지우기"로 옮겼다(T15).
 - 기간 선택: "다음 주 월~일" 한 가지와 정해진 일정(요일 + 안 먹는 끼니가 아닌 끼니 + 메모). 일정 칸은 식단표에 "일정"으로 보인다.
 - 저장 동의 기본값은 "바뀐 항목 고치기"를 고른 직후에만 체크한다. "지난 프로필로 시작"은 계속 동의한 것으로 보고 보낸다(첫 화면에 그렇다고 적음).

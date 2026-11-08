@@ -14,8 +14,8 @@ export function ForgetLink({ onForget }: { onForget: () => Promise<DeleteResult>
   }
 
   return (
-    <footer className="forget" aria-live="polite">
-      {view.message && <p className="forget-message">{view.message}</p>}
+    <div className="forget" aria-live="polite">
+      {view.message && <p className="foot-message">{view.message}</p>}
       {view.confirm && (
         <div className="choices">
           <button type="button" className="secondary danger" onClick={forget}>
@@ -31,6 +31,6 @@ export function ForgetLink({ onForget }: { onForget: () => Promise<DeleteResult>
           {FORGET_TEXT.link}
         </button>
       )}
-    </footer>
+    </div>
   );
 }

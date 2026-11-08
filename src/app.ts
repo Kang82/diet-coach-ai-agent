@@ -6,6 +6,7 @@ import { getAgentByName } from 'agents';
 import { Hono } from 'hono';
 import { DietCoach } from './agents/diet-coach.ts';
 import type { Wipeable } from './agents/wipe-extension.ts';
+import { conversationRoutes } from './server/conversation-routes.ts';
 import { guardAgentRoutes, meHandler } from './server/guard.ts';
 import { profileRoutes } from './server/profile-routes.ts';
 import { D1Storage, type D1Like } from './storage/d1-storage.ts';
@@ -40,6 +41,8 @@ app.route(
     },
   }),
 );
+// 지난 식단표 목록 (T17)
+app.route('/api/conversations', conversationRoutes({ getGuardStore: guard.getStore }));
 app.get('/api/ping', (c) => c.text('pong'));
 
 export default app;

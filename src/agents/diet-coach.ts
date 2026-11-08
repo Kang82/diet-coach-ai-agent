@@ -17,7 +17,7 @@ import { reservationRelease, usageMeter } from './usage-meter.ts';
 import { AFTER_INTERVIEW_STEPS } from './agent-instructions.ts';
 import { userIdFromConversation } from '../core/profile-store.ts';
 import type { UserStore } from './plan-tool-support.ts';
-import { agentStorage } from './storage-binding.ts';
+import { agentGuardStore, agentStorage } from './storage-binding.ts';
 import { wipeExtension } from './wipe-extension.ts';
 
 // 인터뷰는 화면에서 진행하고 끝나면 제출 메시지를 한 번 보낸다 (tasks.md B4).
@@ -114,7 +114,7 @@ DietCoach.durability = { ...SUBMISSION_DURABILITY };
 /** 사용자 ID를 알 수 있는 대화(웹 화면, 평가 세트)만 서버에 저장한다 */
 function userStoreFor(conversationId: string): UserStore | undefined {
   try {
-    return { storage: agentStorage(), userId: userIdFromConversation(conversationId) };
+    return { storage: agentStorage(), userId: userIdFromConversation(conversationId), conversationId, guard: agentGuardStore() };
   } catch {
     return undefined;
   }

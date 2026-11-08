@@ -1010,13 +1010,26 @@ button:disabled {
 }
 
 /* 내 기록 모두 지우기 (T15). 모든 화면 아래 */
-.forget {
+.page-foot {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
   margin-top: 48px;
   padding-top: 16px;
   border-top: 1px solid var(--tray-light);
 }
 
-.forget-message {
+.past-plan-list {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+
+.past-plan.current {
+  color: var(--ink);
+  font-size: 0.8125rem;
+}
+
+.foot-message {
   margin: 0 0 8px;
   color: var(--ink-soft);
   font-size: 0.875rem;

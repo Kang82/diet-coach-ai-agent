@@ -4,7 +4,8 @@ import { LLM_TIMEOUT_MESSAGE, LlmTimeoutError } from '../core/llm-timeout.ts';
 import { PlanLoopError } from '../core/plan-loop.ts';
 import { TOOL_ERROR_MESSAGE } from '../core/tool-failure.ts';
 import { MODEL_CANDIDATES } from './models.ts';
-import { planFailure, runGuarded } from './plan-tool-support.ts';
+import { markPlanQuietly, planFailure, runGuarded } from './plan-tool-support.ts';
+import { planA } from '../core/__fixtures__/persona-a.ts';
 
 const log = { warn: () => {}, error: () => {} };
 
@@ -63,5 +64,24 @@ describe('runGuarded', () => {
     });
     expect(await run(async () => 'ok')).toBe('ok');
     expect(warnings).toEqual(['예약 정산 실패']);
+  });
+});
+
+// T17: 만들기·칸 수정이 성공하면 지난 식단표 목록에 이 대화를 표시한다 (mark step, 실패해도 결과는 그대로)
+describe('markPlanQuietly', () => {
+  it('mark step 안에서 대화에 시작 월요일과 시각을 표시한다', async () => {
+    const marks: unknown[][] = [];
+    const steps: string[] = [];
+    const store = { conversationId: 'u1-a', guard: { markConversationPlan: async (...args: unknown[]) => void marks.push(args) } };
+    await markPlanQuietly({ warn: () => {}, info: () => {} }, { do: async (name, fn) => (steps.push(name), fn()) }, store, planA, () => '2026-11-08T12:00:00.000Z');
+    expect(steps).toEqual(['mark']);
+    expect(marks).toEqual([['u1-a', planA.weekStart, '2026-11-08T12:00:00.000Z']]);
+  });
+
+  it('표시가 실패해도 던지지 않고 경고만 남긴다', async () => {
+    const warnings: string[] = [];
+    const store = { conversationId: 'u1-a', guard: { markConversationPlan: async () => { throw new Error('d1'); } } };
+    await markPlanQuietly({ warn: (m: string) => void warnings.push(m), info: () => {} }, { do: async (_n, fn) => fn() }, store, planA);
+    expect(warnings).toHaveLength(1);
   });
 });

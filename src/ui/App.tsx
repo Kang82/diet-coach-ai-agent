@@ -20,6 +20,7 @@ import { progressFromResult } from './interview-form-state.ts';
 import { loadCarryClasses, prepareMenuEdit } from './menu-edit.ts';
 import { PeriodView } from './PeriodView.tsx';
 import { ForgetLink } from './ForgetLink.tsx';
+import { PastPlansLink } from './PastPlansLink.tsx';
 import { clearLegacyProfile, deleteMyRecords, fetchSavedProfile, type DeleteResult, type SavedProfile } from './saved-profile.ts';
 import { defaultConsentFor, shouldOfferSaved, type StartChoice as StartChoiceKind } from './start-choice-state.ts';
 import { StartChoice } from './StartChoice.tsx';
@@ -175,9 +176,18 @@ export function App({ token, userId }: { token: string; userId: string }) {
 
   /** 새 대화 ID로 옮긴다. prepare가 있으면 새 대화에 초기값을 넣고 첫 화면 선택을 정한다 */
   function moveToNewConversation(prepare?: (id: string) => StartChoiceKind) {
-    clearDrafts(conversationId, ['interview', 'period', 'menuClasses', 'carryClasses']);
     const id = conversationIdFor(userId, null);
-    const nextChoice = prepare?.(id);
+    switchConversation(id, prepare?.(id));
+  }
+
+  /** 지난 식단표 목록에서 고른 대화로 옮긴다 (T17). 그 대화를 다시 읽어 식단표와 칸 수정이 이어진다 */
+  function openConversation(id: string) {
+    switchConversation(conversationIdFor(userId, id));
+  }
+
+  /** 지금 대화의 진행 값(건강 정보)은 지우고 다른 대화로 옮긴다 (리뷰 4번) */
+  function switchConversation(id: string, nextChoice?: StartChoiceKind) {
+    clearDrafts(conversationId, ['interview', 'period', 'menuClasses', 'carryClasses']);
     saveConversationId(id);
     setSentAt(undefined);
     setSendFailure(undefined);
@@ -301,7 +311,10 @@ export function App({ token, userId }: { token: string; userId: string }) {
           </div>
         </section>
       )}
-      <ForgetLink key={userId} onForget={forgetAll} />
+      <footer className="page-foot">
+        <PastPlansLink key={conversationId} token={token} conversationId={conversationId} onOpen={openConversation} />
+        <ForgetLink key={userId} onForget={forgetAll} />
+      </footer>
     </main>
   );
 }
