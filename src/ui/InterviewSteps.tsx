@@ -1,6 +1,6 @@
 // 인터뷰 단계별 입력 (스펙 4.1, tasks.md B4). 각 단계는 입력을 InterviewUpdate로 바꿔 onAnswer로 넘긴다.
 // update를 만드는 일은 core/interview-form.ts가 한다. 여기서는 입력 모양만 다룬다.
-import { useId, useState, type FormEvent } from 'react';
+import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import {
   avoidUpdate,
   cookMinutesUpdate,
@@ -11,6 +11,7 @@ import {
   type MealRow,
 } from '../core/interview-form.ts';
 import { mealName } from '../core/interview-text.ts';
+import type { StepDefaults } from './interview-form-state.ts';
 import { AVOID_TAG_LABELS, COMPANION_LABELS, GOAL_LABELS, MEDICATION_LABELS, PLACE_LABELS } from '../core/labels.ts';
 import { MEAL_KEYS } from '../core/helpers.ts';
 import { AVOID_TAGS, GOAL_IDS } from '../core/types.ts';
@@ -43,9 +44,20 @@ function toggle<T>(list: T[], value: T): T[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 }
 
-export function GoalsStep({ draft, choices, onAnswer }: { draft: InterviewDraft; choices?: string[]; onAnswer: OnAnswer }) {
-  const [goals, setGoals] = useState<GoalId[]>(draft.goals ?? []);
-  const [note, setNote] = useState(draft.goalNote ?? '');
+/** defaults: "고치기"로 다시 물을 때 이전 답 (T16, interview-form-state.ts stepDefaults) */
+export function GoalsStep({
+  draft,
+  choices,
+  defaults = {},
+  onAnswer,
+}: {
+  draft: InterviewDraft;
+  choices?: string[];
+  defaults?: StepDefaults;
+  onAnswer: OnAnswer;
+}) {
+  const [goals, setGoals] = useState<GoalId[]>(draft.goals ?? defaults.goals ?? []);
+  const [note, setNote] = useState(draft.goalNote ?? defaults.goalNote ?? '');
   const [stops, setStops] = useState<StopFlag[]>([]);
   const noteId = useId();
 
@@ -108,22 +120,33 @@ export function GoalsStep({ draft, choices, onAnswer }: { draft: InterviewDraft;
   );
 }
 
-export function MedicationStep({ onAnswer }: { onAnswer: OnAnswer }) {
+export function MedicationStep({ defaults = {}, onAnswer }: { defaults?: StepDefaults; onAnswer: OnAnswer }) {
   return (
     <div className="choices" role="group" aria-label="약">
       {MEDICATIONS.map((m) => (
-        <button key={m} type="button" className="secondary" onClick={() => onAnswer(medicationUpdate(m))}>
+        <ChoiceButton key={m} current={defaults.medication === m} onClick={() => onAnswer(medicationUpdate(m))}>
           {MEDICATION_LABELS[m]}
-        </button>
+        </ChoiceButton>
       ))}
     </div>
   );
 }
 
-export function AvoidStep({ onAnswer }: { onAnswer: OnAnswer }) {
-  const [avoid, setAvoid] = useState<AvoidTag[]>([]);
-  const [none, setNone] = useState(false);
-  const [note, setNote] = useState('');
+/** 한 번 눌러 답하는 선택지. current: 고치기 전 답 (T16). 누르는 동작은 같고 "지금 답" 표시만 한다 */
+function ChoiceButton({ current, onClick, children }: { current: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button type="button" className={current ? 'secondary current' : 'secondary'} aria-pressed={current} onClick={onClick}>
+      {children}
+      {current && <span className="current-mark"> · 지금 답</span>}
+    </button>
+  );
+}
+
+export function AvoidStep({ defaults = {}, onAnswer }: { defaults?: StepDefaults; onAnswer: OnAnswer }) {
+  const [avoid, setAvoid] = useState<AvoidTag[]>(defaults.avoid ?? []);
+  // 이전 답이 "없음"([])이었으면 없음에 체크해 둔다
+  const [none, setNone] = useState(defaults.avoid?.length === 0);
+  const [note, setNote] = useState(defaults.avoidNote ?? '');
   const noteId = useId();
 
   function submit(e: FormEvent) {
@@ -182,8 +205,13 @@ export function AvoidStep({ onAnswer }: { onAnswer: OnAnswer }) {
 
 type RowInput = { place?: MealPlace; companions: MealSetting['companions'] };
 
-export function MealsStep({ onAnswer }: { onAnswer: OnAnswer }) {
-  const [rows, setRows] = useState<RowInput[]>(MEAL_KEYS.map(() => ({ companions: 'alone' })));
+export function MealsStep({ defaults = {}, onAnswer }: { defaults?: StepDefaults; onAnswer: OnAnswer }) {
+  const [rows, setRows] = useState<RowInput[]>(
+    MEAL_KEYS.map((k) => {
+      const before = defaults.meals?.find((m) => m.dayType === k.dayType && m.meal === k.meal);
+      return before ? { place: before.place, companions: before.companions } : { companions: 'alone' };
+    }),
+  );
   const done = rows.every((r) => r.place);
 
   function update(i: number, patch: Partial<RowInput>) {
@@ -248,7 +276,7 @@ export function MenusStep({
   existing: DraftMealSetting | undefined;
   /** 메뉴가 적어 한 번 더 묻는 중 (분기 6) */
   followUp: boolean;
-  /** "고치기"로 다시 물을 때 이전 메뉴 (B16) */
+  /** "고치기"로 다시 물을 때 이전 메뉴 (B16, T16 stepDefaults.menusText) */
   initialText?: string;
   onAnswer: OnAnswer;
 }) {
@@ -282,17 +310,25 @@ export function MenusStep({
   );
 }
 
-export function CookMinutesStep({ mealKey, onAnswer }: { mealKey: MealKey; onAnswer: OnAnswer }) {
+export function CookMinutesStep({
+  mealKey,
+  defaults = {},
+  onAnswer,
+}: {
+  mealKey: MealKey;
+  defaults?: StepDefaults;
+  onAnswer: OnAnswer;
+}) {
   return (
     <div className="choices" role="group" aria-label={`${mealName(mealKey)} 조리 시간`}>
       {COOK_MINUTES.map((m) => (
-        <button key={m} type="button" className="secondary" onClick={() => onAnswer(cookMinutesUpdate(mealKey, m))}>
+        <ChoiceButton key={m} current={defaults.cookMinutes === m} onClick={() => onAnswer(cookMinutesUpdate(mealKey, m))}>
           {m}분
-        </button>
+        </ChoiceButton>
       ))}
-      <button type="button" className="secondary" onClick={() => onAnswer(cookMinutesUpdate(mealKey, null))}>
+      <ChoiceButton current={defaults.cookMinutes === null} onClick={() => onAnswer(cookMinutesUpdate(mealKey, null))}>
         상관없음
-      </button>
+      </ChoiceButton>
     </div>
   );
 }

@@ -1030,3 +1030,13 @@ button:disabled {
   border-color: var(--alert);
   color: var(--alert);
 }
+
+/* 고치기로 다시 물을 때 이전 답 표시 (T16) */
+button.secondary.current {
+  border-color: var(--home);
+}
+
+.current-mark {
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}

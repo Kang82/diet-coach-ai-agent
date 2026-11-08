@@ -65,6 +65,20 @@ export function draftFromResult(result: InterviewResult): InterviewDraft {
   };
 }
 
+/**
+ * 끼니를 고쳐 다시 답했을 때 이전 끼니의 메뉴·조리 시간을 이어 붙인다 (T16). 장소가 같은 끼니만: 외식이면 menus, 집밥이면 cookMinutes.
+ * 장소가 바뀐 끼니는 붙이지 않아 다음 질문으로 다시 묻는다. 같이 먹는 사람만 바뀐 끼니는 그대로 이어 붙인다
+ */
+export function carryMealDetails(meals: readonly DraftMealSetting[], previous: readonly DraftMealSetting[]): DraftMealSetting[] {
+  return meals.map((m) => {
+    const before = previous.find((p) => sameMealKey(p, m));
+    if (!before || before.place !== m.place) return { ...m };
+    if (m.place === 'eat_out' && before.menus?.length) return { ...m, menus: [...before.menus] };
+    if (m.place === 'home' && before.cookMinutes !== undefined) return { ...m, cookMinutes: before.cookMinutes };
+    return { ...m };
+  });
+}
+
 export interface CriteriaText {
   /** 식단 기준 라벨 */
   criteria: string[];

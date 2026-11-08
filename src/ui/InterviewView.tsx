@@ -6,7 +6,7 @@ import { draftMeal, type InterviewSubmission } from '../core/interview-form.ts';
 import { questionText } from '../core/interview-text.ts';
 import type { InterviewUpdate } from '../core/types.ts';
 import type { ProfileSection } from '../core/profile-edit.ts';
-import { advance, progressKey, reopen, resolveProgress, type FormProgress } from './interview-form-state.ts';
+import { advance, progressKey, reopen, resolveProgress, stepDefaults, type FormProgress } from './interview-form-state.ts';
 import type { InterviewViewState } from './interview-view-state.ts';
 import { AvoidStep, CookMinutesStep, GoalsStep, MealsStep, MedicationStep, MenusStep } from './InterviewSteps.tsx';
 import { ProfileConfirmView } from './ProfileConfirmView.tsx';
@@ -94,22 +94,24 @@ function Step({ progress, onAnswer }: { progress: FormProgress; onAnswer: (u: In
   const next = progress.next;
   if (next.kind !== 'ask') return null;
   const field = next.field;
-  if (field === 'goals') return <GoalsStep draft={progress.state.draft} choices={next.choices} onAnswer={onAnswer} />;
-  if (field === 'medication') return <MedicationStep onAnswer={onAnswer} />;
-  if (field === 'avoid') return <AvoidStep onAnswer={onAnswer} />;
-  if (field === 'meals') return <MealsStep onAnswer={onAnswer} />;
+  // 고치기로 다시 물을 때 이전 답 (T16). 처음 인터뷰면 빈 값
+  const defaults = stepDefaults(progress);
+  if (field === 'goals') return <GoalsStep draft={progress.state.draft} choices={next.choices} defaults={defaults} onAnswer={onAnswer} />;
+  if (field === 'medication') return <MedicationStep defaults={defaults} onAnswer={onAnswer} />;
+  if (field === 'avoid') return <AvoidStep defaults={defaults} onAnswer={onAnswer} />;
+  if (field === 'meals') return <MealsStep defaults={defaults} onAnswer={onAnswer} />;
   if ('menusFor' in field) {
     return (
       <MenusStep
         mealKey={field.menusFor}
         existing={draftMeal(progress.state.draft, field.menusFor)}
         followUp={next.reason === 'few_menus'}
-        initialText={progress.prefill}
+        initialText={defaults.menusText}
         onAnswer={onAnswer}
       />
     );
   }
-  return <CookMinutesStep mealKey={field.cookMinutesFor} onAnswer={onAnswer} />;
+  return <CookMinutesStep mealKey={field.cookMinutesFor} defaults={defaults} onAnswer={onAnswer} />;
 }
 
 function load(key: string): string | null {
