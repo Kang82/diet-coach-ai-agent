@@ -61,6 +61,13 @@ export function checkPlan(
     }
   }
 
+  // place_mismatch (T19-2): 칸의 외식·집밥이 끼니 설정과 다름. 외식 끼니에 집밥 칸을 넣으면 외식 규칙(메뉴 목록, 분류)을 모두 피해 갔다
+  for (const cell of cells) {
+    if (settingOf(cell)?.place !== cell.place) {
+      violations.push({ rule: 'place_mismatch', cells: [toSlot(cell)], regenerate: [toSlot(cell)] });
+    }
+  }
+
   // avoid_tag
   const avoid = expandAvoid(profile.avoid);
   const avoidTagCounts: Partial<Record<AvoidTag, number>> = {};
@@ -157,14 +164,15 @@ export function checkPlan(
     }
   }
 
-  // menu_weekly_limit: 같은 메뉴 주 2회 초과. 주 1회 이하·피하기로 분류된 메뉴는 더 엄격한 규칙이 맡는다.
+  // menu_weekly_limit: 같은 메뉴 주 2회 초과. 외식 칸의 주 1회 이하·피하기로 분류된 메뉴는 더 엄격한 규칙(class_*)이 맡는다.
+  // class_*는 외식 칸만 보므로 집밥 칸은 분류와 관계없이 여기서 센다 (T19-3).
   // 외식 메뉴가 적으면 사전 점검이 정한 횟수까지 허용한다 (B15, plan-feasibility.ts). 프로필·분류·일정으로 결정돼 어디서 점검해도 같다
   const weeklyMax = menuWeeklyMaxFor(profile, classes, plan.events);
   const strictKeys = new Set(classes.filter((c) => c.class !== 'often').map((c) => menuKey(c.menu)));
   const byMenu = new Map<string, PlanCell[]>();
   for (const cell of cells) {
     const key = menuKey(cell.menuId);
-    if (strictKeys.has(key)) continue;
+    if (cell.place === 'eat_out' && strictKeys.has(key)) continue;
     const list = byMenu.get(key) ?? [];
     list.push(cell);
     byMenu.set(key, list);

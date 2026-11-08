@@ -17,6 +17,7 @@ import {
 } from './__fixtures__/personas.ts';
 import { checkPlan } from './check-plan.ts';
 import { buildCriteria } from './criteria.ts';
+import { dayType, menuKey, slotOrder } from './helpers.ts';
 import {
   classStepWarning,
   findEatOutAssignment,
@@ -27,6 +28,8 @@ import {
   profileStepHint,
   shortMealsMessage,
 } from './plan-feasibility.ts';
+import { requiredSlots } from './plan-slots.ts';
+import { DAYS } from './types.ts';
 import type { MealSetting, MenuClassification, Plan, PlanCell, Profile, Slot } from './types.ts';
 
 const tueLunch: Slot = { day: 'tue', meal: 'lunch' };
@@ -115,8 +118,8 @@ describe('findEatOutAssignment', () => {
   /** 배치로 1주일 식단표를 만든다. 집밥 칸은 서로 다른 메뉴 */
   function planFrom(profile: Profile, classes: MenuClassification[], events: Slot[], k: number): Plan {
     const assignment = findEatOutAssignment(profile, classes, events, k);
-    expect(assignment).toBeDefined();
-    const cells: PlanCell[] = [...assignment!].map(([slot, menu], i) => ({
+    if (assignment === undefined || assignment === 'unknown') throw new Error('배치가 없음');
+    const cells: PlanCell[] = assignment.map(([slot, menu], i) => ({
       day: slot.day,
       meal: slot.meal,
       place: menu === undefined ? 'home' : 'eat_out',
@@ -154,7 +157,165 @@ describe('findEatOutAssignment', () => {
   it('불가능하면 undefined', () => {
     expect(findEatOutAssignment(profileF, classesF, [], 7)).toBeUndefined();
   });
+
+  it('탐색 노드 상한을 넘으면 unknown', () => {
+    expect(findEatOutAssignment(profileG, classesG, [], 3, 1)).toBe('unknown');
+  });
+
+  it('작은 무작위 프로필 300개: 기존 시간순 탐색과 가능 여부가 같고, 찾은 배치는 규칙을 지킨다', () => {
+    const random = seeded(20261108);
+    const pool = ['국밥', '백반', '쌀국수', '국 밥', '덮밥'];
+    const pick = <T,>(list: readonly T[]): T => list[Math.floor(random() * list.length)]!;
+    const seen = { feasible: 0, infeasible: 0 };
+    for (let n = 0; n < 300; n++) {
+      const meals = profileG.meals.map((m): MealSetting => {
+        const place = pick(['skip', 'home', 'home', 'eat_out'] as const);
+        if (place !== 'eat_out') return { dayType: m.dayType, meal: m.meal, place, companions: 'alone' };
+        const count = 1 + Math.floor(random() * 3);
+        return { dayType: m.dayType, meal: m.meal, place, companions: 'alone', menus: Array.from({ length: count }, () => pick(pool)) };
+      });
+      const profile: Profile = { ...structuredClone(profileG), meals };
+      const classes = pool.flatMap((menu) => {
+        const c = pick(['often', 'weekly_max_1', 'avoid', 'none'] as const);
+        return c === 'none' ? [] : [{ ...often(menu), class: c }];
+      });
+      const events: Slot[] = random() < 0.3 ? [{ day: pick(['mon', 'wed', 'sat'] as const), meal: pick(['lunch', 'dinner'] as const) }] : [];
+      for (let k = 2; k <= 7; k++) {
+        const found = findEatOutAssignment(profile, classes, events, k);
+        expect(found === undefined, `프로필 ${n}, k=${k}`).toBe(referenceSearch(profile, classes, events, k) === undefined);
+        seen[found === undefined ? 'infeasible' : 'feasible']++;
+        if (found !== undefined) {
+          expect(found).not.toBe('unknown');
+          const plan = planFrom(profile, classes, events, k);
+          const menuRules = ['consecutive_menu', 'same_meal_consecutive_days', 'class_weekly_limit', 'class_avoid', 'eat_out_not_in_list'];
+          const counts = new Map<string, number>();
+          for (const cell of plan.cells) if (cell.place === 'eat_out') counts.set(cell.menuId.replace(/\s/g, ''), (counts.get(cell.menuId.replace(/\s/g, '')) ?? 0) + 1);
+          expect(Math.max(0, ...counts.values()), `프로필 ${n}, k=${k}`).toBeLessThanOrEqual(k);
+          const violations = checkPlan(plan, profile, classes, buildCriteria(profile.goals)).violations.filter((v) => menuRules.includes(v.rule));
+          expect(violations, `프로필 ${n}, k=${k}`).toEqual([]);
+        }
+      }
+    }
+    // 가능·불가능이 고루 나와야 비교가 의미 있다
+    expect(seen.feasible).toBeGreaterThan(200);
+    expect(seen.infeasible).toBeGreaterThan(200);
+  });
 });
+
+// T19-1 (2차 코드 리뷰): 앞쪽 끼니에 메뉴가 많고 뒤쪽(주말)이 불가능하면 시간순 백트래킹이 앞쪽 조합을 다 돌았다
+describe('사전 점검 속도', () => {
+  const menus = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => `${prefix}${i}`);
+  const weekdayAllEatOut = (weekend: MealSetting[]): Profile => ({
+    ...structuredClone(profileG),
+    meals: [
+      { dayType: 'weekday', meal: 'breakfast', place: 'eat_out', companions: 'alone', menus: menus('아침', 20) },
+      { dayType: 'weekday', meal: 'lunch', place: 'eat_out', companions: 'alone', menus: menus('점심', 20) },
+      { dayType: 'weekday', meal: 'dinner', place: 'eat_out', companions: 'alone', menus: menus('저녁', 20) },
+      ...weekend,
+    ],
+  });
+
+  it('평일 세 끼 메뉴 20개씩 + 주말 저녁 메뉴 1개: 바로 불가능, 주말 저녁이 모자란다', () => {
+    const profile = weekdayAllEatOut([
+      { dayType: 'weekend', meal: 'breakfast', place: 'skip', companions: 'alone' },
+      { dayType: 'weekend', meal: 'lunch', place: 'home', companions: 'alone' },
+      { dayType: 'weekend', meal: 'dinner', place: 'eat_out', companions: 'alone', menus: ['치킨'] },
+    ]);
+    const started = performance.now();
+    expect(planFeasibility(profile, [], [])).toEqual({ feasible: false, shortMeals: [{ dayType: 'weekend', meal: 'dinner' }] });
+    expect(profileStepHint(profile)).toBeDefined();
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
+  it('주말 점심·저녁이 같은 메뉴 2개뿐: 바로 불가능', () => {
+    const profile = weekdayAllEatOut([
+      { dayType: 'weekend', meal: 'breakfast', place: 'skip', companions: 'alone' },
+      { dayType: 'weekend', meal: 'lunch', place: 'eat_out', companions: 'alone', menus: ['치킨', '피자'] },
+      { dayType: 'weekend', meal: 'dinner', place: 'eat_out', companions: 'alone', menus: ['치킨', '피자'] },
+    ]);
+    const started = performance.now();
+    expect(planFeasibility(profile, [], []).feasible).toBe(false);
+    expect(fixSuggestions(profile, [weekly1('치킨')], [])).not.toEqual([]);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
+  it('메뉴가 많고 가능한 프로필도 바로 찾는다', () => {
+    const profile = weekdayAllEatOut([
+      { dayType: 'weekend', meal: 'breakfast', place: 'eat_out', companions: 'alone', menus: menus('주말아침', 3) },
+      { dayType: 'weekend', meal: 'lunch', place: 'eat_out', companions: 'alone', menus: menus('점심', 20) },
+      { dayType: 'weekend', meal: 'dinner', place: 'eat_out', companions: 'alone', menus: ['치킨', '피자'] },
+    ]);
+    const started = performance.now();
+    expect(planFeasibility(profile, [], [])).toEqual({ feasible: true, menuWeeklyMax: 2 });
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+});
+
+/** 결정적인 무작위 수 (mulberry32) */
+function seeded(seed: number): () => number {
+  let a = seed;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** T19-1 전의 시간순 백트래킹(참조 구현). 작은 프로필에서 새 탐색과 결과를 견준다 */
+function referenceSearch(profile: Profile, classes: readonly MenuClassification[], events: readonly Slot[], weeklyMax: number): true | undefined {
+  const slots = requiredSlots(profile, events);
+  const classOf = new Map(classes.map((c) => [c.menu, c.class]));
+  const candidatesOf = slots.map((slot) => {
+    const setting = profile.meals.find((m) => m.dayType === dayType(slot.day) && m.meal === slot.meal);
+    if (setting?.place !== 'eat_out') return undefined;
+    const seen = new Set<string>();
+    return (setting.menus ?? []).filter((menu) => {
+      const key = menuKey(menu);
+      if (classOf.get(menu) === 'avoid' || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  });
+  const limitOf = new Map<string, number>();
+  for (const list of candidatesOf) {
+    for (const menu of list ?? []) {
+      const key = menuKey(menu);
+      const limit = classOf.get(menu) === 'weekly_max_1' ? 1 : weeklyMax;
+      limitOf.set(key, Math.min(limitOf.get(key) ?? limit, limit));
+    }
+  }
+  const keyAt = new Map<number, string>();
+  const used = new Map<string, number>();
+  const search = (i: number): boolean => {
+    if (i === slots.length) return true;
+    const slot = slots[i]!;
+    const order = slotOrder(slot);
+    const candidates = candidatesOf[i];
+    if (candidates === undefined) {
+      keyAt.set(order, `\u0000home${i}`);
+      if (search(i + 1)) return true;
+      keyAt.delete(order);
+      return false;
+    }
+    const prevKey = i > 0 ? keyAt.get(slotOrder(slots[i - 1]!)) : undefined;
+    const d = DAYS.indexOf(slot.day);
+    const sameMealPrev = d > 0 ? keyAt.get(slotOrder({ day: DAYS[d - 1]!, meal: slot.meal })) : undefined;
+    for (const menu of candidates) {
+      const key = menuKey(menu);
+      if (key === prevKey || key === sameMealPrev) continue;
+      const count = used.get(key) ?? 0;
+      if (count >= (limitOf.get(key) ?? weeklyMax)) continue;
+      used.set(key, count + 1);
+      keyAt.set(order, key);
+      if (search(i + 1)) return true;
+      used.set(key, count);
+      keyAt.delete(order);
+    }
+    return false;
+  };
+  return search(0) ? true : undefined;
+}
 
 describe('shortMealsMessage', () => {
   it('모자란 끼니를 한국어로 알린다', () => {

@@ -283,6 +283,7 @@ checkPlan(
 | --- | --- | --- | --- |
 | `unexpected_cell` | 채워야 할 끼니가 아닌 곳의 칸, 또는 같은 끼니의 두 번째 이후 칸 | 칸마다 1개 | `[]` (코드가 지움) |
 | `missing_cell` | 채워야 할 끼니에 칸이 없음 | 끼니마다 1개 | 그 끼니 |
+| `place_mismatch` (T19-2) | 칸의 `place`가 그 끼니 설정의 `place`와 다름 | 칸마다 1개 | 그 칸 |
 | `avoid_tag` | 칸의 `tags`에 `expandAvoid(profile.avoid)`의 태그가 있음 | 칸마다 1개. `detail`은 걸린 태그들을 쉼표로 이은 값(AvoidTag 선언 순서) | 그 칸 |
 | `eat_out_not_in_list` | 외식 칸의 `menuId`가 그 끼니 설정의 `menus`에 없음 | 칸마다 1개 | 그 칸 |
 | `class_avoid` | 외식 칸의 `menuId`가 `avoid`로 분류됨 | 칸마다 1개 | 그 칸 |
@@ -290,7 +291,7 @@ checkPlan(
 | `tag_weekly_limit` | `rules.tagLimits`의 태그가 모든 칸 합산으로 제한을 넘음 | 태그마다 1개. `detail`은 태그 이름 | 제한 횟수 다음부터의 칸 (제한이 0이면 전부) |
 | `consecutive_menu` | 이어진 두 칸의 `menuKey`가 같음 | 이어진 쌍마다 1개 | 뒤쪽 칸 |
 | `same_meal_consecutive_days` | 같은 끼니(점심끼리, 저녁끼리)의 달력상 연속된 두 요일 칸의 `menuKey`가 같음. 한쪽 요일에 칸이 없으면(거름, 일정, 빠짐) 연속으로 보지 않는다. `consecutive_menu`가 볼 수 있는 이어진 칸 쌍은 건너뛴다(중복 보고 방지) | 쌍마다 1개 | 뒤쪽 칸 |
-| `menu_weekly_limit` | 같은 `menuKey`가 모든 칸 합산으로 주 2회(외식 메뉴가 적으면 사전 점검이 늘린 값, 4.3 사전 점검)를 넘음. `weekly_max_1`·`avoid`로 분류된 메뉴는 더 엄격한 규칙이 맡으므로 제외 | 메뉴마다 1개. `detail`은 처음 나온 칸의 `menuId` | 세 번째 이후 칸 |
+| `menu_weekly_limit` | 같은 `menuKey`가 모든 칸 합산으로 주 2회(외식 메뉴가 적으면 사전 점검이 늘린 값, 4.3 사전 점검)를 넘음. 외식 칸의 `weekly_max_1`·`avoid` 메뉴는 더 엄격한 규칙(`class_*`)이 맡으므로 제외. 집밥 칸은 분류와 관계없이 센다(T19-3) | 메뉴마다 1개. `detail`은 처음 나온 칸의 `menuId` | 세 번째 이후 칸 |
 | `main_ingredient_consecutive` (T18) | 시간순으로 바로 이어진 두 칸이 모두 집밥이고 `menuKey(mainIngredient)`가 같음. 같은 메뉴라 `consecutive_menu`로 보고한 쌍은 건너뛴다. `mainIngredient`가 없는 칸과 외식 칸은 보지 않는다 | 쌍마다 1개. `detail`은 앞 칸의 주재료 | 뒤쪽 칸 |
 | `main_ingredient_weekly_limit` (T18) | 같은 `menuKey(mainIngredient)`의 집밥 칸이 주 3회(`MAIN_INGREDIENT_WEEKLY_MAX`, 사용자 결정 2026-11-08)를 넘음 | 주재료마다 1개. `detail`은 처음 칸의 주재료 | 네 번째 이후 칸 |
 | `cook_time_exceeded` | 집밥 칸의 `cookMinutes`가 그 끼니 설정의 `cookMinutes`보다 큼. 설정에 값이 없으면 점검하지 않음 | 칸마다 1개 | 그 칸 |
@@ -298,6 +299,7 @@ checkPlan(
 
 - `class_avoid`, `class_weekly_limit`은 외식 칸만 센다. 분류에 없는 메뉴는 이 두 규칙에서 무시한다(그런 메뉴는 `eat_out_not_in_list`에 걸린다).
 - `unexpected_cell`로 걸린 칸은 다른 규칙의 점검과 통계에서 뺀다.
+- `place_mismatch`로 걸린 칸은 다른 규칙에서 빼지 않는다. 외식 규칙은 칸의 `place`로 판단하므로 집밥 끼니의 외식 칸은 `eat_out_not_in_list`에도 걸린다(다시 추천은 한 번).
 
 ### 3.3 정렬
 
@@ -637,6 +639,9 @@ formatCheckSummary(stats: CheckStats, profile: Pick<Profile, 'avoid'>): string[]
 | 27 (T18) | 월·수·금 저녁 주재료 "닭가슴살" → 일 저녁도 | 3번은 없음. 4번이면 `main_ingredient_weekly_limit` [월, 수, 금, 일 저녁], regenerate [일 저녁], detail "닭가슴살" |
 | 28 (T18) | 토 점심 "닭 가슴살", 토 저녁 "닭가슴살 " | `main_ingredient_consecutive` (공백만 다르면 같음) |
 | 29 (T18) | 토 점심만 주재료 "두부" | 없음 (주재료가 없는 칸은 빠짐) |
+| 30 (T19-2) | 수 점심(외식 끼니)을 집밥 "현미 도시락"으로 | `place_mismatch` [수 점심]만 (외식 규칙은 외식 칸만 봐서 다른 위반 없음) |
+| 31 (T19-2) | 일 저녁(집밥 끼니)을 외식 "김밥"으로 | `place_mismatch`, `eat_out_not_in_list` [일 저녁] |
+| 32 (T19-3) | 월·금·일 저녁(집밥)을 돈가스(`weekly_max_1`)로 | `menu_weekly_limit` [월, 금, 일 저녁], regenerate [일 저녁], detail "돈가스" (집밥 칸은 분류와 관계없이 센다) |
 
 ### 8.3 `buildCriteria` 단위 테스트
 

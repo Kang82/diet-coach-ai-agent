@@ -21,7 +21,8 @@ const EXTRA_MENU = '\u0000extra';
 
 export function planFeasibility(profile: Profile, classes: readonly MenuClassification[], events: readonly Slot[]): Feasibility {
   for (let k = MENU_WEEKLY_MAX; k <= MAX_WEEKLY; k++) {
-    if (findEatOutAssignment(profile, classes, events, k)) return { feasible: true, menuWeeklyMax: k };
+    // 노드 상한에 걸려 모르면(unknown) 가능으로 본다. 사용자를 잘못 막지 않고, 모델이 시도한 결과를 checkPlan이 거른다 (T19-1)
+    if (findEatOutAssignment(profile, classes, events, k) !== undefined) return { feasible: true, menuWeeklyMax: k };
   }
   const eatOutMeals = MEAL_KEYS.filter((key) => {
     const setting = profile.meals.find((m) => sameMealKey(m, key));
@@ -44,15 +45,27 @@ export function menuWeeklyMaxFor(profile: Profile, classes: readonly MenuClassif
 }
 
 /**
+ * 탐색 노드(메뉴를 칸에 놓아 보는 횟수) 상한. 넘으면 판정을 포기하고 'unknown'.
+ * 가장 좁은 칸 먼저 + 앞질러 점검으로 보통 수백 노드 안에 끝난다 (T19-1). 화면 렌더와 도구가 멈추지 않게 하는 안전장치다
+ */
+export const SEARCH_NODE_LIMIT = 200_000;
+
+/**
  * 같은 메뉴 허용 횟수가 weeklyMax일 때 규칙을 지키는 배치 하나. 채워야 할 끼니를 시간순으로, 외식 칸은 메뉴 이름, 집밥 칸은 undefined.
- * 없으면 undefined. 칸은 최대 14개라 시간순 백트래킹으로 충분하다
+ * 없으면 undefined, 노드 상한을 넘으면 'unknown'.
+ *
+ * 2차 코드 리뷰(T19-1): 시간순 백트래킹은 뒤쪽(주말) 끼니가 불가능하면 앞쪽 평일 메뉴 조합을 다 돌아 지수 시간이 걸렸다
+ * (평일 세 끼 메뉴 4개씩이면 60초 이상). 그래서 후보가 가장 적은 외식 칸부터 놓고(MRV), 놓을 때마다 이웃 칸
+ * (시간순 바로 앞뒤, 같은 끼니 전날·다음날)과 횟수를 다 쓴 메뉴를 다른 칸 후보에서 미리 지워 막다른 길을 바로 되돌린다.
+ * 집밥 칸은 메뉴가 자유라 제약이 없어 탐색에서 뺀다
  */
 export function findEatOutAssignment(
   profile: Profile,
   classes: readonly MenuClassification[],
   events: readonly Slot[],
   weeklyMax: number,
-): [Slot, string | undefined][] | undefined {
+  nodeLimit = SEARCH_NODE_LIMIT,
+): [Slot, string | undefined][] | undefined | 'unknown' {
   const slots = requiredSlots(profile, events);
   const classOf = new Map(classes.map((c) => [c.menu, c.class]));
   const candidatesOf = slots.map((slot) => {
@@ -76,48 +89,80 @@ export function findEatOutAssignment(
     }
   }
 
-  const keyAt = new Map<number, string>(); // slotOrder → 배치한 메뉴 키 (집밥은 칸마다 다른 값)
-  const used = new Map<string, number>();
-  const chosen: (string | undefined)[] = [];
-  const prevDayOrder = (slot: Slot): number | undefined => {
-    const d = DAYS.indexOf(slot.day);
-    return d > 0 ? slotOrder({ day: DAYS[d - 1]!, meal: slot.meal }) : undefined;
-  };
-
-  const search = (i: number): boolean => {
-    if (i === slots.length) return true;
+  // 외식 칸만 변수다. 칸마다 남은 후보(메뉴 키)와 키 → 그 끼니 목록의 메뉴 이름
+  const eatOut = slots.flatMap((_, i) => (candidatesOf[i] === undefined ? [] : [i]));
+  const menuOf = new Map<number, Map<string, string>>();
+  const domain = new Map<number, Set<string>>();
+  for (const i of eatOut) {
+    const names = new Map(candidatesOf[i]!.map((menu) => [menuKey(menu), menu]));
+    menuOf.set(i, names);
+    domain.set(i, new Set(names.keys()));
+  }
+  // 이웃: 시간순 바로 앞뒤 칸(consecutive_menu), 같은 끼니 전날·다음날 칸(same_meal_consecutive_days). 둘 다 외식일 때만 제약
+  const indexAt = new Map(slots.map((slot, i) => [slotOrder(slot), i]));
+  const neighbors = new Map<number, number[]>();
+  for (const i of eatOut) {
     const slot = slots[i]!;
-    const order = slotOrder(slot);
-    const candidates = candidatesOf[i];
-    if (candidates === undefined) {
-      keyAt.set(order, `\u0000home${i}`);
-      chosen[i] = undefined;
-      if (search(i + 1)) return true;
-      keyAt.delete(order);
-      return false;
+    const d = DAYS.indexOf(slot.day);
+    const around = [
+      i - 1,
+      i + 1,
+      d > 0 ? indexAt.get(slotOrder({ day: DAYS[d - 1]!, meal: slot.meal })) : undefined,
+      d < DAYS.length - 1 ? indexAt.get(slotOrder({ day: DAYS[d + 1]!, meal: slot.meal })) : undefined,
+    ];
+    neighbors.set(i, [...new Set(around.filter((j): j is number => j !== undefined && domain.has(j)))]);
+  }
+
+  const chosen = new Map<number, string>(); // 칸 → 메뉴 키
+  const used = new Map<string, number>();
+  let nodes = 0;
+  let gaveUp = false;
+
+  const search = (): boolean => {
+    // 후보가 가장 적은 칸 (같으면 앞 칸)
+    let next: number | undefined;
+    for (const i of eatOut) {
+      if (chosen.has(i)) continue;
+      if (next === undefined || domain.get(i)!.size < domain.get(next)!.size) next = i;
     }
-    const prevKey = i > 0 ? keyAt.get(slotOrder(slots[i - 1]!)) : undefined;
-    const prevDay = prevDayOrder(slot);
-    const sameMealKeyPrev = prevDay === undefined ? undefined : keyAt.get(prevDay);
+    if (next === undefined) return true;
     // 덜 쓴 메뉴부터 시도하면 빨리 찾는다
-    const ordered = [...candidates].sort((a, b) => (used.get(menuKey(a)) ?? 0) - (used.get(menuKey(b)) ?? 0));
-    for (const menu of ordered) {
-      const key = menuKey(menu);
-      if (key === prevKey || key === sameMealKeyPrev) continue;
-      const count = used.get(key) ?? 0;
-      if (count >= (limitOf.get(key) ?? weeklyMax)) continue;
-      used.set(key, count + 1);
-      keyAt.set(order, key);
-      chosen[i] = menu;
-      if (search(i + 1)) return true;
+    const ordered = [...domain.get(next)!].sort((a, b) => (used.get(a) ?? 0) - (used.get(b) ?? 0));
+    for (const key of ordered) {
+      if (++nodes > nodeLimit) {
+        gaveUp = true;
+        return false;
+      }
+      const count = (used.get(key) ?? 0) + 1;
       used.set(key, count);
-      keyAt.delete(order);
+      chosen.set(next, key);
+      // 앞질러 점검: 이웃 칸과(횟수를 다 썼으면) 모든 칸의 후보에서 이 메뉴를 지운다. 후보가 바닥난 칸이 있으면 막다른 길
+      const removed: number[] = [];
+      const exhausted = count >= (limitOf.get(key) ?? weeklyMax);
+      let deadEnd = false;
+      for (const j of exhausted ? eatOut : neighbors.get(next)!) {
+        if (chosen.has(j)) continue;
+        const options = domain.get(j)!;
+        if (!options.delete(key)) continue;
+        removed.push(j);
+        if (options.size === 0) deadEnd = true;
+      }
+      if (!deadEnd && search()) return true;
+      for (const j of removed) domain.get(j)!.add(key);
+      chosen.delete(next);
+      used.set(key, count - 1);
+      if (gaveUp) return false;
     }
     return false;
   };
 
-  if (!search(0)) return undefined;
-  return slots.map((slot, i) => [{ day: slot.day, meal: slot.meal }, chosen[i]]);
+  const found = eatOut.every((i) => domain.get(i)!.size > 0) && search();
+  if (gaveUp) return 'unknown';
+  if (!found) return undefined;
+  return slots.map((slot, i) => {
+    const key = chosen.get(i);
+    return [{ day: slot.day, meal: slot.meal }, key === undefined ? undefined : menuOf.get(i)!.get(key)];
+  });
 }
 
 const mealLabel = (key: MealKey) => `${DAY_TYPE_LABELS[key.dayType]} ${MEAL_LABELS[key.meal]}`;

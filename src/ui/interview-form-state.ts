@@ -97,6 +97,8 @@ export function stepDefaults(progress: FormProgress): StepDefaults {
     };
   }
   if ('menusFor' in field) {
+    // "메뉴가 적어요" 추가 질문은 더할 메뉴만 받는다(menusUpdate가 지금 메뉴에 이어 붙임). 이전 메뉴를 채우면 고치기에서 지운 메뉴가 되살아난다 (T19-4)
+    if (next.reason === 'few_menus') return {};
     const menus = draft.meals?.find((m) => sameMealKey(m, field.menusFor))?.menus ?? [];
     return menus.length > 0 ? { menusText: menus.join(', ') } : {};
   }

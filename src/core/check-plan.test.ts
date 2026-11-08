@@ -421,4 +421,35 @@ describe('checkPlan: 외식 메뉴가 적을 때 같은 메뉴 허용 횟수', (
       expect(run(ctx).passed).toBe(true);
     });
   });
+
+  // T19-2·3 (2차 코드 리뷰): 칸의 외식·집밥이 끼니 설정과 달라도, 분류된 메뉴를 집밥 칸에 넣어도 걸리지 않았다
+  describe('끼니 설정과 다른 칸, 분류된 메뉴의 집밥 칸', () => {
+    it('30. 외식 끼니(수 점심)에 집밥 칸', () => {
+      const ctx = setup();
+      Object.assign(cellAt(ctx.plan, 'wed', 'lunch'), { place: 'home', menuId: '현미 도시락', title: '현미 도시락' });
+      expect(run(ctx).violations).toEqual([{ rule: 'place_mismatch', cells: [s('wed', 'lunch')], regenerate: [s('wed', 'lunch')] }]);
+    });
+
+    it('31. 집밥 끼니(일 저녁)에 외식 칸', () => {
+      const ctx = setup();
+      Object.assign(cellAt(ctx.plan, 'sun', 'dinner'), { place: 'eat_out', menuId: '김밥', title: '김밥' });
+      expect(run(ctx).violations).toEqual([
+        { rule: 'place_mismatch', cells: [s('sun', 'dinner')], regenerate: [s('sun', 'dinner')] },
+        { rule: 'eat_out_not_in_list', cells: [s('sun', 'dinner')], regenerate: [s('sun', 'dinner')] },
+      ]);
+    });
+
+    it('32. 주 1회로 분류된 메뉴도 집밥 칸이면 같은 메뉴 횟수를 센다', () => {
+      const ctx = setup();
+      for (const day of ['mon', 'fri', 'sun'] as const) Object.assign(cellAt(ctx.plan, day, 'dinner'), { menuId: '돈가스', title: '돈가스' });
+      expect(run(ctx).violations).toEqual([
+        {
+          rule: 'menu_weekly_limit',
+          cells: [s('mon', 'dinner'), s('fri', 'dinner'), s('sun', 'dinner')],
+          regenerate: [s('sun', 'dinner')],
+          detail: '돈가스',
+        },
+      ]);
+    });
+  });
 });

@@ -26,6 +26,7 @@ import {
   pickGenerator,
   planContext,
   planFailure,
+  prepareSafely,
   runGuarded,
   toJson,
   toolStats,
@@ -100,10 +101,15 @@ export function createWeekPlanTool({
             return { output: toJson(output), terminate: true };
           }
           const { classes } = resolved;
-          const ctx = planContext(interviewResult, classes);
           // 사전 점검 (B15 T11-3): 외식 메뉴가 적어 규칙을 지키는 식단표가 없으면 LLM을 부르지 않고 모자란 끼니를 알린다.
           // 가능하면 같은 메뉴 허용 횟수(늘어났을 수 있음)를 안내에 쓴다. checkPlan·프롬프트도 같은 값을 계산한다
-          const feasibility = planFeasibility(ctx.profile, classes, period?.events ?? []);
+          // 준비가 던지면 결과로 답한다 (T19-5)
+          const prepared = prepareSafely(() => {
+            const ctx = planContext(interviewResult, classes);
+            return { ctx, feasibility: planFeasibility(ctx.profile, classes, period?.events ?? []) };
+          }, log);
+          if (!prepared.ok) return { output: toJson(prepared.failure), terminate: true };
+          const { ctx, feasibility } = prepared.value;
           if (!feasibility.feasible) {
             const output: PlanToolOutput = {
               status: 'infeasible',

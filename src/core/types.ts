@@ -134,6 +134,7 @@ export interface CriteriaRules {
 export const RULE_IDS = [
   'unexpected_cell',
   'missing_cell',
+  'place_mismatch', // 칸의 외식·집밥이 끼니 설정과 다름 (T19-2)
   'avoid_tag',
   'eat_out_not_in_list',
   'class_avoid',

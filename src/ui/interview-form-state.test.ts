@@ -113,6 +113,13 @@ describe('프로필 확인 화면 (B6)', () => {
     expect(advance(p, menusUpdate(lunch, '국밥, 백반, 돈가스, 쌀국수, 회덮밥, 비빔밥')).previous).toBeUndefined();
   });
 
+  it('고치기: 메뉴를 줄여 "메뉴가 적어요" 추가 질문이 나오면 입력란을 비운다. 지운 메뉴가 되살아나지 않게 (T19-4)', () => {
+    const lunch = { dayType: 'weekday' as const, meal: 'lunch' as const };
+    const p = advance(reopen(progressFromResult(resultA), { kind: 'menus', meal: lunch }), menusUpdate(lunch, '국밥'));
+    expect(p.next).toMatchObject({ kind: 'ask', field: { menusFor: lunch }, reason: 'few_menus' });
+    expect(stepDefaults(p)).toEqual({});
+  });
+
   it('고치기: 목표를 고치면 목표부터', () => {
     expect(reopen(progressFromResult(resultA), { kind: 'goals' }).next).toEqual({ kind: 'ask', field: 'goals' });
   });

@@ -25,6 +25,7 @@ import {
   pickGenerator,
   planContext,
   planFailure,
+  prepareSafely,
   runGuarded,
   toJson,
   toolStats,
@@ -90,7 +91,10 @@ export function editPlanCellsTool({
             return done({ status: 'no_plan', message: '바꿀 식단표가 없어요. 먼저 식단표를 만들어 주세요.', targets });
           }
 
-          const ctx = planContext(interviewResult, menuClasses);
+          // 준비가 던지면 결과로 답한다 (T19-5)
+          const prepared = prepareSafely(() => planContext(interviewResult, menuClasses), log);
+          if (!prepared.ok) return done({ ...prepared.failure, targets });
+          const ctx = prepared.value;
           // durable(B12): 복구 뒤 다시 돌아도 예산은 처음 시작 시각부터 잰다
           const { startedAt } = await step.do('start', () => ({ startedAt: Date.now() }));
           try {

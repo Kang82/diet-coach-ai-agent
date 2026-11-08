@@ -4,7 +4,7 @@ import { LLM_TIMEOUT_MESSAGE, LlmTimeoutError } from '../core/llm-timeout.ts';
 import { PlanLoopError } from '../core/plan-loop.ts';
 import { TOOL_ERROR_MESSAGE } from '../core/tool-failure.ts';
 import { MODEL_CANDIDATES } from './models.ts';
-import { markPlanQuietly, planFailure, runGuarded } from './plan-tool-support.ts';
+import { markPlanQuietly, planFailure, prepareSafely, runGuarded } from './plan-tool-support.ts';
 import { planA } from '../core/__fixtures__/persona-a.ts';
 
 const log = { warn: () => {}, error: () => {} };
@@ -24,6 +24,20 @@ describe('planFailure', () => {
   it('그 밖의 에러는 error, 사용량은 비어 있다', () => {
     const out = planFailure(Date.now(), new Error('boom'), log);
     expect(out).toMatchObject({ status: 'error', message: TOOL_ERROR_MESSAGE, stats: { usages: [], neurons: 0 } });
+  });
+});
+
+// T19-5 (2차 코드 리뷰): 'start' step 전 준비(planContext, 사전 점검)도 던지지 않고 결과로 답한다
+describe('prepareSafely', () => {
+  it('준비가 끝나면 값을 돌려준다', () => {
+    expect(prepareSafely(() => 42, log)).toEqual({ ok: true, value: 42 });
+  });
+
+  it('준비가 던지면(목표가 빈 인터뷰 결과 등) 실패 결과(error)로 바꾼다', () => {
+    const out = prepareSafely(() => {
+      throw new Error('목표가 하나 이상 있어야 합니다.');
+    }, log);
+    expect(out).toMatchObject({ ok: false, failure: { status: 'error', message: TOOL_ERROR_MESSAGE, stats: { usages: [], neurons: 0 } } });
   });
 });
 

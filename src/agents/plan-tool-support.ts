@@ -28,6 +28,21 @@ export function planContext(result: InterviewResult, classes: readonly MenuClass
 }
 
 /**
+ * 'start' step 전 준비(planContext, 사전 점검)를 던지지 않게 감싼다 (T19-5). 던지면 바깥 모델이 도구를 다시 부를 수 있다(CLAUDE.md).
+ * 실패는 planFailure 결과(error)로 바꿔 도구가 그대로 답한다. 준비는 LLM을 부르지 않아 걸린 시간·사용량은 0으로 센다
+ */
+export function prepareSafely<T>(
+  prepare: () => T,
+  log: Pick<FlueLogger, 'warn' | 'error'>,
+): { ok: true; value: T } | { ok: false; failure: ReturnType<typeof planFailure> } {
+  try {
+    return { ok: true, value: prepare() };
+  } catch (error) {
+    return { ok: false, failure: planFailure(Date.now(), error, log) };
+  }
+}
+
+/**
  * 개발용 가짜 생성 모드: `.dev.vars`의 PLAN_GENERATOR=demo (demo-plan-generator.ts).
  * nodejs_compat에서는 Worker의 vars가 process.env로도 들어온다. 값이 없으면 실제 모델을 쓴다.
  * 추론 수준은 PLAN_THINKING(models.ts planThinking), 모델은 PLAN_MODEL(planModel, B14). 없으면 gpt-oss-120b, low (T8-7)

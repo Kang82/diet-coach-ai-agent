@@ -37,6 +37,7 @@ const NUTRITION_TAG_LABELS: Record<NutritionTag, string> = {
 const RULE_LABELS: Record<RuleId, string> = {
   unexpected_cell: '칸이 있으면 안 되는 끼니에 칸이 있음',
   missing_cell: '채워야 할 끼니에 칸이 없음',
+  place_mismatch: '끼니 설정과 외식·집밥이 다름',
   avoid_tag: '피할 음식이 들어감',
   eat_out_not_in_list: '외식 메뉴가 그 끼니의 메뉴 목록에 없음',
   class_avoid: '피해야 할 외식 메뉴를 넣음',
