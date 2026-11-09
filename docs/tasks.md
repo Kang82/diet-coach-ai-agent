@@ -470,7 +470,7 @@
 
 ### T22. "나중에" 정리 (B22, 2026-11-09)
 
-"나중에" 절에서 Neuron 없이 바로 할 수 있는 것. 사용자가 기본 4개에 메뉴 오타 안내·대화 ID 형식 검사를 더해 골랐다. 남긴 것: 다시 추천 안내, 분류 화면 메뉴 추가, T15 이전 대화, 목표 메모 오분류, 가짜 모드 지연, llama 분류, 분류 품질, 토큰 만료·폐기, WAF
+"나중에" 절에서 Neuron 없이 바로 할 수 있는 것. 사용자가 기본 4개에 메뉴 오타 안내·대화 ID 형식 검사를 더해 골랐다. 남긴 것: 다시 추천 안내, 분류 화면 메뉴 추가, T15 이전 대화, 목표 메모 오분류, 가짜 모드 지연, 분류 품질, 토큰 만료·폐기, WAF
 
 - [x] **T22-1. 무응답 재요청 5분 → 90초**: `provider.ts`가 `streamIdleTimeoutMs: STREAM_IDLE_MS`(90초, `core/llm-timeout.ts`). 11-09 gpt-oss 정상 생성의 최장 간격은 0.69초. gemma(분류·바깥 턴)는 실측이 없어 60초가 아니라 90초. 무응답 판정 `STALL_MS`는 2분 → 60초(Flue가 90초에 끊고 다시 물은 경우도 `stalled`로 잡히게 `STALL_MS < STREAM_IDLE_MS`)
 - [x] **T22-2. 보안 헤더와 SRI** (2차 리뷰 낮음): 화면은 `public/_headers`(CSP: 스크립트 self, 스타일·글꼴은 Google Fonts·jsdelivr만, `frame-ancestors 'none'`, `base-uri 'none'`; `Referrer-Policy: no-referrer`(링크에 토큰); `nosniff`). vite dev에는 적용되지 않는다(플러그인 실험 옵션을 켜지 않음). Worker가 처리하는 `/api/*`·`/agents/*`는 `server/security-headers.ts`(CSP `default-src 'none'`, `X-Frame-Options: DENY` 등)를 `app.ts` 맨 앞에. `hono/secure-headers`는 Durable Object 응답 헤더가 바뀌지 않아 500이 나서(preview에서 찾음) 바꿀 수 없으면 복사해서 붙인다. WebSocket(101) 응답은 그대로. Pretendard CSS에 `integrity`(sha384, 두 번 받아 같음)·`crossorigin`. Google Fonts CSS는 브라우저마다 달라 SRI 없음
@@ -639,7 +639,6 @@ T10-1은 두 번째 배포에 들어갔다. T10-2~5는 묶음 B13.
 - 이 기능(T15, 0005) 전에 생긴 대화는 목록이 없어 "내 기록 모두 지우기"로 지울 수 없다. 필요하면 관리용으로 네임스페이스 전체 객체를 지우는 방법을 정한다(원격 사용자는 본인·확인용 토큰 2개뿐)
 - 목표 메모 확인(llama-4-scout)이 "한 달에 2kg 정도 천천히"를 6회 중 1회 무리한 목표로 잘못 분류했다(B21 기록). 자주 보이면 프롬프트에 예시를 넣거나 모델을 바꾼다
 - 가짜 모드 확인 중 만들기 응답이 2분 늦게 시작한 적이 있다(오류 없음). 다시 보이면 원인을 찾는다
-- llama-4-scout 출력 256토큰: Flue가 `max_completion_tokens`를 보내지 않아서다. cloudflare 공급자를 감싸 상한을 넣으면 분류를 llama(7초, 약 65 Neuron)로 되돌릴 수 있다. Flue를 올릴 때 공식 옵션이 생겼는지 본다
 - 메뉴 분류 품질: 국밥을 often으로 나눴고 이유가 "일반적인 식사라 식단 기준에 부합함"처럼 성의 없는 메뉴가 있다(B5 실제 1회). 프롬프트에서 메뉴마다 근거 기준과 주문 팁을 꼭 쓰게 하거나 gemma와 비교한다
 - 2차 리뷰 낮음(T19, 남은 것): 토큰 만료·폐기·"이 기기에서 로그아웃", 인증 전 요청 속도 제한(WAF, 대시보드), 사용자당 대화 수 상한(지금은 하루 메시지 30회가 새 대화 수도 막는다). 보안 헤더·SRI·대화 ID 형식·지우기 경쟁·목록 순서는 B22
 - 첫 시연 이후 기능: 하루 재조정, 레시피, 지난주 체크 반영, 근육 증가 목표, 도시락

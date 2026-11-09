@@ -101,7 +101,7 @@ src/app.ts    Hono 라우트 맵. 한도 보호 미들웨어 뒤에 에이전트
 - 한도를 전제로 정한 값은 `docs/plan-upgrade.md`에 모아 두었다.
 - Neuron 사용량은 D1 `usage_hourly`(UTC 시간 칸)에 쌓이고 안전선은 최근 24시간 합계로 본다(T7-5). 사용자 메시지 수는 `usage_daily`(날짜). 바깥 턴은 `useResponseFinish`, 도구 안 LLM 호출은 `agents/metered-harness.ts`로 센다. 새 LLM 호출을 추가하면 harness를 `metered()`로 감싼다.
 - 하루 10,000 Neuron. 문서상 00:00 UTC 초기화지만 실제로는 최근 24시간 합계처럼 동작했다(2026-11-07). 넘으면 호출이 에러로 실패한다. **로컬 `vite dev`도 원격 호출이라 같은 한도를 쓴다.**
-- 기본 모델은 `@cf/google/gemma-4-26b-a4b-it`(`src/agents/models.ts`, 바깥 턴·메뉴 분류). **식단 생성·다시 추천은 `@cf/openai/gpt-oss-120b` 추론 low**(`PLAN_DEFAULT_MODEL`, 2026-11-08 결정, `.dev.vars`의 `PLAN_MODEL=gemma`로 되돌려 시험). glm-4.7-flash는 태그 품질이 나빠 후순위다.
+- 모델 배치(`src/agents/models.ts`): **식단 생성·다시 추천은 `@cf/openai/gpt-oss-120b` 추론 low**(`PLAN_DEFAULT_MODEL`, 2026-11-08 결정, `.dev.vars`의 `PLAN_MODEL=gemma`로 되돌려 시험). 바깥 턴·메뉴 분류는 `@cf/google/gemma-4-26b-a4b-it`(`DEFAULT_MODEL`, `menuClassModel`). 인터뷰 목표 메모 확인은 `@cf/meta/llama-4-scout-17b-16e-instruct`(`goalNoteModel`, 출력이 짧고 추론하지 않아 5초 안팎). 메뉴 분류를 llama로 되돌리지 않는다(2026-11-09 사용자 결정). glm-4.7-flash는 태그 품질이 나빠 후순위다.
 - 측정값(스펙 11.5): 1주일 14칸을 한 번에 만들면 2~6분(중앙값 약 3분), 식단 생성 약 170~400 Neuron(평가 1회 전체 약 400~430). 추론 수준을 low로 낮춰도 줄지 않았다(B11). 2칸만 만들어도 1분 이상 걸린다. 실제 모델을 부르는 확인이나 평가는 사용량을 먼저 어림하고 돌린다.
 
 ## Windows 개발 환경 메모
