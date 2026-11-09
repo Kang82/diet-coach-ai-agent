@@ -122,8 +122,11 @@ describe('createFluePlanGenerator', () => {
 
     expect(prompts[0]!.text).toContain('"다시 만들 칸" 1곳만');
     expect(prompts[0]!.text).toContain('생선 말고');
-    // 다시 추천(칸 수정 포함)도 같은 정리를 거친다: 화요일 점심 백반
-    expect(res.value).toEqual([{ ...planA.cells[2], title: '백반', orderTip: '생선 반찬 고르기' }]);
+    // 다시 추천(칸 수정 포함)도 같은 정리를 거친다: 화요일 점심 백반. 이유·근거는 분류 값(T13-1)
+    const 백반 = classesA.find((c) => c.menu === '백반')!;
+    expect(res.value).toEqual([
+      { ...planA.cells[2], title: '백반', orderTip: '생선 반찬 고르기', reason: 백반.reason, criterionIds: 백반.criterionIds },
+    ]);
   });
 
   it('추론 수준을 정하면 생성과 다시 추천 모두에 실어 보내고, 없으면 보내지 않는다', async () => {

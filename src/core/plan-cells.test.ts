@@ -1,6 +1,9 @@
 // LLM이 만든 칸을 코드가 정리한다 (B17, tasks.md T13-2·T13-3)
 import { describe, expect, it } from 'vitest';
 import { classesA, planA, profileA } from './__fixtures__/persona-a.ts';
+import { rulesA } from './__fixtures__/rules-a.ts';
+import { checkPlan } from './check-plan.ts';
+import { USER_CHOSEN_REASON } from './menu-classification.ts';
 import { finishCells } from './plan-cells.ts';
 import type { MenuClassification, PlanCell, Profile } from './types.ts';
 
@@ -72,5 +75,60 @@ describe('finishCells', () => {
   it('주재료는 앞뒤 공백을 뗀다 (T18)', () => {
     const cell = { ...cellOf('tue', 'dinner'), mainIngredient: ' 닭가슴살 ' };
     expect(finishOne(cell).mainIngredient).toBe('닭가슴살');
+  });
+});
+
+// T13-1: 생성 모델이 외식 칸 이유에 틀린 근거("고추장을 적게 넣어 열량 조절", 외식 비빔밥 "현미밥으로")를 썼다.
+// 외식 칸 이유·근거 기준은 사용자가 분류 화면에서 확인한 메뉴 분류 값으로 코드가 채운다
+describe('finishCells: 외식 칸 이유는 메뉴 분류 이유', () => {
+  const wrong = { reason: '초장을 적게 넣어 열량을 낮춥니다.', criterionIds: ['reduce_portion_calories' as const] };
+
+  it('외식 칸 이유와 근거 기준을 그 메뉴 분류 값으로 바꾼다', () => {
+    const out = finishOne({ ...cellOf('mon', 'lunch'), ...wrong }); // 회덮밥
+    expect(out.reason).toBe('생선과 채소 위주라 포화지방이 적음');
+    expect(out.criterionIds).toEqual(['reduce_saturated_fat']);
+  });
+
+  it('괄호 메모가 붙은 menuId도 정규화한 뒤 분류를 찾는다', () => {
+    const out = finishOne({ ...cellOf('tue', 'lunch'), menuId: '백반 (생선 반찬 고르기)', ...wrong });
+    expect(out.reason).toBe('생선·나물 반찬을 고르면 포화지방이 적음');
+    expect(out.criterionIds).toEqual(['reduce_saturated_fat', 'increase_fiber']);
+  });
+
+  it('주 1회 메뉴는 앞에 "이번 주 한 번만 넣었어요."를 붙인다', () => {
+    const out = finishOne({ ...cellOf('thu', 'lunch'), ...wrong }); // 돈가스
+    expect(out.reason).toBe('이번 주 한 번만 넣었어요. 튀김이라 포화지방과 열량이 많음');
+  });
+
+  it('사용자가 바꾼 분류(직접 정한 분류)나 빈 이유는 모델 이유 그대로, 빈 근거는 모델 근거 그대로', () => {
+    const classes = structuredClone(classesA);
+    classes.find((c) => c.menu === '회덮밥')!.reason = USER_CHOSEN_REASON;
+    expect(finishOne({ ...cellOf('mon', 'lunch'), ...wrong }, classes)).toMatchObject(wrong);
+
+    const empty = structuredClone(classesA);
+    Object.assign(empty.find((c) => c.menu === '회덮밥')!, { reason: '  ', criterionIds: [] });
+    expect(finishOne({ ...cellOf('mon', 'lunch'), ...wrong }, empty)).toMatchObject(wrong);
+
+    const noCriteria = structuredClone(classesA);
+    noCriteria.find((c) => c.menu === '회덮밥')!.criterionIds = [];
+    expect(finishOne({ ...cellOf('mon', 'lunch'), ...wrong }, noCriteria)).toMatchObject({
+      reason: '생선과 채소 위주라 포화지방이 적음',
+      criterionIds: wrong.criterionIds,
+    });
+  });
+
+  it('분류에 없는 외식 메뉴와 집밥 칸은 모델 이유 그대로', () => {
+    expect(finishOne({ ...cellOf('mon', 'lunch'), menuId: '김밥', ...wrong })).toMatchObject(wrong);
+    expect(finishOne({ ...cellOf('tue', 'dinner'), ...wrong })).toMatchObject(wrong);
+  });
+
+  it('바꾼 칸은 checkPlan의 이유 근거 규칙에 걸리지 않는다', () => {
+    const plan = structuredClone(planA);
+    plan.cells = finishCells(
+      plan.cells.map((c) => (c.place === 'eat_out' ? { ...c, ...wrong } : c)),
+      profileA,
+      classesA,
+    );
+    expect(checkPlan(plan, profileA, classesA, rulesA).violations.filter((v) => v.rule === 'reason_criterion')).toEqual([]);
   });
 });
