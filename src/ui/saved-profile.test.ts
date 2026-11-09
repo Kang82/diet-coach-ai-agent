@@ -59,6 +59,11 @@ describe('deleteMyRecords (T15)', () => {
     expect(await deleteMyRecords('tok', fakeFetch(() => Response.json({ failed: 2 })).fn)).toEqual({ ok: true, failed: 2 });
   });
 
+  it('409 busy면 진행 중이라 못 지웠다고 알린다 (T22-4)', async () => {
+    const busy = fakeFetch(() => Response.json({ error: { type: 'busy', message: '', details: '' } }, { status: 409 }));
+    expect(await deleteMyRecords('tok', busy.fn)).toEqual({ ok: false, busy: true });
+  });
+
   it('실패 응답, 네트워크 에러, 이상한 본문은 실패', async () => {
     expect(await deleteMyRecords('tok', fakeFetch(() => new Response('', { status: 500 })).fn)).toEqual({ ok: false });
     expect(await deleteMyRecords('tok', fakeFetch(() => Promise.reject(new Error('offline'))).fn)).toEqual({ ok: false });

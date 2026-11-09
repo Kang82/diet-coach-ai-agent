@@ -97,6 +97,33 @@ describe('DELETE /api/profile: 대화 기록도 지운다 (T15)', () => {
     expect(await storage.getProfile('u1')).toBeNull();
   });
 
+  it('같은 사용자의 만들기·분류·칸 수정이 진행 중(예약)이면 409 busy, 아무것도 지우지 않는다 (T22-4)', async () => {
+    await storage.saveProfile({ ...profileA, userId: 'u1' });
+    await guardStore.recordConversation('u1', 'u1-a', '2026-11-08T01:00:00.000Z');
+    const reserve = { now: new Date().toISOString(), fromHour: '2000-01-01T00', limit: 100_000 };
+    await guardStore.tryReserve('u1', 100, { ...reserve, expiresAt: new Date(Date.now() + 60_000).toISOString() });
+
+    const res = await call('DELETE', 't1');
+
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: { type: string } }).error.type).toBe('busy');
+    expect(wiped).toEqual([]);
+    expect(await guardStore.conversationsOf('u1')).toEqual(['u1-a']);
+    expect(await storage.getProfile('u1')).not.toBeNull();
+  });
+
+  it('다른 사용자의 예약이나 만료된 예약은 막지 않는다 (T22-4)', async () => {
+    await guardStore.recordConversation('u1', 'u1-a', '2026-11-08T01:00:00.000Z');
+    const reserve = { now: '2000-01-01T00:00:00.000Z', fromHour: '2000-01-01T00', limit: 100_000 };
+    await guardStore.tryReserve('u2', 100, { ...reserve, expiresAt: new Date(Date.now() + 60_000).toISOString() });
+    await guardStore.tryReserve('u1', 100, { ...reserve, expiresAt: '2000-01-01T00:20:00.000Z' });
+
+    const res = await call('DELETE', 't1');
+
+    expect(res.status).toBe(200);
+    expect(wiped).toEqual(['u1-a']);
+  });
+
   it('토큰이 없으면 아무것도 지우지 않는다', async () => {
     await guardStore.recordConversation('u1', 'u1-a', '2026-11-08T01:00:00.000Z');
     expect((await call('DELETE')).status).toBe(401);

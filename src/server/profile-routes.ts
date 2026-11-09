@@ -14,6 +14,8 @@ export interface ProfileRouteOptions {
   getStorage: (c: Context) => Storage;
   /** 대화 하나(DO)를 지우는 함수 (app.ts가 getAgentByName으로 만든다) */
   getWipeOne: (c: Context) => WipeOne;
+  /** 테스트용 */
+  now?: () => Date;
 }
 
 export function profileRoutes(options: ProfileRouteOptions) {
@@ -29,12 +31,16 @@ export function profileRoutes(options: ProfileRouteOptions) {
 
   /**
    * 프로필·식단표(D1)와 기록된 대화(DO)를 모두 지운다. 저장 동의와 관계없다(동의하지 않았으면 D1에 지울 것이 없을 뿐).
-   * { failed }: 못 지운 대화 수. 그 대화는 기록에 남아 다시 누르면 다시 지운다
+   * { failed }: 못 지운 대화 수. 그 대화는 기록에 남아 다시 누르면 다시 지운다.
+   * 같은 사용자의 비싼 요청(만들기·분류·칸 수정)이 진행 중이면(예약, key는 사용자 ID) 409 busy로 아무것도 지우지 않는다.
+   * 지운 뒤 도는 도구가 식단표를 다시 저장하거나 대화 기록을 남기지 않게 한다 (T22-4)
    */
   routes.delete('/', async (c) => {
     const guardStore = options.getGuardStore(c);
     const userId = await authenticate(c, guardStore);
     if (!userId) return c.json(errorBody('unauthorized'), 401);
+    const now = (options.now ?? (() => new Date()))().toISOString();
+    if (await guardStore.hasActiveReservation(userId, now)) return c.json(errorBody('busy'), 409);
     await options.getStorage(c).deleteUser(userId);
     const { failed } = await wipeUserConversations(guardStore, userId, options.getWipeOne(c));
     return c.json({ failed });

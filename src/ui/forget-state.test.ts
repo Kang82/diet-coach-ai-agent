@@ -8,6 +8,12 @@ describe('forgetResultState', () => {
     expect(forgetResultState({ ok: true, failed: 2 })).toEqual({ kind: 'partial', failed: 2 });
     expect(forgetResultState({ ok: false })).toEqual({ kind: 'error' });
   });
+
+  it('진행 중인 요청이 있어 막혔으면 busy. 문구를 보이고 링크는 남긴다 (T22-4)', () => {
+    expect(forgetResultState({ ok: false, busy: true })).toEqual({ kind: 'busy' });
+    expect(forgetView({ kind: 'busy' })).toEqual({ message: FORGET_TEXT.busy, link: true });
+    expect(FORGET_TEXT.busy).toContain('진행 중');
+  });
 });
 
 describe('forgetView', () => {

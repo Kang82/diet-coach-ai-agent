@@ -9,6 +9,8 @@ export type ForgetState =
   | { kind: 'done' }
   /** 일부 대화를 못 지웠다. 그 대화는 서버 기록에 남아 다시 누르면 다시 지운다 */
   | { kind: 'partial'; failed: number }
+  /** 같은 사용자의 만들기·분류·칸 수정이 진행 중이라 서버가 지우지 않았다 (T22-4) */
+  | { kind: 'busy' }
   | { kind: 'error' };
 
 export const FORGET_TEXT = {
@@ -21,10 +23,11 @@ export const FORGET_TEXT = {
   done: '모두 지웠어요.',
   partial: (failed: number) => `대화 ${failed}개를 지우지 못했어요. 잠시 뒤 다시 눌러 주세요.`,
   error: '지우지 못했어요. 잠시 뒤 다시 시도해 주세요.',
+  busy: '식단표 만들기 같은 요청이 아직 진행 중이에요. 끝난 뒤 다시 지워 주세요.',
 } as const;
 
 export function forgetResultState(result: DeleteResult): ForgetState {
-  if (!result.ok) return { kind: 'error' };
+  if (!result.ok) return result.busy ? { kind: 'busy' } : { kind: 'error' };
   return result.failed > 0 ? { kind: 'partial', failed: result.failed } : { kind: 'done' };
 }
 
@@ -41,6 +44,8 @@ export function forgetView(state: ForgetState): { message?: string; link?: true;
       return { message: FORGET_TEXT.done, link: true };
     case 'partial':
       return { message: FORGET_TEXT.partial(state.failed), link: true };
+    case 'busy':
+      return { message: FORGET_TEXT.busy, link: true };
     case 'error':
       return { message: FORGET_TEXT.error, link: true };
   }

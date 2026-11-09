@@ -43,12 +43,14 @@ export async function fetchSavedProfile(token: string, fetchFn: FetchLike = fetc
 }
 
 /** failed: 서버가 못 지운 대화 수 (T15) */
-export type DeleteResult = { ok: true; failed: number } | { ok: false };
+/** busy: 같은 사용자의 만들기·분류·칸 수정이 진행 중이라 서버가 지우지 않았다 (T22-4) */
+export type DeleteResult = { ok: true; failed: number } | { ok: false; busy?: true };
 
 /** 서버에 남은 내 기록(저장한 프로필·식단표, 이 링크로 남긴 대화)을 모두 지운다 (T15) */
 export async function deleteMyRecords(token: string, fetchFn: FetchLike = fetch): Promise<DeleteResult> {
   try {
     const res = await fetchFn('/api/profile', { method: 'DELETE', headers: auth(token) });
+    if (res.status === 409) return { ok: false, busy: true };
     if (!res.ok) return { ok: false };
     const body = (await res.json()) as { failed?: unknown };
     return typeof body?.failed === 'number' ? { ok: true, failed: body.failed } : { ok: false };

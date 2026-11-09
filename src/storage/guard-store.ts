@@ -23,6 +23,8 @@ export interface GuardStore {
   tryReserve(key: string, neurons: number, options: ReserveOptions): Promise<ReserveResult>;
   /** 예약을 지운다. 없으면 아무 일도 없다 */
   release(key: string): Promise<void>;
+  /** 그 key에 now보다 늦게 만료되는 예약이 있는지. "모두 지우기"가 진행 중인 요청과 겹치지 않게 본다 (T22-4) */
+  hasActiveReservation(key: string, now: string): Promise<boolean>;
   /** 메시지가 간 대화를 기록한다. 이미 있으면 그대로 (T15 대화 기록 지우기) */
   recordConversation(userId: string, conversationId: string, at: string): Promise<void>;
   /** 그 사용자의 대화 ID. 처음 기록한 순서 */
@@ -101,6 +103,11 @@ export class MemoryGuardStore implements GuardStore {
 
   async release(key: string): Promise<void> {
     this.reservations.delete(key);
+  }
+
+  async hasActiveReservation(key: string, now: string): Promise<boolean> {
+    const r = this.reservations.get(key);
+    return r !== undefined && r.expiresAt > now;
   }
 
   async recordConversation(userId: string, conversationId: string, at: string): Promise<void> {
@@ -231,6 +238,14 @@ export class D1GuardStore implements GuardStore {
     await this.db.prepare('DELETE FROM usage_reservations WHERE key = ?').bind(key).run();
   }
 
+  async hasActiveReservation(key: string, now: string): Promise<boolean> {
+    const row = await this.db
+      .prepare('SELECT 1 AS active FROM usage_reservations WHERE key = ?1 AND expires_at > ?2')
+      .bind(key, now)
+      .first<{ active: number }>();
+    return row !== null;
+  }
+
   async recordConversation(userId: string, conversationId: string, at: string): Promise<void> {
     await this.db
       .prepare('INSERT OR IGNORE INTO conversations (conversation_id, user_id, created_at) VALUES (?1, ?2, ?3)')
@@ -239,15 +254,19 @@ export class D1GuardStore implements GuardStore {
   }
 
   async conversationsOf(userId: string): Promise<string[]> {
-    // D1Like에는 first·run만 있어 JSON 배열 한 행으로 받는다
+    // D1Like에는 first·run만 있어 JSON 배열 한 행으로 받는다. SQLite는 하위 쿼리 ORDER BY가 json_group_array 순서로
+    // 이어진다고 보장하지 않아 시각을 함께 받아 여기서 정렬한다 (T22-3)
     const row = await this.db
       .prepare(
-        `SELECT json_group_array(conversation_id) AS ids FROM
-         (SELECT conversation_id FROM conversations WHERE user_id = ? ORDER BY created_at, conversation_id)`,
+        `SELECT json_group_array(json_array(conversation_id, created_at)) AS items
+         FROM conversations WHERE user_id = ?`,
       )
       .bind(userId)
-      .first<{ ids: string }>();
-    return row ? (JSON.parse(row.ids) as string[]) : [];
+      .first<{ items: string }>();
+    if (!row) return [];
+    return (JSON.parse(row.items) as [string, string][])
+      .sort(([idA, atA], [idB, atB]) => compare(atA, atB) || compare(idA, idB))
+      .map(([id]) => id);
   }
 
   async markConversationPlan(conversationId: string, weekStart: string, at: string): Promise<void> {
@@ -258,7 +277,8 @@ export class D1GuardStore implements GuardStore {
   }
 
   async planConversations(userId: string, limit = PLAN_CONVERSATIONS_LIMIT): Promise<PlanConversation[]> {
-    // D1Like에는 first·run만 있어 JSON 배열 한 행으로 받는다
+    // D1Like에는 first·run만 있어 JSON 배열 한 행으로 받는다. LIMIT은 하위 쿼리 ORDER BY로 고르고(순서와 무관하게 맞는 행),
+    // 나열 순서는 json_group_array가 보장하지 않아 여기서 다시 정렬한다 (T22-3)
     const row = await this.db
       .prepare(
         `SELECT json_group_array(json_object('conversationId', conversation_id, 'weekStart', plan_week_start, 'planAt', plan_at)) AS items
@@ -267,7 +287,10 @@ export class D1GuardStore implements GuardStore {
       )
       .bind(userId, limit)
       .first<{ items: string }>();
-    return row ? (JSON.parse(row.items) as PlanConversation[]) : [];
+    if (!row) return [];
+    return (JSON.parse(row.items) as PlanConversation[]).sort(
+      (a, b) => compare(b.planAt, a.planAt) || compare(a.conversationId, b.conversationId),
+    );
   }
 
   async forgetConversations(userId: string, conversationIds: readonly string[]): Promise<void> {
@@ -278,4 +301,8 @@ export class D1GuardStore implements GuardStore {
       ),
     );
   }
+}
+
+function compare(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
 }

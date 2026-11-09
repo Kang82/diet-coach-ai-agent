@@ -40,6 +40,17 @@ describe('ownsConversation', () => {
     expect(ownsConversation('abc', 'abc-')).toBe(false);
     expect(ownsConversation('abc', '1234')).toBe(false);
   });
+
+  it('접두어 뒤는 영문·숫자·하이픈 80자까지 (화면 UUID, 평가 eval-<uuid>) (T22-6)', () => {
+    expect(ownsConversation('abc', 'abc-0b1f2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d')).toBe(true);
+    expect(ownsConversation('abc', 'abc-eval-0b1f2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d')).toBe(true);
+    expect(ownsConversation('abc', `abc-${'a'.repeat(80)}`)).toBe(true);
+    expect(ownsConversation('abc', `abc-${'a'.repeat(81)}`)).toBe(false);
+    expect(ownsConversation('abc', 'abc-x/y')).toBe(false);
+    expect(ownsConversation('abc', 'abc-x%2Fy')).toBe(false);
+    expect(ownsConversation('abc', 'abc-x y')).toBe(false);
+    expect(ownsConversation('abc', 'abc-x.y')).toBe(false);
+  });
 });
 
 describe('isMessagePost', () => {

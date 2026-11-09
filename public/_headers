@@ -1,0 +1,9 @@
+# 화면(정적 자산) 보안 헤더 (tasks.md T22-2, 2차 리뷰 낮음). Workers 정적 자산이 읽는다. 빌드 때 dist/client로 복사된다.
+# /api/*, /agents/*는 Worker가 먼저 처리해 이 파일이 적용되지 않는다(app.ts의 securityHeaders).
+# vite dev에는 적용되지 않는다(@cloudflare/vite-plugin experimental.headersAndRedirectsDevModeSupport를 켜지 않음).
+# 글꼴: Google Fonts(Gowun Batang), jsdelivr(Pretendard). 출처를 늘리면 index.html과 함께 고친다.
+# 링크에 ?t=<토큰>이 있어 Referer를 보내지 않는다.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src https://fonts.gstatic.com https://cdn.jsdelivr.net; connect-src 'self'; img-src 'self' data:; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff

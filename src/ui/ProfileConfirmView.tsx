@@ -11,6 +11,7 @@ import {
   MEDICATION_LABELS,
   PLACE_LABELS,
 } from '../core/labels.ts';
+import { menuTypoHint, similarMenus } from '../core/menu-typos.ts';
 import { criteriaText, type ProfileSection } from '../core/profile-edit.ts';
 import { profileStepHint } from '../core/plan-feasibility.ts';
 import { needsMedication, validateProfile, type ProfileIssueCode } from '../core/profile-validation.ts';
@@ -44,6 +45,8 @@ export function ProfileConfirmView({
   const issues = validateProfile(profile).filter((i) => i.code !== 'consent_missing');
   // 외식 메뉴가 적어 식단표를 만들기 어려우면 미리 알린다(막지는 않음, B15 T11-4)
   const menuHint = issues.length === 0 ? profileStepHint(profile) : undefined;
+  // 한 글자만 다른 외식 메뉴는 다른 메뉴로 취급되니 오타인지 알린다(막지는 않음, T22-5)
+  const typoHint = menuTypoHint(similarMenus(result.meals));
 
   const edit = (section: ProfileSection, label: string) => (
     <button type="button" className="link" onClick={() => onEdit(section)} aria-label={`${label} 고치기`}>
@@ -131,6 +134,12 @@ export function ProfileConfirmView({
       {menuHint && (
         <p className="chat-alert" role="status">
           {menuHint}
+        </p>
+      )}
+
+      {typoHint && (
+        <p className="chat-alert" role="status">
+          {typoHint}
         </p>
       )}
 

@@ -9,6 +9,7 @@ import type { Wipeable } from './agents/wipe-extension.ts';
 import { conversationRoutes } from './server/conversation-routes.ts';
 import { guardAgentRoutes, meHandler } from './server/guard.ts';
 import { profileRoutes } from './server/profile-routes.ts';
+import { apiSecurityHeaders } from './server/security-headers.ts';
 import { D1Storage, type D1Like } from './storage/d1-storage.ts';
 import { D1GuardStore } from './storage/guard-store.ts';
 
@@ -21,6 +22,9 @@ const AGENT_MOUNT = '/agents/diet-coach';
 
 type Env = { Bindings: { DB: D1Like; FLUE_DIET_COACH_AGENT: unknown } };
 const app = new Hono<Env>();
+
+// 보안 헤더 (T22-2). 화면(정적 자산)은 public/_headers, Worker가 처리하는 응답은 여기서. 401·403 같은 가드 응답에도 붙게 맨 앞에 둔다
+app.use('*', apiSecurityHeaders());
 
 // 스펙 11.4 한도 보호. 토큰, 대화 소유, 사용자 하루 횟수, 전체 Neuron 안전선 (src/server/guard.ts)
 const guard = { getStore: (c: { env: { DB: D1Like } }) => new D1GuardStore(c.env.DB) };

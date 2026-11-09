@@ -86,6 +86,19 @@ export function guardStoreContract(
       expect(await store.tryReserve('u3', 101, opts('2026-11-06T12:20:00.000Z'))).toBe('over_limit');
     });
 
+    // T22-4: "모두 지우기"는 진행 중인 비싼 요청이 있으면 막는다
+    it('hasActiveReservation: 만료 전 예약이 있을 때만 true, 지우거나 만료되면 false', async () => {
+      const store = await create([]);
+      const opts = { now: '2026-11-06T12:00:00.000Z', fromHour: '2026-11-05T12', limit: 100_000, expiresAt: '2026-11-06T12:20:00.000Z' };
+      expect(await store.hasActiveReservation('h1', '2026-11-06T12:00:00.000Z')).toBe(false);
+      expect(await store.tryReserve('h1', 100, opts)).toBe('ok');
+      expect(await store.hasActiveReservation('h1', '2026-11-06T12:19:59.000Z')).toBe(true);
+      expect(await store.hasActiveReservation('h2', '2026-11-06T12:10:00.000Z')).toBe(false);
+      expect(await store.hasActiveReservation('h1', '2026-11-06T12:20:00.000Z')).toBe(false);
+      await store.release('h1');
+      expect(await store.hasActiveReservation('h1', '2026-11-06T12:10:00.000Z')).toBe(false);
+    });
+
     it('메시지 수와 Neuron은 서로 영향을 주지 않는다', async () => {
       const store = await create([]);
       await store.addNeurons('2026-11-06T12', 50);
@@ -103,6 +116,14 @@ export function guardStoreContract(
       expect(await store.conversationsOf('u1')).toEqual(['u1-a', 'u1-b']);
       expect(await store.conversationsOf('u2')).toEqual(['u2-a']);
       expect(await store.conversationsOf('u3')).toEqual([]);
+    });
+
+    it('대화 나열은 넣은 순서가 아니라 기록 시각 순이다 (T22-3)', async () => {
+      const store = await create([]);
+      await store.recordConversation('o1', 'o1-late', '2026-11-08T05:00:00.000Z');
+      await store.recordConversation('o1', 'o1-early', '2026-11-08T01:00:00.000Z');
+      await store.recordConversation('o1', 'o1-mid', '2026-11-08T03:00:00.000Z');
+      expect(await store.conversationsOf('o1')).toEqual(['o1-early', 'o1-mid', 'o1-late']);
     });
 
     it('forgetConversations는 그 사용자의 준 ID만 뺀다', async () => {

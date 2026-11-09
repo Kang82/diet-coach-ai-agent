@@ -98,10 +98,13 @@ export function neuronWindowStart(now: Date): string {
   return utcHour(new Date(now.getTime() - DAY_MS));
 }
 
-/** 대화 ID는 "<userId>-<무작위>"다. 접두어가 정확히 맞고 뒤가 비지 않아야 그 사용자의 대화다 */
+/** 접두어 뒤 형식. 화면 UUID(ui/conversation-id.ts)와 평가의 eval-<uuid>가 들어간다 (T22-6) */
+const CONVERSATION_SUFFIX = /^[A-Za-z0-9-]{1,80}$/;
+
+/** 대화 ID는 "<userId>-<무작위>"다. 접두어가 정확히 맞고 뒤가 정해진 형식이어야 그 사용자의 대화다 */
 export function ownsConversation(userId: string, conversationId: string): boolean {
   const prefix = `${userId}-`;
-  return conversationId.startsWith(prefix) && conversationId.length > prefix.length;
+  return conversationId.startsWith(prefix) && CONVERSATION_SUFFIX.test(conversationId.slice(prefix.length));
 }
 
 /**

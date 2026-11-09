@@ -7,6 +7,7 @@ import {
   MIN_REGENERATE_MS,
   PLAN_TOOL_BUDGETS,
   STALL_MS,
+  STREAM_IDLE_MS,
   TIMEOUT_MESSAGES,
   timeoutReason,
 } from './llm-timeout.ts';
@@ -32,6 +33,13 @@ describe('callLimit', () => {
 
 // B19(T8-8): 시간 초과 원인. 11-08 배포본 실패는 모델이 300초 동안 한 바이트도 보내지 않은 경우였다
 describe('timeoutReason', () => {
+  it('Flue 무응답 재요청(STREAM_IDLE_MS)에 끊긴 간격도 무응답으로 본다 (T22-1)', () => {
+    expect(STALL_MS).toBeLessThan(STREAM_IDLE_MS);
+    expect(timeoutReason({ requests: 2, maxGapMs: STREAM_IDLE_MS, byBudget: false })).toBe('stalled');
+    // 11-09 정상 생성의 최장 간격 0.69초는 한참 아래
+    expect(timeoutReason({ requests: 1, maxGapMs: 690, byBudget: false })).toBe('call_limit');
+  });
+
   it('바이트 없이 지난 간격이 STALL_MS 이상이면 무응답(stalled). 예산 컷보다 먼저 본다', () => {
     expect(timeoutReason({ requests: 1, maxGapMs: STALL_MS, byBudget: false })).toBe('stalled');
     expect(timeoutReason({ requests: 2, maxGapMs: 300_000, byBudget: true })).toBe('stalled');

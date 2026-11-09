@@ -12,10 +12,17 @@
 export type TimeoutReason = 'stalled' | 'budget' | 'call_limit';
 
 /**
- * 무응답으로 볼 간격. Flue의 무응답 감지(streamIdleTimeoutMs 기본 5분)보다 짧게 둬 그 안의 멈춤도 잡는다.
- * gpt-oss는 추론을 흘려보내 간격이 짧을 것으로 본다. 실측(usage.stream.maxGapMs)으로 다시 볼 값이다
+ * Flue Workers AI 공급자의 무응답 재요청 간격(streamIdleTimeoutMs, 기본 5분) (T22-1, agents/provider.ts).
+ * 바이트 없이 이만큼 지나면 Flue가 끊고 다시 묻는다. 11-09 gpt-oss 정상 생성의 최장 간격은 0.69초였다.
+ * gemma(분류·바깥 턴)는 실측이 없어 넉넉하게 둔다
  */
-export const STALL_MS = 2 * 60_000;
+export const STREAM_IDLE_MS = 90_000;
+
+/**
+ * 무응답으로 볼 간격. STREAM_IDLE_MS보다 짧게 둬야 Flue가 끊고 다시 물은 경우(간격 약 STREAM_IDLE_MS)도 잡는다.
+ * 실측(usage.stream.maxGapMs)으로 다시 볼 값이다
+ */
+export const STALL_MS = 60_000;
 
 /** 한 LLM 호출 동안 Workers AI 응답 스트림을 지켜본 결과 (agents/stream-watch.ts). 본문 내용은 보지 않고 시각만 잰다 */
 export interface StreamStats {
