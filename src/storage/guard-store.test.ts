@@ -7,7 +7,7 @@ guardStoreContract('MemoryGuardStore', (users) => new MemoryGuardStore(users));
 const local = useLocalD1();
 
 guardStoreContract('D1GuardStore', async (users) => {
-  await local.reset(['users', 'usage_daily', 'usage_hourly']);
+  await local.reset(['users', 'usage_daily', 'usage_hourly', 'usage_reservations']);
   const db = local.db();
   if (users.length > 0) {
     await db.batch(

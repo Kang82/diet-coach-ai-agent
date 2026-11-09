@@ -5,12 +5,12 @@
 import { setProvider } from '@flue/runtime';
 import { cloudflareBindingProvider } from '@flue/runtime/cloudflare/workers-ai';
 import { env } from 'cloudflare:workers';
-import { capsByWorkersAiId, dropEarlierPrompts, PAYLOAD_FIXES, withOutputCaps } from './output-caps.ts';
+import { capsByWorkersAiId, fitRequest, PAYLOAD_FIXES, withOutputCaps } from './output-caps.ts';
 import { watchBinding } from './stream-watch.ts';
 
 type AiBinding = Parameters<typeof cloudflareBindingProvider>[0]['binding'];
 
 // 바인딩은 응답 바이트 시각을 재는 감싼 것을 쓴다 (B19, stream-watch.ts). 시간 초과가 모델 무응답인지 가린다
 const binding = watchBinding((env as { AI: AiBinding }).AI);
-// 같은 harness의 앞 프롬프트 대화는 잘라 보낸다 (B18, 다시 추천에 생성 대화가 가지 않게)
-setProvider(withOutputCaps(cloudflareBindingProvider({ binding }), capsByWorkersAiId(), PAYLOAD_FIXES, dropEarlierPrompts));
+// 같은 harness의 앞 프롬프트 대화는 잘라 보내고(B18), 바깥 턴은 마지막 사용자 메시지만 출력 상한과 함께 보낸다(T19-6)
+setProvider(withOutputCaps(cloudflareBindingProvider({ binding }), capsByWorkersAiId(), PAYLOAD_FIXES, fitRequest));

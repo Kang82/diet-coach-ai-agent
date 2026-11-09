@@ -3,7 +3,7 @@ import { type AgentProps, useDelivery, useModel, usePersistentState, useResponse
 import type { InterviewResult } from '../core/interview.ts';
 import { INTERVIEW_SUBMIT_PREFIX } from '../core/interview-form.ts';
 import { SUBMISSION_DURABILITY } from '../core/llm-timeout.ts';
-import { messageKind } from '../core/message-kind.ts';
+import { isExpensiveKind, messageKind } from '../core/message-kind.ts';
 import { estimateNeurons } from '../core/neurons.ts';
 import { createToolGate } from '../core/tool-gate.ts';
 import type { PlanPeriod } from '../core/period.ts';
@@ -43,8 +43,9 @@ export function DietCoach({ id }: AgentProps) {
   const [period, setPeriod] = usePersistentState<PlanPeriod>('period');
 
   const interviewing = interviewResult === undefined;
-  // 인터뷰 중 바깥 턴은 도구를 부르기만 하면 되므로 추론을 줄인다. 식단표 단계는 Flue 기본값('medium') 그대로
-  useModel(DEFAULT_MODEL, interviewing ? { thinkingLevel: INTERVIEW_THINKING } : undefined);
+  // 바깥 턴은 도구 하나를 부르기만 하면 되므로 추론을 줄인다. 처음엔 인터뷰 중에만 low였고 식단표 단계는 Flue 기본값(medium, 출력 약 2,400토큰)이었다.
+  // 바깥 턴 출력 상한(output-caps.ts OUTER_TURN_MAX_TOKENS 2,048)에 잘리지 않게 모두 low로 (T19-6). 도구 안 호출은 각자 추론 수준을 넘긴다
+  useModel(DEFAULT_MODEL, { thinkingLevel: INTERVIEW_THINKING });
   // 화면이 보낸 메시지 종류. 같은 제출 안에서는 렌더가 몇 번이든 같다
   const kind = delivery.kind === 'user' ? messageKind(delivery.body) : 'chat';
   // 비싼 도구 공통: 이 렌더(모델 호출 하나)에서 한 번만, 끝나면 진행 중 예약 정산 (T10-2, T10-4)
@@ -86,6 +87,13 @@ export function DietCoach({ id }: AgentProps) {
     usageMeter.add(exact).catch((error: unknown) => {
       log.warn('사용량 기록 실패', { message: error instanceof Error ? error.message : String(error) });
     });
+    // 비싼 메시지의 예약(사용자당 하나, T19-7)은 도구가 끝날 때 지우지만, 도구가 돌지 않으면(인터뷰가 안 끝나 마운트되지 않음,
+    // 모델이 도구를 부르지 않음) 남아 그 사용자를 만료(20분)까지 막는다. 응답이 정말 끝난 여기서 한 번 더 지운다. 이미 없으면 아무 일도 없다
+    if (isExpensiveKind(kind)) {
+      guard.releaseReservation().catch((error: unknown) => {
+        log.warn('예약 정산 실패', { message: error instanceof Error ? error.message : String(error) });
+      });
+    }
     return { usage: { model: DEFAULT_MODEL, input, output, neurons } };
   });
 

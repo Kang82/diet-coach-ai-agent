@@ -7,6 +7,8 @@ import { FINISH_ONLY } from '../core/plan-prompt.ts';
 import {
   capsByWorkersAiId,
   dropEarlierPrompts,
+  fitRequest,
+  OUTER_TURN_MAX_TOKENS,
   OUTPUT_CAPS,
   PAYLOAD_FIXES,
   stringContent,
@@ -198,6 +200,56 @@ describe('dropEarlierPrompts', () => {
   it('messages가 없으면 그대로 돌려준다', () => {
     const payload = { prompt: 'x' };
     expect(dropEarlierPrompts(payload)).toBe(payload);
+  });
+});
+
+// T19-6 (2차 보안 리뷰): 바깥 턴은 대화 기록 전체를 보내고 출력 상한이 없어, 메시지를 쌓거나 길게 출력시키면 한도를 다 쓸 수 있었다
+describe('fitRequest: 바깥 턴은 마지막 사용자 메시지만, 출력 상한', () => {
+  const sys = { role: 'system', content: '시스템 지시' };
+  const first = { role: 'user', content: '인터뷰 제출: {"goals":["weight_loss"]}' };
+  const firstCall = { role: 'assistant', content: null, tool_calls: [{ id: 't1', function: { name: 'submit_interview' } }] };
+  const firstResult = { role: 'tool', tool_call_id: 't1', content: '{"status":"done"}' };
+  const plan = { role: 'user', content: [{ type: 'text', text: '식단표 만들기: {"overrides":[]}' }] };
+
+  it('도구 안 프롬프트가 없으면(바깥 턴) system과 마지막 user 메시지부터 끝까지, 출력 상한을 넣는다', () => {
+    const payload = { model: 'm', messages: [sys, first, firstCall, firstResult, plan] };
+    expect(fitRequest(payload)).toEqual({ model: 'm', messages: [sys, plan], max_completion_tokens: OUTER_TURN_MAX_TOKENS });
+  });
+
+  it('Flue가 요청 뒤에 붙인 signal(user 역할)은 요청으로 보지 않고 함께 남긴다. 앞 signal은 뺀다 (실제 본문 모양)', () => {
+    const signal = (type: string) => ({ role: 'user', content: [{ type: 'text', text: `<signal type="${type}">\nSystem instructions updated.\n</signal>` }] });
+    const payload = { messages: [sys, signal('resources'), first, firstCall, firstResult, plan, signal('instructions'), signal('resources')] };
+    expect(fitRequest(payload)).toEqual({
+      messages: [sys, plan, signal('instructions'), signal('resources')],
+      max_completion_tokens: OUTER_TURN_MAX_TOKENS,
+    });
+  });
+
+  it('마지막 user 뒤의 도구 호출·결과는 남긴다', () => {
+    const payload = { messages: [sys, first, firstCall, firstResult] };
+    expect(fitRequest(payload)).toEqual({ messages: [sys, first, firstCall, firstResult], max_completion_tokens: OUTER_TURN_MAX_TOKENS });
+  });
+
+  it('출력 상한이 이미 있으면 그대로 둔다', () => {
+    const payload = { messages: [sys, plan], max_completion_tokens: 16_384 };
+    expect(fitRequest(payload)).toEqual(payload);
+  });
+
+  it('도구 안 요청(FINISH_ONLY 프롬프트)은 dropEarlierPrompts와 같고 상한을 넣지 않는다', () => {
+    const gen = { role: 'user', content: `${FINISH_ONLY}\n1주일 식단표` };
+    const regen = { role: 'user', content: `${FINISH_ONLY}\n다시 만들 칸만` };
+    const followUp = { role: 'user', content: 'finish를 다시 불러 주세요' };
+    const one = { messages: [sys, first, gen, followUp] };
+    expect(fitRequest(one)).toBe(one);
+    const two = { messages: [sys, gen, firstCall, firstResult, regen, followUp] };
+    expect(fitRequest(two)).toEqual(dropEarlierPrompts(two));
+  });
+
+  it('messages가 없거나 user 메시지가 없으면 그대로 돌려준다', () => {
+    const noMessages = { prompt: 'x' };
+    expect(fitRequest(noMessages)).toBe(noMessages);
+    const noUser = { messages: [sys] };
+    expect(fitRequest(noUser)).toBe(noUser);
   });
 });
 

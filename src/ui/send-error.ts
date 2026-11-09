@@ -17,8 +17,8 @@ export function toSendFailure(error: unknown): SendFailure {
   if (status === 429 && (type === 'user_daily_limit' || type === 'global_daily_limit')) {
     return { kind: 'limit', message: errorBody(type).error.message };
   }
-  // 종류별 하루 제한(T10-3)은 종류마다 문구가 달라 서버 문구를 쓴다
-  if (status === 429 && type === 'user_kind_limit') {
+  // 종류별 하루 제한(T10-3)은 종류마다 문구가 달라 서버 문구를 쓴다. 앞 요청 진행 중(busy, T19-7)도 같다
+  if (status === 429 && (type === 'user_kind_limit' || type === 'busy')) {
     return { kind: 'limit', message: guardMessage(error) ?? errorBody(type).error.message };
   }
   if ((status === 400 || status === 413) && type === 'message_rejected') {

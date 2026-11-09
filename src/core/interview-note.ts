@@ -2,6 +2,7 @@
 // 사용자가 자유롭게 쓴 목표 메모에서 중단 사유, 무리한 목표, 지원하지 않는 목표, 범위 밖 질문을 찾는다.
 // 입력 토큰을 줄이려고 프롬프트를 짧게 둔다 (턴마다 추출하던 방식은 1회 약 150~240 Neuron이었다).
 import { GOAL_LABELS } from './labels.ts';
+import { FINISH_ONLY } from './plan-prompt.ts';
 import type { GoalId, InterviewUpdate, StopFlag, TurnFlag } from './types.ts';
 
 export interface GoalNoteInput {
@@ -18,6 +19,8 @@ export interface GoalNoteCheck {
 
 export function buildGoalNotePrompt({ goals, note }: GoalNoteInput): string {
   return [
+    // 도구 안 프롬프트 표지 (B14, T19-6). 바깥 도구 대신 finish를 부르게 하고, 바깥 턴 자르기(output-caps.ts fitRequest)가 알아본다
+    FINISH_ONLY,
     '식단 코치 앱 사용자가 쓴 목표 메모를 분류하세요. 해당하는 값만 넣고, 없으면 빈 배열로 두세요.',
     `고른 목표: ${goals.map((g) => GOAL_LABELS[g]).join(', ')}`,
     `메모: ${JSON.stringify(note)}`,

@@ -1,6 +1,7 @@
 // 목표 메모 확인 (스펙 4.1, tasks.md B4)
 import { describe, expect, it } from 'vitest';
 import { buildGoalNotePrompt, goalNoteUpdate } from './interview-note.ts';
+import { FINISH_ONLY } from './plan-prompt.ts';
 
 describe('buildGoalNotePrompt', () => {
   it('고른 목표와 메모, 판단 기준이 들어간다', () => {
@@ -10,6 +11,10 @@ describe('buildGoalNotePrompt', () => {
     for (const id of ['pregnancy', 'kidney_disease', 'extreme_restriction', 'unsupported_goal', 'asks_medication_advice']) {
       expect(prompt).toContain(id);
     }
+  });
+
+  it('첫 줄은 FINISH_ONLY다. 도구 안 프롬프트 표지라 바깥 턴 자르기(T19-6)에 잘리지 않는다', () => {
+    expect(buildGoalNotePrompt({ goals: ['weight_loss'], note: '메모' }).split('\n')[0]).toBe(FINISH_ONLY);
   });
 });
 

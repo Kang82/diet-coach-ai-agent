@@ -6,6 +6,7 @@ import { utcHour } from '../core/guard.ts';
 import type { D1Like } from '../storage/d1-storage.ts';
 import { D1GuardStore } from '../storage/guard-store.ts';
 import type { NeuronMeter } from './metered-harness.ts';
+import { userIdFromConversation } from '../core/profile-store.ts';
 
 export const usageMeter: NeuronMeter = {
   async add(neurons) {
@@ -16,9 +17,17 @@ export const usageMeter: NeuronMeter = {
 };
 
 /**
- * 미들웨어가 둔 진행 중 예약(T10-4)을 지운다. key는 대화 ID (server/guard.ts).
- * 비싼 도구가 끝날 때 부른다(plan-tool-support.ts runGuarded)
+ * 미들웨어가 둔 진행 중 예약(T10-4)을 지운다. key는 사용자 ID(T19-7, 대화 ID "<userId>-…"에서 얻음, server/guard.ts).
+ * 비싼 도구가 끝날 때 부른다(plan-tool-support.ts runGuarded). 사용자 ID가 없는 대화는 미들웨어를 거치지 않아 예약도 없다
  */
 export function reservationRelease(conversationId: string): () => Promise<void> {
-  return () => new D1GuardStore(env.DB as D1Like).release(conversationId);
+  return async () => {
+    let userId: string;
+    try {
+      userId = userIdFromConversation(conversationId);
+    } catch {
+      return;
+    }
+    await new D1GuardStore(env.DB as D1Like).release(userId);
+  };
 }

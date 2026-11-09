@@ -29,6 +29,10 @@ describe('toSendFailure', () => {
     });
   });
 
+  it('앞 요청이 진행 중(busy, T19-7)이면 서버 문구로 안내', () => {
+    expect(toSendFailure(apiError(429, errorBody('busy')))).toEqual({ kind: 'limit', message: errorBody('busy').error.message });
+  });
+
   it('401, 403은 링크 안내', () => {
     expect(toSendFailure(apiError(401, errorBody('unauthorized'))).kind).toBe('auth');
     expect(toSendFailure(apiError(403, '')).kind).toBe('auth');

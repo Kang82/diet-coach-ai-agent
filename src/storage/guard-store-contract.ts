@@ -59,20 +59,31 @@ export function guardStoreContract(
       expect(await store.tryCountMessage('u1', '2026-11-06', 1)).toBe(true);
     });
 
-    // B13(T10-4): 진행 중 예약
-    it('예약은 만료 전까지만 더하고, 같은 키면 덮어쓰며, 지우면 빠진다', async () => {
+    // B13(T10-4), T19-7: 진행 중 예약. 검사와 예약을 한 번에 한다
+    it('tryReserve: 최근 합계 + 만료 전 예약 + 이번 양이 상한 안이면 ok, 넘으면 over_limit, 같은 키가 진행 중이면 busy', async () => {
       const store = await create([]);
-      expect(await store.reservedNeurons('2026-11-06T12:00:00.000Z')).toBe(0);
-      await store.reserve('c1', 1_200, '2026-11-06T12:20:00.000Z');
-      await store.reserve('c2', 600, '2026-11-06T12:05:00.000Z');
-      expect(await store.reservedNeurons('2026-11-06T12:00:00.000Z')).toBeCloseTo(1_800);
-      expect(await store.reservedNeurons('2026-11-06T12:05:00.000Z')).toBeCloseTo(1_200);
-      expect(await store.reservedNeurons('2026-11-06T12:00:00.000Z', 'c1')).toBeCloseTo(600);
-      await store.reserve('c1', 360, '2026-11-06T12:30:00.000Z');
-      expect(await store.reservedNeurons('2026-11-06T12:00:00.000Z')).toBeCloseTo(960);
-      await store.release('c1');
+      const at = (expiresAt: string) => ({ now: '2026-11-06T12:00:00.000Z', fromHour: '2026-11-05T12', limit: 2_000, expiresAt });
+      await store.addNeurons('2026-11-06T11', 500);
+      await store.addNeurons('2026-11-05T11', 9_999); // 창 밖
+      expect(await store.tryReserve('u1', 1_000, at('2026-11-06T12:20:00.000Z'))).toBe('ok');
+      expect(await store.tryReserve('u1', 1, at('2026-11-06T12:20:00.000Z'))).toBe('busy');
+      // 500 + 1,000 + 501 > 2,000
+      expect(await store.tryReserve('u2', 501, at('2026-11-06T12:20:00.000Z'))).toBe('over_limit');
+      expect(await store.tryReserve('u2', 500, at('2026-11-06T12:05:00.000Z'))).toBe('ok');
+      // u1을 지우면 다시 된다. 없는 키를 지워도 괜찮다
+      await store.release('u1');
       await store.release('없는키');
-      expect(await store.reservedNeurons('2026-11-06T12:00:00.000Z')).toBeCloseTo(600);
+      expect(await store.tryReserve('u1', 1_000, at('2026-11-06T12:20:00.000Z'))).toBe('ok');
+    });
+
+    it('tryReserve: 만료된 예약은 합계에서 빠지고, 같은 키도 다시 예약된다', async () => {
+      const store = await create([]);
+      const opts = (now: string) => ({ now, fromHour: '2026-11-05T12', limit: 1_500, expiresAt: '2026-11-06T13:00:00.000Z' });
+      expect(await store.tryReserve('u1', 1_000, { ...opts('2026-11-06T12:00:00.000Z'), expiresAt: '2026-11-06T12:20:00.000Z' })).toBe('ok');
+      expect(await store.tryReserve('u2', 1_000, opts('2026-11-06T12:10:00.000Z'))).toBe('over_limit');
+      expect(await store.tryReserve('u2', 1_000, opts('2026-11-06T12:20:00.000Z'))).toBe('ok');
+      expect(await store.tryReserve('u1', 400, opts('2026-11-06T12:20:00.000Z'))).toBe('ok');
+      expect(await store.tryReserve('u3', 101, opts('2026-11-06T12:20:00.000Z'))).toBe('over_limit');
     });
 
     it('메시지 수와 Neuron은 서로 영향을 주지 않는다', async () => {

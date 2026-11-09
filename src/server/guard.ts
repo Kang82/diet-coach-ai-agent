@@ -1,5 +1,6 @@
 // 스펙 11.4 한도 보호 미들웨어. app.ts에서 에이전트 라우터 앞에 둔다.
-// 순서: 토큰 → 대화 소유 → (새 메시지만) 전체 안전선 → (비싼 종류면) 예약 포함 안전선 → 종류별 하루 횟수 → 사용자 하루 횟수 → 예약.
+// 순서: 토큰 → 대화 소유 → (새 메시지만) 본문 검사(접두어 없는 메시지 거절, T19-6) → 전체 안전선
+// → (비싼 종류면) 예약(사용자당 하나, 검사와 예약을 한 번에, T19-7) → 종류별 하루 횟수 → 사용자 하루 횟수. 횟수에서 막히면 예약을 지운다.
 // 횟수와 안전선은 새 메시지 POST에만 건다. SDK는 대화 읽기(GET 스트림)가 429를 받으면 끝없이 다시 시도하고,
 // send(POST)는 다시 시도하지 않기 때문이다. 읽기와 abort는 진행 중인 요청이라 막지 않는다.
 import type { Context, MiddlewareHandler } from 'hono';
@@ -50,36 +51,45 @@ export function guardAgentRoutes(mount: string, options: GuardOptions): Middlewa
       if (raw === undefined || checkMessageBody(raw) !== 'ok') {
         return c.json(errorBody('message_rejected'), raw === undefined ? 413 : 400);
       }
+      // 화면은 모든 메시지를 접두어로 보낸다. 접두어 없는 메시지(chat)는 도구가 없어 쓸모가 없고, 32KB 문장을 쌓거나 길게 출력시켜
+      // 한도를 쓰는 통로였다 (2차 보안 리뷰 T19-6)
+      const kind = messageKindOfRaw(raw);
+      if (kind === 'chat') return c.json(errorBody('message_rejected'), 400);
       const at = now();
       const day = utcDay(at);
       // 전체 안전선은 최근 24시간 합계, 사용자 횟수는 날짜(UTC) 기준 (tasks.md T7-5)
       const used = await store.neuronsSince(neuronWindowStart(at));
       if (used >= GLOBAL_DAILY_NEURON_LIMIT) return c.json(errorBody('global_daily_limit'), 429);
 
-      // 비싼 메시지(분류·만들기·칸 수정): 진행 중 예약까지 더해 보고, 종류별 하루 횟수를 센다 (T10-3, T10-4).
-      // 종류 횟수를 30회보다 먼저 센다. 종류에서 막히면 30회를 쓰지 않는다
-      const kind = messageKindOfRaw(raw);
+      // 비싼 메시지(분류·만들기·칸 수정): 최악의 양을 사용자 ID로 예약한다(T10-4). 검사(합계 + 진행 중 예약 + 이번 양)와 예약이
+      // 한 번에 되어 동시 요청이 함께 통과하지 않고, 사용자당 하나씩만 돈다(같은 대화 연속 요청의 덮어쓰기·조기 해제도 없다) (T19-7).
+      // 그다음 종류별 하루 횟수를 30회보다 먼저 센다. 종류에서 막히면 30회를 쓰지 않는다 (T10-3)
       const conversation = safeDecode(conversationId);
       if (isExpensiveKind(kind)) {
-        const reserved = await store.reservedNeurons(at.toISOString(), conversation);
-        if (used + reserved + RESERVE_NEURONS[kind] > GLOBAL_DAILY_NEURON_LIMIT) {
-          return c.json(errorBody('global_daily_limit'), 429);
-        }
+        const reserved = await store.tryReserve(userId, RESERVE_NEURONS[kind], {
+          now: at.toISOString(),
+          fromHour: neuronWindowStart(at),
+          limit: GLOBAL_DAILY_NEURON_LIMIT,
+          expiresAt: new Date(at.getTime() + RESERVATION_TTL_MS).toISOString(),
+        });
+        if (reserved === 'busy') return c.json(errorBody('busy'), 429);
+        if (reserved === 'over_limit') return c.json(errorBody('global_daily_limit'), 429);
         if (!(await store.tryCountKind(userId, kind, day, USER_DAILY_KIND_LIMITS[kind]))) {
+          await store.release(userId);
           return c.json(errorBody('user_kind_limit', kind), 429);
         }
       }
       if (!(await store.tryCountMessage(userId, day, USER_DAILY_MESSAGE_LIMIT))) {
+        if (isExpensiveKind(kind)) await store.release(userId);
         return c.json(errorBody('user_daily_limit'), 429);
       }
       // 메시지가 가는 대화를 기록한다. "내 기록 모두 지우기"가 이 목록으로 대화(DO)를 지운다 (T15). DO 이름은 나열할 수 없다
       await store.recordConversation(userId, conversation, at.toISOString());
       if (isExpensiveKind(kind)) {
         // 도구가 끝나면 에이전트가 지운다(agents/usage-meter.ts). 못 지워도 만료로 풀린다
-        await store.reserve(conversation, RESERVE_NEURONS[kind], new Date(at.getTime() + RESERVATION_TTL_MS).toISOString());
         await next();
         // 에이전트가 받지 않았으면(202가 아님) 도구가 돌지 않으니 예약을 지운다
-        if (c.res.status !== 202) await store.release(conversation);
+        if (c.res.status !== 202) await store.release(userId);
         return;
       }
     }

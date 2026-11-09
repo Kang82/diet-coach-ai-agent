@@ -15,10 +15,12 @@ export interface GuardStore {
   addNeurons(hour: string, neurons: number): Promise<void>;
   /** 그날 그 종류(분류·만들기·칸 수정) 횟수를 하나 늘린다. 이미 limit이면 false (T10-3) */
   tryCountKind(userId: string, kind: ExpensiveKind, day: string, limit: number): Promise<boolean>;
-  /** 진행 중 예약을 둔다. 같은 key면 덮어쓴다 (T10-4) */
-  reserve(key: string, neurons: number, expiresAt: string): Promise<void>;
-  /** now(ISO)보다 늦게 만료되는 예약의 합계. exceptKey의 예약은 뺀다(같은 대화가 예약을 덮어쓸 때) */
-  reservedNeurons(now: string, exceptKey?: string): Promise<number>;
+  /**
+   * 진행 중 예약 (T10-4, T19-7). 검사와 예약을 한 번에 한다(동시 요청이 함께 통과하지 않게).
+   * 같은 key에 만료 전 예약이 있으면 busy, 최근 합계(fromHour 칸부터) + 만료 전 예약 + neurons가 limit을 넘으면 over_limit.
+   * key는 사용자 ID라 사용자당 비싼 요청은 하나씩만 돈다
+   */
+  tryReserve(key: string, neurons: number, options: ReserveOptions): Promise<ReserveResult>;
   /** 예약을 지운다. 없으면 아무 일도 없다 */
   release(key: string): Promise<void>;
   /** 메시지가 간 대화를 기록한다. 이미 있으면 그대로 (T15 대화 기록 지우기) */
@@ -38,6 +40,18 @@ export interface PlanConversation {
   weekStart: string;
   planAt: string;
 }
+
+export interface ReserveOptions {
+  /** 지금 시각(ISO). 이보다 늦게 만료되는 예약만 진행 중으로 본다 */
+  now: string;
+  /** 안전선 창의 첫 시간 칸(UTC 'YYYY-MM-DDTHH') */
+  fromHour: string;
+  limit: number;
+  /** 이번 예약의 만료 시각(ISO) */
+  expiresAt: string;
+}
+
+export type ReserveResult = 'ok' | 'busy' | 'over_limit';
 
 /** 지난 식단표 목록에 보일 최대 개수 */
 export const PLAN_CONVERSATIONS_LIMIT = 20;
@@ -75,14 +89,14 @@ export class MemoryGuardStore implements GuardStore {
     return true;
   }
 
-  async reserve(key: string, neurons: number, expiresAt: string): Promise<void> {
+  async tryReserve(key: string, neurons: number, { now, fromHour, limit, expiresAt }: ReserveOptions): Promise<ReserveResult> {
+    const mine = this.reservations.get(key);
+    if (mine && mine.expiresAt > now) return 'busy';
+    let reserved = 0;
+    for (const r of this.reservations.values()) if (r.expiresAt > now) reserved += r.neurons;
+    if ((await this.neuronsSince(fromHour)) + reserved + neurons > limit) return 'over_limit';
     this.reservations.set(key, { neurons, expiresAt });
-  }
-
-  async reservedNeurons(now: string, exceptKey?: string): Promise<number> {
-    let sum = 0;
-    for (const [key, r] of this.reservations) if (r.expiresAt > now && key !== exceptKey) sum += r.neurons;
-    return sum;
+    return 'ok';
   }
 
   async release(key: string): Promise<void> {
@@ -188,23 +202,29 @@ export class D1GuardStore implements GuardStore {
       .run();
   }
 
-  async reserve(key: string, neurons: number, expiresAt: string): Promise<void> {
-    await this.db
-      .prepare(
-        `INSERT INTO usage_reservations (key, neurons, expires_at) VALUES (?1, ?2, ?3)
-         ON CONFLICT (key) DO UPDATE SET neurons = excluded.neurons, expires_at = excluded.expires_at`,
-      )
-      .bind(key, neurons, expiresAt)
-      .run();
-  }
-
-  async reservedNeurons(now: string, exceptKey?: string): Promise<number> {
-    // 빈 문자열 키는 쓰지 않는다(대화 ID는 비지 않음)
+  async tryReserve(key: string, neurons: number, { now, fromHour, limit, expiresAt }: ReserveOptions): Promise<ReserveResult> {
+    // 한 문장으로 확인과 예약을 한다(D1은 문장 하나를 원자적으로 처리한다). 같은 key의 예약은 만료됐을 때만 덮어쓴다.
+    // 같은 key의 만료 전 예약은 합계에서 빼도 된다: 있으면 덮어쓰지 않아 어차피 실패한다(busy)
     const row = await this.db
-      .prepare('SELECT COALESCE(SUM(neurons), 0) AS neurons FROM usage_reservations WHERE expires_at > ?1 AND key != ?2')
-      .bind(now, exceptKey ?? '')
-      .first<{ neurons: number }>();
-    return row?.neurons ?? 0;
+      .prepare(
+        `INSERT INTO usage_reservations (key, neurons, expires_at)
+         SELECT ?1, ?2, ?3
+         WHERE (SELECT COALESCE(SUM(neurons), 0) FROM usage_hourly WHERE hour >= ?5)
+             + (SELECT COALESCE(SUM(neurons), 0) FROM usage_reservations WHERE expires_at > ?4 AND key != ?1)
+             + ?2 <= ?6
+         ON CONFLICT (key) DO UPDATE SET neurons = excluded.neurons, expires_at = excluded.expires_at
+           WHERE usage_reservations.expires_at <= ?4
+         RETURNING key`,
+      )
+      .bind(key, neurons, expiresAt, now, fromHour, limit)
+      .first<{ key: string }>();
+    if (row !== null) return 'ok';
+    // 실패 이유만 가린다(판정은 위 문장이 했다)
+    const active = await this.db
+      .prepare('SELECT 1 AS active FROM usage_reservations WHERE key = ?1 AND expires_at > ?2')
+      .bind(key, now)
+      .first<{ active: number }>();
+    return active !== null ? 'busy' : 'over_limit';
   }
 
   async release(key: string): Promise<void> {
