@@ -9,6 +9,8 @@ import {
   classesForPlan,
   classificationTargets,
   normalizeClassifications,
+  AVOID_TAG_REASON_PREFIX,
+  AVOID_TAG_REASON_SUFFIX,
   USER_CHOSEN_REASON,
 } from './menu-classification.ts';
 import { FINISH_ONLY } from './plan-prompt.ts';
@@ -90,6 +92,40 @@ describe('normalizeClassifications', () => {
     ]);
   });
 
+  it('태그는 선언 순서로 중복 없이, 태그가 없는 예전 분류는 그대로 없음 (T13-4)', () => {
+    const raw: MenuClassification[] = [
+      { menu: '국밥', class: 'often', reason: '국물', criterionIds: [], orderTips: [], tags: ['refined_carb_main', 'pork', 'meat', 'pork'] },
+      { menu: '백반', class: 'often', reason: '반찬', criterionIds: [], orderTips: [] },
+    ];
+    const out = normalizeClassifications(['국밥', '백반'], raw, rulesA);
+    expect(out[0]!.tags).toEqual(['meat', 'pork', 'refined_carb_main']);
+    expect(out[1]).not.toHaveProperty('tags');
+  });
+
+  it('태그가 피할 음식에 걸리면 피하기로 바꾸고 이유를 적는다. meat는 돼지고기도 포함 (T13-4)', () => {
+    const raw: MenuClassification[] = [
+      { menu: '김밥', class: 'often', reason: '채소', criterionIds: [], orderTips: ['밥 양 줄이기'], tags: ['egg', 'fish'] },
+      { menu: '국밥', class: 'weekly_max_1', reason: '국물', criterionIds: [], orderTips: [], tags: ['pork'] },
+      { menu: '돈가스', class: 'avoid', reason: '튀김', criterionIds: [], orderTips: [], tags: ['pork', 'fried'] },
+      { menu: '샐러드', class: 'often', reason: '채소', criterionIds: [], orderTips: [], tags: [] },
+    ];
+    const out = normalizeClassifications(['김밥', '국밥', '돈가스', '샐러드'], raw, rulesA, ['fish', 'meat']);
+    expect(out.map((c) => [c.menu, c.class, c.reason])).toEqual([
+      ['김밥', 'avoid', `${AVOID_TAG_REASON_PREFIX}생선${AVOID_TAG_REASON_SUFFIX}`],
+      ['국밥', 'avoid', `${AVOID_TAG_REASON_PREFIX}돼지고기${AVOID_TAG_REASON_SUFFIX}`],
+      ['돈가스', 'avoid', '튀김'],
+      ['샐러드', 'often', '채소'],
+    ]);
+    expect(out[0]!.orderTips).toEqual(['밥 양 줄이기']);
+  });
+
+  it('사용자가 직접 정한 분류는 피할 음식 태그가 있어도 바꾸지 않는다 (T13-4)', () => {
+    const raw: MenuClassification[] = [
+      { menu: '김밥', class: 'often', reason: USER_CHOSEN_REASON, criterionIds: [], orderTips: [], tags: ['fish'] },
+    ];
+    expect(normalizeClassifications(['김밥'], raw, rulesA, ['fish'])[0]).toMatchObject({ class: 'often', reason: USER_CHOSEN_REASON });
+  });
+
   it('1:1이 아니면 에러', () => {
     expect(() => normalizeClassifications(['국밥', '백반'], [classesA[3]!], rulesA)).toThrow(/백반/);
   });
@@ -128,6 +164,10 @@ describe('buildClassifyPrompt', () => {
     expect(prompt).not.toContain('reduce_refined_carbs');
     // B14: 도구 안 프롬프트는 에이전트 지시·도구를 물려받으므로 finish만 부르라고 맨 앞에 적는다
     expect(prompt.split('\n')[0]).toBe(FINISH_ONLY);
+  });
+
+  it('태그는 묻지 않는다 (B23에서 되돌림: 메뉴가 많으면 시간 제한·Neuron 초과)', () => {
+    expect(buildClassifyPrompt({ menus: ['국밥'], rules: rulesA, avoid: [] })).not.toContain('tags:');
   });
 
   it('피할 음식이 없으면 그 줄을 뺀다', () => {

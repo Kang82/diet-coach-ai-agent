@@ -2,8 +2,20 @@
 // 메뉴 분류 요청에는 기간 선택 화면의 일정을 싣는다 (B6). classify_menus가 검증해 기간과 함께 저장한다.
 // 화면이 이 형식으로 보내면 classify_menus, create_week_plan 도구가 useDelivery()로 직접 읽는다.
 // 사용자가 바꾼 분류는 모델이 옮겨 적지 않고 메시지 JSON으로 도구에 넘어간다 (edit-request.ts와 같은 방식).
-import { classesForPlan, type MenuClassOverride } from './menu-classification.ts';
-import { CRITERION_IDS, DAYS, MEAL_TYPES, MENU_CLASSES, type CriterionId, type MealSetting, type MenuClassification, type PlanEvent } from './types.ts';
+import { classesForPlan, sortTags, type MenuClassOverride } from './menu-classification.ts';
+import {
+  AVOID_TAGS,
+  CRITERION_IDS,
+  DAYS,
+  MEAL_TYPES,
+  MENU_CLASSES,
+  NUTRITION_TAGS,
+  type CriterionId,
+  type MealSetting,
+  type MenuClassification,
+  type PlanEvent,
+  type Tag,
+} from './types.ts';
 
 export const CLASSIFY_REQUEST = '메뉴 분류 요청';
 export const PLAN_REQUEST_PREFIX = '식단표 만들기:';
@@ -24,7 +36,9 @@ export interface ClassifyRequest {
 }
 
 /** 이월 분류 제한 (본문 32KB 안) */
-export const KNOWN_LIMITS = { count: 100, menu: 100, reason: 300, tips: 5, tip: 100 } as const;
+export const KNOWN_LIMITS = { count: 100, menu: 100, reason: 300, tips: 5, tip: 100, tags: 20 } as const;
+
+const TAG_ORDER_SET = new Set<Tag>([...AVOID_TAGS, ...NUTRITION_TAGS]);
 
 /** 일정 메모 길이가 이보다 길면 형식 오류로 본다. 화면 제한(EVENT_NOTE_MAX)보다 넉넉하게 둔다 */
 const RAW_NOTE_MAX = 200;
@@ -39,7 +53,16 @@ export function formatClassifyRequest({ events, known }: ClassifyRequest): strin
   const body = {
     events: events.map(({ day, meal, note }) => ({ day, meal, note })),
     ...(known && known.length > 0
-      ? { known: known.map(({ menu, class: c, reason, criterionIds, orderTips }) => ({ menu, class: c, reason, criterionIds, orderTips })) }
+      ? {
+          known: known.map(({ menu, class: c, reason, criterionIds, orderTips, tags }) => ({
+            menu,
+            class: c,
+            reason,
+            criterionIds,
+            orderTips,
+            ...(tags ? { tags } : {}),
+          })),
+        }
       : {}),
   };
   return `${CLASSIFY_REQUEST}:\n${JSON.stringify(body)}`;
@@ -76,19 +99,22 @@ function parseKnown(value: unknown): MenuClassification[] | undefined {
   if (!Array.isArray(value) || value.length > KNOWN_LIMITS.count) return undefined;
   const known: MenuClassification[] = [];
   for (const k of value) {
-    const { menu, class: c, reason, criterionIds, orderTips } = (k ?? {}) as Record<string, unknown>;
+    const { menu, class: c, reason, criterionIds, orderTips, tags } = (k ?? {}) as Record<string, unknown>;
     if (typeof menu !== 'string' || menu.trim() === '' || menu.length > KNOWN_LIMITS.menu) return undefined;
     if (!MENU_CLASSES.includes(c as never)) return undefined;
     if (typeof reason !== 'string' || reason.length > KNOWN_LIMITS.reason) return undefined;
     if (!Array.isArray(criterionIds) || !criterionIds.every((id) => typeof id === 'string')) return undefined;
     if (!Array.isArray(orderTips) || orderTips.length > KNOWN_LIMITS.tips) return undefined;
     if (!orderTips.every((t) => typeof t === 'string' && t.length <= KNOWN_LIMITS.tip)) return undefined;
+    // T13-4: 태그는 없어도 된다(이 필드 전 분류). 있으면 배열, 모르는 값은 버린다
+    if (tags !== undefined && (!Array.isArray(tags) || tags.length > KNOWN_LIMITS.tags)) return undefined;
     known.push({
       menu,
       class: c as MenuClassification['class'],
       reason,
       criterionIds: (criterionIds as string[]).filter((id): id is CriterionId => (CRITERION_IDS as readonly string[]).includes(id)),
       orderTips: orderTips as string[],
+      ...(tags === undefined ? {} : { tags: sortTags((tags as unknown[]).filter((t): t is Tag => TAG_ORDER_SET.has(t as Tag))) }),
     });
   }
   return known;

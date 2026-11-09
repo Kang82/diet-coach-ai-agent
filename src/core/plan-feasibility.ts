@@ -6,10 +6,12 @@
 //
 // 외식 칸만 메뉴가 정해져 있다. 집밥 칸은 메뉴가 자유라 항상 앞뒤와 다른 메뉴를 고를 수 있다고 본다.
 // 판정은 checkPlan과 같다: 메뉴 비교는 menuKey(공백 제거), 분류는 메뉴 이름 그대로, 분류에 없는 메뉴는 자주(often).
+// 분류에 태그가 있으면 목표의 1주일 태그 횟수 제한(tag_weekly_limit)도 외식 칸에 적용한다 (T13-4, 외식 칸 태그는 분류 태그로 채워진다)
+import { buildCriteria } from './criteria.ts';
 import { MENU_WEEKLY_MAX, requiredSlots } from './plan-slots.ts';
 import { dayType, MEAL_KEYS, menuKey, sameMealKey, slotOrder } from './helpers.ts';
 import { DAY_TYPE_LABELS, MEAL_LABELS } from './labels.ts';
-import { DAYS, type MealKey, type MenuClass, type MenuClassification, type Profile, type Slot } from './types.ts';
+import { DAYS, type MealKey, type MenuClass, type MenuClassification, type NutritionTag, type Profile, type Slot } from './types.ts';
 
 export type Feasibility = { feasible: true; menuWeeklyMax: number } | { feasible: false; shortMeals: MealKey[] };
 
@@ -57,7 +59,8 @@ export const SEARCH_NODE_LIMIT = 200_000;
  * 2차 코드 리뷰(T19-1): 시간순 백트래킹은 뒤쪽(주말) 끼니가 불가능하면 앞쪽 평일 메뉴 조합을 다 돌아 지수 시간이 걸렸다
  * (평일 세 끼 메뉴 4개씩이면 60초 이상). 그래서 후보가 가장 적은 외식 칸부터 놓고(MRV), 놓을 때마다 이웃 칸
  * (시간순 바로 앞뒤, 같은 끼니 전날·다음날)과 횟수를 다 쓴 메뉴를 다른 칸 후보에서 미리 지워 막다른 길을 바로 되돌린다.
- * 집밥 칸은 메뉴가 자유라 제약이 없어 탐색에서 뺀다
+ * 집밥 칸은 메뉴가 자유라 제약이 없어 탐색에서 뺀다.
+ * 태그 횟수 제한(T13-4)도 같은 방식이다: 한도에 닿은 태그가 붙은 메뉴를 모든 칸 후보에서 지운다. 한도 0이면 처음부터 뺀다
  */
 export function findEatOutAssignment(
   profile: Profile,
@@ -89,6 +92,20 @@ export function findEatOutAssignment(
     }
   }
 
+  // 메뉴 키별 제한 태그(목표에 횟수 제한이 있는 태그 중 분류 태그에 있는 것). 같은 키의 이름들 태그를 합친다
+  const tagLimits = profile.goals.length > 0 ? buildCriteria(profile.goals).tagLimits : {};
+  const tagsOfMenu = new Map(classes.map((c) => [c.menu, c.tags ?? []]));
+  const limitedTagsOf = new Map<string, NutritionTag[]>();
+  for (const list of candidatesOf) {
+    for (const menu of list ?? []) {
+      const key = menuKey(menu);
+      const tags = new Set(limitedTagsOf.get(key) ?? []);
+      for (const t of tagsOfMenu.get(menu) ?? []) if (tagLimits[t as NutritionTag] !== undefined) tags.add(t as NutritionTag);
+      limitedTagsOf.set(key, [...tags]);
+    }
+  }
+  const tagUsed = new Map<NutritionTag, number>();
+
   // 외식 칸만 변수다. 칸마다 남은 후보(메뉴 키)와 키 → 그 끼니 목록의 메뉴 이름
   const eatOut = slots.flatMap((_, i) => (candidatesOf[i] === undefined ? [] : [i]));
   const menuOf = new Map<number, Map<string, string>>();
@@ -96,7 +113,8 @@ export function findEatOutAssignment(
   for (const i of eatOut) {
     const names = new Map(candidatesOf[i]!.map((menu) => [menuKey(menu), menu]));
     menuOf.set(i, names);
-    domain.set(i, new Set(names.keys()));
+    // 한도 0인 태그가 붙은 메뉴는 처음부터 후보가 아니다
+    domain.set(i, new Set([...names.keys()].filter((key) => (limitedTagsOf.get(key) ?? []).every((t) => tagLimits[t]! > 0))));
   }
   // 이웃: 시간순 바로 앞뒤 칸(consecutive_menu), 같은 끼니 전날·다음날 칸(same_meal_consecutive_days). 둘 다 외식일 때만 제약
   const indexAt = new Map(slots.map((slot, i) => [slotOrder(slot), i]));
@@ -136,21 +154,32 @@ export function findEatOutAssignment(
       const count = (used.get(key) ?? 0) + 1;
       used.set(key, count);
       chosen.set(next, key);
-      // 앞질러 점검: 이웃 칸과(횟수를 다 썼으면) 모든 칸의 후보에서 이 메뉴를 지운다. 후보가 바닥난 칸이 있으면 막다른 길
-      const removed: number[] = [];
-      const exhausted = count >= (limitOf.get(key) ?? weeklyMax);
+      const keyTags = limitedTagsOf.get(key) ?? [];
+      for (const t of keyTags) tagUsed.set(t, (tagUsed.get(t) ?? 0) + 1);
+      // 앞질러 점검: 이웃 칸과(횟수를 다 썼으면) 모든 칸의 후보에서 이 메뉴를 지운다.
+      // 태그 한도에 닿았으면 그 태그가 붙은 메뉴도 모든 칸 후보에서 지운다. 후보가 바닥난 칸이 있으면 막다른 길
+      const removed: [number, string][] = [];
       let deadEnd = false;
-      for (const j of exhausted ? eatOut : neighbors.get(next)!) {
-        if (chosen.has(j)) continue;
+      const drop = (j: number, k: string) => {
+        if (chosen.has(j)) return;
         const options = domain.get(j)!;
-        if (!options.delete(key)) continue;
-        removed.push(j);
+        if (!options.delete(k)) return;
+        removed.push([j, k]);
         if (options.size === 0) deadEnd = true;
+      };
+      const exhausted = count >= (limitOf.get(key) ?? weeklyMax);
+      for (const j of exhausted ? eatOut : neighbors.get(next)!) drop(j, key);
+      const fullTags = keyTags.filter((t) => tagUsed.get(t)! >= tagLimits[t]!);
+      if (fullTags.length > 0) {
+        for (const [k, tags] of limitedTagsOf) {
+          if (tags.some((t) => fullTags.includes(t))) for (const j of eatOut) drop(j, k);
+        }
       }
       if (!deadEnd && search()) return true;
-      for (const j of removed) domain.get(j)!.add(key);
+      for (const [j, k] of removed) domain.get(j)!.add(k);
       chosen.delete(next);
       used.set(key, count - 1);
+      for (const t of keyTags) tagUsed.set(t, tagUsed.get(t)! - 1);
       if (gaveUp) return false;
     }
     return false;

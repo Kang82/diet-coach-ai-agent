@@ -132,3 +132,39 @@ describe('finishCells: 외식 칸 이유는 메뉴 분류 이유', () => {
     expect(checkPlan(plan, profileA, classesA, rulesA).violations.filter((v) => v.rule === 'reason_criterion')).toEqual([]);
   });
 });
+
+describe('finishCells: 외식 칸 태그는 메뉴 분류 태그 (T13-4)', () => {
+  const tagged = (menu: string, tags: MenuClassification['tags'], patch: Partial<MenuClassification> = {}) =>
+    classesA.map((c) => (c.menu === menu ? { ...c, tags, ...patch } : c));
+
+  it('분류에 태그가 있으면 외식 칸 태그를 그 값으로 바꾼다. 빈 배열도 "태그 없음"으로 쓴다', () => {
+    const cell = { ...cellOf('mon', 'lunch'), tags: ['wheat' as const] }; // 회덮밥
+    expect(finishOne(cell, tagged('회덮밥', ['fish', 'egg'])).tags).toEqual(['fish', 'egg']);
+    expect(finishOne(cell, tagged('회덮밥', [])).tags).toEqual([]);
+  });
+
+  it('분류에 태그가 없거나 분류에 없는 메뉴, 집밥 칸은 모델 태그 그대로', () => {
+    const cell = { ...cellOf('mon', 'lunch'), tags: ['wheat' as const] };
+    expect(finishOne(cell).tags).toEqual(['wheat']);
+    expect(finishOne({ ...cell, menuId: '김밥' }, tagged('김밥', ['fish'])).tags).toEqual(['wheat']);
+    const home = { ...cellOf('tue', 'dinner'), tags: ['soy' as const] };
+    expect(finishOne(home, tagged('회덮밥', ['fish'])).tags).toEqual(['soy']);
+  });
+
+  it('사용자가 직접 정한 분류면 피할 음식 태그를 뺀다(그 재료 없이 주문). 다른 태그는 남긴다', () => {
+    // 페르소나 A는 유제품을 피한다
+    const classes = tagged('회덮밥', ['dairy', 'fish', 'refined_carb_main'], { reason: USER_CHOSEN_REASON });
+    expect(finishOne(cellOf('mon', 'lunch'), classes).tags).toEqual(['fish', 'refined_carb_main']);
+    const byModel = tagged('회덮밥', ['dairy', 'fish']);
+    expect(finishOne(cellOf('mon', 'lunch'), byModel).tags).toEqual(['dairy', 'fish']);
+  });
+
+  it('바꾼 태그로 checkPlan이 횟수를 센다', () => {
+    const plan = structuredClone(planA);
+    const classes = tagged('회덮밥', ['fish', 'fried']);
+    plan.cells = finishCells(plan.cells, profileA, classes);
+    const fried = plan.cells.filter((c) => c.tags.includes('fried')).length;
+    expect(fried).toBeGreaterThan(0);
+    expect(checkPlan(plan, profileA, classes, rulesA).stats.limitedTagCounts.fried).toBe(fried);
+  });
+});

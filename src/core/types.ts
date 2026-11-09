@@ -90,6 +90,11 @@ export interface MenuClassification {
   reason: string;
   criterionIds: CriterionId[];
   orderTips: string[];
+  /**
+   * 이 메뉴에 보통 들어가는 재료·음식 종류 태그 (T13-4). 외식 칸 태그는 코드가 이 값으로 채운다(plan-cells.ts).
+   * 없으면(이 필드 전에 만든 분류) 외식 칸은 모델이 붙인 태그를 쓴다. []는 "태그 없음"으로 정한 값
+   */
+  tags?: Tag[];
 }
 
 // 1.4 식단표

@@ -9,6 +9,7 @@ import { classStepWarning } from '../core/plan-feasibility.ts';
 import { MENU_CLASSES, type MenuClass, type MenuClassification, type Profile, type Slot } from '../core/types.ts';
 import { draftKey } from './browser-store.ts';
 import { classGroupsView } from './class-groups.ts';
+import { avoidTagNote, tagLine } from './class-tags.ts';
 
 const MENU_CLASS_HINTS: Record<MenuClass, string> = {
   often: '여러 번 넣어요',
@@ -78,6 +79,8 @@ export function MenuClassView({
           </div>
           <div className="class-detail">
             <p>{changed ? `처음 분류: ${MENU_CLASS_LABELS[c.class]}. ${c.reason}` : c.reason}</p>
+            {tagLine(c) && <p className="class-tags">{tagLine(c)}</p>}
+            {avoidTagNote(c, value) && <p className="tip">{avoidTagNote(c, value)}</p>}
             {c.criterionIds.length > 0 && (
               <p className="class-criteria">근거: {c.criterionIds.map((id) => CRITERION_LABELS[id]).join(', ')}</p>
             )}

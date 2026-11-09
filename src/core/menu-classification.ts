@@ -1,13 +1,18 @@
 // 스펙 1.3, 4.2 외식 메뉴 분류 (tasks.md B5). LLM 호출 앞뒤의 코드 부분.
 // - 분류 대상 목록을 정하고, LLM 출력이 대상과 1:1인지 확인한다 (메뉴 비교는 정확히 일치, CLAUDE.md)
 // - 사용자가 화면에서 바꾼 분류를 반영한다 ("사용자가 분류를 고치면 그 값을 그대로 쓴다")
-import { mealKeyOrder } from './helpers.ts';
+import { expandAvoid, mealKeyOrder } from './helpers.ts';
 import { AVOID_TAG_LABELS, CRITERION_LABELS } from './labels.ts';
+import { sortTags, USER_CHOSEN_REASON } from './menu-tags.ts';
 import { FINISH_ONLY } from './plan-prompt.ts';
 import type { AvoidTag, CriteriaRules, MealSetting, MenuClass, MenuClassification } from './types.ts';
 
-/** 사용자가 분류를 바꾼 메뉴의 이유. LLM이 쓴 이유는 바뀐 분류와 어긋날 수 있어 바꾼다 */
-export const USER_CHOSEN_REASON = '직접 정한 분류';
+export { cellTagsOf, sortTags, USER_CHOSEN_REASON } from './menu-tags.ts';
+
+/** 태그가 피할 음식에 걸려 코드가 피하기로 바꾼 메뉴의 이유: 앞 + 재료 이름들 + 뒤 (T13-4) */
+export const AVOID_TAG_REASON_PREFIX = '피할 음식(';
+export const AVOID_TAG_REASON_SUFFIX = ')이 들어갈 수 있어요.';
+
 
 export interface ClassificationIssue {
   code: 'missing' | 'extra' | 'duplicate';
@@ -73,23 +78,36 @@ export function describeIssues(issues: readonly ClassificationIssue[]): string {
 /**
  * LLM 출력 정리: 1:1이 아니면 에러, 대상 순서로 정렬, 이번 기준에 없는 criterionIds는 지운다
  * (다시 요청하지 않는다. Neuron을 아끼려는 것이다), 문자열은 앞뒤 공백을 지운다.
+ * 태그는 선언 순서로 정리하고, 피할 음식(avoid, meat는 고기 종류 포함)에 걸리면 피하기로 바꾼다 (T13-4).
+ * 외식 칸 태그가 분류 태그로 정해지므로, 걸린 채 두면 고를 때마다 avoid_tag가 된다.
+ * 사용자가 직접 정한 분류("외식 메뉴 고치기"로 이월된 값)는 바꾸지 않는다. 그 재료 없이 주문한다고 본다(plan-cells.ts가 칸 태그에서 뺀다)
  */
 export function normalizeClassifications(
   targets: readonly string[],
   classes: readonly MenuClassification[],
   rules: CriteriaRules,
+  avoid: readonly AvoidTag[] = [],
 ): MenuClassification[] {
   const issues = checkClassification(targets, classes);
   if (issues.length > 0) throw new Error(`메뉴 분류가 대상 목록과 맞지 않습니다. ${describeIssues(issues)}`);
+  const avoidSet = expandAvoid(avoid);
   return targets.map((menu) => {
     const c = classes.find((x) => x.menu === menu)!;
-    return {
+    const out: MenuClassification = {
       menu,
       class: c.class,
       reason: c.reason.trim(),
       criterionIds: rules.criteria.filter((id) => c.criterionIds.includes(id)),
       orderTips: c.orderTips.map((t) => t.trim()).filter((t) => t !== ''),
     };
+    if (c.tags === undefined) return out;
+    out.tags = sortTags(c.tags);
+    const hit = avoidSet.filter((t) => out.tags!.includes(t));
+    if (hit.length > 0 && out.class !== 'avoid' && out.reason !== USER_CHOSEN_REASON) {
+      out.class = 'avoid';
+      out.reason = `${AVOID_TAG_REASON_PREFIX}${hit.map((t) => AVOID_TAG_LABELS[t]).join(', ')}${AVOID_TAG_REASON_SUFFIX}`;
+    }
+    return out;
   });
 }
 
@@ -136,6 +154,8 @@ export function buildClassifyPrompt({ menus, rules, avoid }: ClassifyInput): str
     'reason: 분류한 이유를 짧은 한국어 한 문장으로',
     'criterionIds: 근거가 된 식단 기준 ID (위 식단 기준 중에서)',
     'orderTips: 기준에 맞게 주문하는 방법 0~2개, 짧은 한국어로 (예: "국물 남기기", "소스 따로")',
+    // T13-4(B23)에서 tags도 받아 봤지만 메뉴 30개에서 gemma는 시간 제한을 넘기고 gpt-oss는 다시 묻기로 400~1,800 Neuron이 들어
+    // 되돌렸다(사용자 결정 2026-11-09, docs/experiments/2026-11-09-b23-class-tags.md). 분류에 tags가 있으면 쓰는 코드는 남아 있다
   );
   return lines.join('\n');
 }

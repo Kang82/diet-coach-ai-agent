@@ -703,7 +703,8 @@ button:disabled {
   line-height: 1.55;
 }
 
-.class-criteria {
+.class-criteria,
+.class-tags {
   color: var(--ink-soft);
   font-size: 0.8125rem;
 }

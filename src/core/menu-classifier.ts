@@ -38,7 +38,7 @@ export async function runClassification(
   const menus = targets.filter((menu) => !reused.some((c) => c.menu === menu));
   // 지금 기준에 없는 기준 ID와 빈 팁은 모델 결과와 같게 정리한다
   const merge = (fresh: readonly MenuClassification[]) =>
-    normalizeClassifications(targets, [...reused, ...fresh], rules);
+    normalizeClassifications(targets, [...reused, ...fresh], rules, profile.avoid);
   if (menus.length === 0) return { kind: 'ok', classes: merge([]), usages: [] };
   try {
     const res = await classifier.classify({ menus, rules, avoid: [...profile.avoid] });

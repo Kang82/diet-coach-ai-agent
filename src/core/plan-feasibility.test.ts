@@ -114,6 +114,42 @@ describe('planFeasibility', () => {
   });
 });
 
+describe('planFeasibility: 분류 태그의 1주일 횟수 제한 (T13-4)', () => {
+  const tagged = (menu: string, ...tags: NonNullable<MenuClassification['tags']>): MenuClassification => ({ ...often(menu), tags });
+  const withGoals = (profile: Profile, goals: Profile['goals']): Profile => ({ ...profile, goals });
+  const noodles = [tagged('라면', 'wheat', 'refined_carb_main'), tagged('우동', 'wheat', 'refined_carb_main'), tagged('파스타', 'wheat', 'refined_carb_main')];
+
+  it('혈당 목표(흰 면·빵 주 2번)에 평일 점심 메뉴가 모두 흰 면이면 불가능하고, 평일 점심이 모자란다', () => {
+    const profile = withGoals(lunchOnly(['라면', '우동', '파스타']), ['blood_glucose']);
+    expect(planFeasibility(profile, noodles, [])).toEqual({ feasible: false, shortMeals: [{ dayType: 'weekday', meal: 'lunch' }] });
+  });
+
+  it('제한 태그가 없는 메뉴가 하나 있으면 그 메뉴를 늘려 가능하다 (흰 면 2번 + 비빔밥 3번)', () => {
+    const profile = withGoals(lunchOnly(['라면', '우동', '파스타', '비빔밥']), ['blood_glucose']);
+    expect(planFeasibility(profile, [...noodles, tagged('비빔밥', 'egg')], [])).toEqual({ feasible: true, menuWeeklyMax: 3 });
+  });
+
+  it('제한이 없는 목표(콜레스테롤)면 같은 메뉴로 가능하다', () => {
+    const profile = withGoals(lunchOnly(['라면', '우동', '파스타']), ['cholesterol']);
+    expect(planFeasibility(profile, noodles, [])).toEqual({ feasible: true, menuWeeklyMax: 2 });
+  });
+
+  it('한도 0인 태그(혈당 목표의 단 음식) 메뉴는 고를 수 없다', () => {
+    const profile = withGoals(lunchOnly(['비빔밥', '김밥', '떡볶이']), ['blood_glucose']);
+    expect(planFeasibility(profile, [tagged('비빔밥'), tagged('김밥'), tagged('떡볶이', 'sugary')], [])).toEqual({ feasible: true, menuWeeklyMax: 3 });
+    expect(planFeasibility(profile, [tagged('비빔밥'), tagged('김밥'), tagged('떡볶이')], [])).toEqual({ feasible: true, menuWeeklyMax: 2 });
+  });
+
+  it('찾은 배치는 태그 한도를 지킨다', () => {
+    const profile = withGoals(lunchOnly(['라면', '우동', '파스타', '비빔밥']), ['blood_glucose']);
+    const classes = [...noodles, tagged('비빔밥', 'egg')];
+    const found = findEatOutAssignment(profile, classes, [], 3);
+    if (!Array.isArray(found)) throw new Error(String(found));
+    const tagsOf = new Map(classes.map((c) => [c.menu, c.tags ?? []]));
+    expect(found.filter(([, menu]) => menu && tagsOf.get(menu)!.includes('refined_carb_main')).length).toBeLessThanOrEqual(2);
+  });
+});
+
 describe('findEatOutAssignment', () => {
   /** 배치로 1주일 식단표를 만든다. 집밥 칸은 서로 다른 메뉴 */
   function planFrom(profile: Profile, classes: MenuClassification[], events: Slot[], k: number): Plan {

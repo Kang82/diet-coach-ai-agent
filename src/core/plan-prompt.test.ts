@@ -43,6 +43,26 @@ describe('buildGeneratePrompt', () => {
     expect(prompt).toContain('회덮밥 → 초장 절반');
   });
 
+  it('분류 태그가 있는 외식 메뉴는 태그를 알린다. 피하기 메뉴는 빼고, 직접 정한 분류는 피할 음식 태그를 뺀다 (T13-4)', () => {
+    const classes = classesA.map((c) =>
+      c.menu === '회덮밥'
+        ? { ...c, tags: ['fish' as const, 'egg' as const] }
+        : c.menu === '백반'
+          ? { ...c, tags: [] }
+          : c.menu === '쌀국수'
+            ? { ...c, reason: '직접 정한 분류', tags: ['dairy' as const, 'refined_carb_main' as const] }
+            : c,
+    );
+    const eatOutLine = buildGeneratePrompt(generateInput({ classes })).split('\n').find((l) => l.includes('외식 (place: eat_out)'))!;
+    // 페르소나 A는 유제품을 피한다. 국밥·돈가스는 태그가 없는 예전 분류라 알리지 않는다
+    expect(eatOutLine).toContain('태그(이 칸 tags에 그대로 들어감): 백반 [없음]; 쌀국수 [refined_carb_main]; 회덮밥 [fish, egg]');
+    expect(buildGeneratePrompt(generateInput())).not.toContain('태그(이 칸 tags에');
+  });
+
+  it('칸 작성 방법에 외식 칸 태그는 메뉴 태그가 들어가고 횟수 제한에 센다고 적는다 (T13-4)', () => {
+    expect(buildGeneratePrompt(generateInput())).toContain('외식 칸 tags는 메뉴 목록에 적힌 태그가 그대로 들어가고 1주일 횟수 제한에도 셉니다');
+  });
+
   it('피하기로 분류된 메뉴는 목록에 넣지 않는다', () => {
     const classes = structuredClone(classesA);
     classes.find((c) => c.menu === '쌀국수')!.class = 'avoid';

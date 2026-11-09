@@ -103,6 +103,15 @@ describe('분류 요청의 이전 분류(known)', () => {
     expect(formatClassifyRequest({ events: [], known: [] })).toBe(formatClassifyRequest({ events: [] }));
   });
 
+  it('태그도 함께 되읽는다. 모르는 태그는 버리고, 태그가 없는 예전 값은 없음 그대로 (T13-4)', () => {
+    const tagged = [{ ...known[0]!, tags: ['meat' as const, 'pork' as const] }];
+    expect(parseClassifyRequest(formatClassifyRequest({ events: [], known: tagged }))).toEqual({ events: [], known: tagged });
+    const body = `메뉴 분류 요청:
+${JSON.stringify({ events: [], known: [{ ...known[0], tags: ['pork', 'noodle'] }] })}`;
+    expect(parseClassifyRequest(body)?.known?.[0]?.tags).toEqual(['pork']);
+    expect(parseClassifyRequest(formatClassifyRequest({ events: [], known }))?.known?.[0]).not.toHaveProperty('tags');
+  });
+
   it('모르는 기준 ID는 버린다', () => {
     const body = `메뉴 분류 요청:\n${JSON.stringify({ events: [], known: [{ ...known[0], criterionIds: ['reduce_portion_calories', 'xyz'] }] })}`;
     expect(parseClassifyRequest(body)?.known?.[0]?.criterionIds).toEqual(['reduce_portion_calories']);
@@ -114,6 +123,8 @@ describe('분류 요청의 이전 분류(known)', () => {
     ['긴 이유', { reason: 'ㄱ'.repeat(301) }],
     ['팁 6개', { orderTips: ['a', 'b', 'c', 'd', 'e', 'f'] }],
     ['기준 ID가 문자열이 아님', { criterionIds: [1] }],
+    ['태그가 배열이 아님', { tags: 'pork' }],
+    ['태그 21개', { tags: Array.from({ length: 21 }, () => 'pork') }],
   ])('형식이 틀리면(%s) 요청 전체가 undefined', (_, patch) => {
     const body = `메뉴 분류 요청:\n${JSON.stringify({ events: [], known: [{ ...known[0], ...patch }] })}`;
     expect(parseClassifyRequest(body)).toBeUndefined();

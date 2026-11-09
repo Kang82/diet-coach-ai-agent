@@ -2,6 +2,7 @@
 // 규칙의 기준은 checkPlan(3.2)이다. 여기 적은 규칙은 LLM이 처음부터 지키도록 돕는 안내일 뿐이고,
 // 지켰는지는 checkPlan이 판정한다.
 import { MAIN_INGREDIENT_WEEKLY_MAX } from './check-plan.ts';
+import { cellTagsOf } from './menu-tags.ts';
 import { menuWeeklyMaxFor } from './plan-feasibility.ts';
 import { requiredSlots } from './plan-slots.ts';
 import { dayType, expandAvoid, menuKey, slotOrder } from './helpers.ts';
@@ -10,6 +11,7 @@ import type { GeneratePlanInput, RegenerateCellsInput } from './plan-generator.t
 import { AVOID_TAGS, NUTRITION_TAGS } from './types.ts';
 import { DAY_LABELS, MEAL_LABELS } from './labels.ts';
 import type {
+  AvoidTag,
   CriteriaRules,
   Day,
   DayType,
@@ -59,6 +61,15 @@ const slotLabel = (slot: Slot) => `${DAY_LABELS[slot.day]} ${MEAL_LABELS[slot.me
  * 그대로 물려받는다. gpt-oss-120b는 그 지시대로 finish 대신 바깥 도구를 불렀다. 결과는 finish로만 보내라고 맨 앞에 적는다
  */
 export const FINISH_ONLY = '이 요청에서는 다른 도구를 부르지 말고 결과를 finish 도구로만 보내세요.';
+
+/**
+ * 태그 붙이는 법. 식단 생성(집밥 칸)과 메뉴 분류(외식 메뉴, T13-4)가 같은 문장을 쓴다.
+ * refined_carb_main은 흰 식빵 샌드위치에 누락됐다(B14 기록, B17 T13-4). 정의는 스펙 2.2
+ */
+export const TAG_GUIDE = [
+  '  고기가 들어가면 meat와 함께 pork, beef, chicken 중 해당하는 것도 붙입니다.',
+  '  refined_carb_main은 흰 면(국수, 라면, 우동, 파스타, 쌀국수 등)이나 흰 빵(식빵, 샌드위치, 토스트, 버거 등)이 주식인 메뉴에 붙입니다. 흰쌀밥에는 붙이지 않습니다.',
+].join('\n');
 
 /** 1주일 식단표를 한 번에 만드는 프롬프트 (스펙 4.3) */
 export function buildGeneratePrompt(input: GeneratePlanInput): string {
@@ -123,7 +134,7 @@ function sectionSlots(
     if (days.length === 0 || setting.place === 'skip') continue;
     const head = `- ${DAY_TYPE_LABELS[setting.dayType]} ${MEAL_LABELS[setting.meal]} (${days.join(', ')}의 ${setting.meal})`;
     if (setting.place === 'eat_out') {
-      lines.push(`${head}: 외식 (place: eat_out). ${describeMenus(setting.menus ?? [], classes)}`);
+      lines.push(`${head}: 외식 (place: eat_out). ${describeMenus(setting.menus ?? [], classes, expandAvoid(profile.avoid))}`);
     } else {
       const limit = setting.cookMinutes === undefined ? '조리 시간 제한 없음' : `조리 ${setting.cookMinutes}분 이내`;
       lines.push(`${head}: 집밥 (place: home). ${limit}`);
@@ -137,7 +148,7 @@ function sectionSlots(
   return lines.join('\n');
 }
 
-function describeMenus(menus: readonly string[], classes: readonly MenuClassification[]): string {
+function describeMenus(menus: readonly string[], classes: readonly MenuClassification[], avoid: readonly AvoidTag[]): string {
   const classOf = new Map(classes.map((c) => [c.menu, c]));
   const often = menus.filter((m) => classOf.get(m)?.class !== 'weekly_max_1' && classOf.get(m)?.class !== 'avoid');
   const weekly = menus.filter((m) => classOf.get(m)?.class === 'weekly_max_1');
@@ -149,6 +160,13 @@ function describeMenus(menus: readonly string[], classes: readonly MenuClassific
   });
   // 예전 "메뉴(팁)" 모양은 메뉴 이름의 괄호와 섞이고, 팁 하나를 다른 메뉴에도 옮겨 적었다(2026-11-08 배포본). 메뉴마다 화살표로 나눈다
   if (tips.length > 0) parts.push(`주문 팁(그 메뉴에만): ${tips.join('; ')}`);
+  // T13-4: 외식 칸 태그는 코드가 분류 태그로 채운다(plan-cells.ts). 모델이 횟수 제한을 알고 고르게 알린다
+  const tagged = menus.flatMap((m) => {
+    const c = classOf.get(m);
+    const tags = c && c.class !== 'avoid' ? cellTagsOf(c, avoid) : undefined;
+    return tags ? [`${m} [${tags.length > 0 ? tags.join(', ') : '없음'}]`] : [];
+  });
+  if (tagged.length > 0) parts.push(`태그(이 칸 tags에 그대로 들어감): ${tagged.join('; ')}`);
   return parts.join(' / ');
 }
 
@@ -195,9 +213,9 @@ function sectionCellFormat(): string {
     '- title: 메뉴 이름만. 괄호로 주문 방법이나 조리 포인트를 덧붙이지 않습니다 (외식은 메뉴 목록의 이름이 그대로 제목이 됩니다)',
     '- ingredients: 주요 재료',
     `- tags: 해당하는 것을 빠짐없이. 재료 태그 ${AVOID_TAGS.join(', ')} / 음식 종류 태그 ${NUTRITION_TAGS.join(', ')}`,
-    '  고기가 들어가면 meat와 함께 pork, beef, chicken 중 해당하는 것도 붙입니다.',
-    // B17 T13-4: 흰 식빵 샌드위치에 누락(B14 기록). 정의는 스펙 2.2
-    '  refined_carb_main은 흰 면(국수, 라면, 우동, 파스타, 쌀국수 등)이나 흰 빵(식빵, 샌드위치, 토스트, 버거 등)이 주식인 메뉴에 붙입니다. 흰쌀밥에는 붙이지 않습니다.',
+    TAG_GUIDE,
+    // T13-4: 외식 칸 태그는 분류 태그로 바뀐다(plan-cells.ts). 모델이 다른 태그로 횟수를 세면 다시 추천이 돈다
+    '  외식 칸 tags는 메뉴 목록에 적힌 태그가 그대로 들어가고 1주일 횟수 제한에도 셉니다.',
     // B17 T13-2: 분류에 팁이 있으면 코드가 그 팁으로 채운다(plan-cells.ts)
     '- orderTip: 외식 칸에서 위 "주문 팁"에 없는 메뉴만 주문 팁 한 줄. 주문 팁이 있는 메뉴는 비워 두면 그 팁이 들어갑니다',
     '- cookMinutes: 집밥은 조리 시간(분), 외식은 0',

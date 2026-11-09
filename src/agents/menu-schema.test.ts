@@ -42,6 +42,30 @@ describe('menuClassesSchema', () => {
     expect(toMenuClassifications(res).map((c) => c.reason)).toEqual(['', '']);
   });
 
+  it('tags는 배열·문자열 하나를 받고, null은 빈 배열, 빼면 없음 그대로, 모르는 태그는 실패 (T13-4)', () => {
+    const res = v.parse(schema, {
+      classes: [{ ...item('국밥'), tags: ['pork', 'meat'] }, { ...item('백반'), tags: 'egg' }],
+    });
+    expect(toMenuClassifications(res).map((c) => c.tags)).toEqual([['meat', 'pork'], ['egg']]);
+    const none = toMenuClassifications(v.parse(schema, { classes: [{ ...item('국밥'), tags: null }, item('백반')] }));
+    expect(none[0]!.tags).toEqual([]);
+    expect(none[1]).not.toHaveProperty('tags');
+    expect(v.safeParse(schema, { classes: [{ ...item('국밥'), tags: ['noodle'] }, item('백반')] }).success).toBe(false);
+  });
+
+  it('기준 ID와 태그를 쉼표로 이은 문자열 하나로 내도 나눠 받는다 (B23 gemma 실제 실행)', () => {
+    const res = v.parse(schema, {
+      classes: [
+        { ...item('국밥'), criterionIds: 'increase_fiber,reduce_portion_calories', tags: 'meat, pork' },
+        { ...item('백반'), criterionIds: 'increase_fiber', tags: '' },
+      ],
+    });
+    const out = toMenuClassifications(res);
+    expect(out.map((c) => c.criterionIds)).toEqual([['increase_fiber', 'reduce_portion_calories'], ['increase_fiber']]);
+    expect(out.map((c) => c.tags)).toEqual([['meat', 'pork'], []]);
+    expect(v.safeParse(schema, { classes: [{ ...item('국밥'), criterionIds: 'increase_fiber,xyz' }, item('백반')] }).success).toBe(false);
+  });
+
   it('null 배열을 받아 빈 배열로 바꾼다', () => {
     const res = v.parse(schema, {
       classes: [item('국밥'), { ...item('백반'), criterionIds: null, orderTips: null }],

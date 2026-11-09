@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { classesA, profileA } from './__fixtures__/persona-a.ts';
 import { rulesA } from './__fixtures__/rules-a.ts';
-import type { ClassifyInput } from './menu-classification.ts';
+import { USER_CHOSEN_REASON, type ClassifyInput } from './menu-classification.ts';
 import { runClassification, type MenuClassifier } from './menu-classifier.ts';
 import { LlmTimeoutError } from './llm-timeout.ts';
 import { QuotaExceededError } from './quota.ts';
@@ -86,6 +86,31 @@ describe('runClassification 이전 분류 재사용', () => {
     const known = classesA.map((c) => (c.menu === '국밥' ? { ...c, criterionIds: ['reduce_refined_carbs' as const, ...c.criterionIds] } : c));
     const out = await runClassification(classifier, profileA, known);
     expect(out.kind === 'ok' && out.classes[0]).toEqual(byName('국밥'));
+  });
+
+  it('이월한 분류의 태그는 그대로 쓰고, 태그가 피할 음식에 걸리면 피하기로 바꾼다 (T13-4)', async () => {
+    const { classifier } = fakeClassifier([]);
+    // 페르소나 A는 유제품을 피한다
+    const known = classesA.map((c) =>
+      c.menu === '국밥' ? { ...c, tags: ['pork' as const] } : c.menu === '백반' ? { ...c, tags: ['dairy' as const, 'egg' as const] } : c,
+    );
+    const out = await runClassification(classifier, profileA, known);
+    if (out.kind !== 'ok') throw new Error(out.kind);
+    expect(out.classes[0]).toEqual({ ...byName('국밥'), tags: ['pork'] });
+    expect(out.classes[1]).toMatchObject({ menu: '백반', class: 'avoid', reason: '피할 음식(유제품)이 들어갈 수 있어요.', tags: ['dairy', 'egg'] });
+  });
+
+  it('사용자가 직접 정한 분류는 태그가 피할 음식에 걸려도 그대로 둔다 (T13-4)', async () => {
+    const { classifier } = fakeClassifier([]);
+    const known = classesA.map((c) => (c.menu === '백반' ? { ...c, class: 'often' as const, reason: USER_CHOSEN_REASON, tags: ['dairy' as const] } : c));
+    const out = await runClassification(classifier, profileA, known);
+    expect(out.kind === 'ok' && out.classes[1]).toMatchObject({ class: 'often', reason: USER_CHOSEN_REASON });
+  });
+
+  it('모델 결과의 태그도 피할 음식에 걸리면 피하기로 바꾼다 (T13-4)', async () => {
+    const { classifier } = fakeClassifier([{ ...byName('돈가스'), class: 'weekly_max_1', tags: ['dairy', 'pork', 'fried'] }, byName('회덮밥')]);
+    const out = await runClassification(classifier, profileA, [byName('국밥'), byName('백반'), byName('쌀국수')]);
+    expect(out.kind === 'ok' && out.classes[2]).toMatchObject({ menu: '돈가스', class: 'avoid', tags: ['dairy', 'pork', 'fried'] });
   });
 
   it('모델이 이월한 메뉴까지 다시 내면 1:1이 아니라 에러', async () => {
