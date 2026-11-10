@@ -199,11 +199,71 @@ export function guardStoreContract(
 
     it('발급 시도 수는 key·날짜마다 상한까지 센다', async () => {
       const store = await create([]);
-      expect(await store.tryCountRegister('register:a', '2026-11-10', 2)).toBe(true);
-      expect(await store.tryCountRegister('register:a', '2026-11-10', 2)).toBe(true);
-      expect(await store.tryCountRegister('register:a', '2026-11-10', 2)).toBe(false);
-      expect(await store.tryCountRegister('register:b', '2026-11-10', 2)).toBe(true);
-      expect(await store.tryCountRegister('register:a', '2026-11-11', 2)).toBe(true);
+      expect(await store.tryCountKey('register:a', '2026-11-10', 2)).toBe(true);
+      expect(await store.tryCountKey('register:a', '2026-11-10', 2)).toBe(true);
+      expect(await store.tryCountKey('register:a', '2026-11-10', 2)).toBe(false);
+      expect(await store.tryCountKey('register:b', '2026-11-10', 2)).toBe(true);
+      expect(await store.tryCountKey('register:a', '2026-11-11', 2)).toBe(true);
+    });
+
+    // T25: 먹었어요 체크
+    const AT = '2026-11-10T00:00:00.000Z';
+    async function withPlan(store: GuardStore, userId: string, conversationId: string) {
+      await store.recordConversation(userId, conversationId, AT);
+      await store.markConversationPlan(conversationId, '2026-11-09', AT);
+    }
+
+    it('식단표 대화에만 체크가 들어간다 (식단표 없음·남의 대화·기록 없는 대화는 false)', async () => {
+      const store = await create([]);
+      await withPlan(store, 'k1', 'k1-a');
+      await store.recordConversation('k1', 'k1-noplan', AT);
+      const slot = { day: 'mon', meal: 'lunch' } as const;
+      expect(await store.setCheck('k1', 'k1-a', slot, true, AT)).toBe(true);
+      expect(await store.setCheck('k1', 'k1-noplan', slot, true, AT)).toBe(false);
+      expect(await store.setCheck('k2', 'k1-a', slot, true, AT)).toBe(false);
+      expect(await store.setCheck('k1', 'k1-zzz', slot, true, AT)).toBe(false);
+      expect(await store.checksOf('k1', 'k1-noplan')).toEqual([]);
+      expect(await store.checksOf('k2', 'k1-a')).toEqual([]);
+      expect(await store.checksOf('k1', 'k1-a')).toEqual([slot]);
+    });
+
+    it('체크·해제·다시 체크, 같은 칸 두 번 체크해도 하나, 목록은 칸 순서', async () => {
+      const store = await create([]);
+      await withPlan(store, 'k1', 'k1-a');
+      expect(await store.setCheck('k1', 'k1-a', { day: 'tue', meal: 'dinner' }, true, AT)).toBe(true);
+      expect(await store.setCheck('k1', 'k1-a', { day: 'mon', meal: 'dinner' }, true, AT)).toBe(true);
+      expect(await store.setCheck('k1', 'k1-a', { day: 'mon', meal: 'breakfast' }, true, AT)).toBe(true);
+      expect(await store.setCheck('k1', 'k1-a', { day: 'mon', meal: 'breakfast' }, true, AT)).toBe(true);
+      expect(await store.checksOf('k1', 'k1-a')).toEqual([
+        { day: 'mon', meal: 'breakfast' },
+        { day: 'mon', meal: 'dinner' },
+        { day: 'tue', meal: 'dinner' },
+      ]);
+      expect(await store.setCheck('k1', 'k1-a', { day: 'mon', meal: 'dinner' }, false, AT)).toBe(true);
+      expect(await store.setCheck('k1', 'k1-a', { day: 'mon', meal: 'dinner' }, false, AT)).toBe(true);
+      expect(await store.checksOf('k1', 'k1-a')).toEqual([
+        { day: 'mon', meal: 'breakfast' },
+        { day: 'tue', meal: 'dinner' },
+      ]);
+      expect(await store.setCheck('k1', 'k1-a', { day: 'mon', meal: 'dinner' }, true, AT)).toBe(true);
+      expect(await store.checksOf('k1', 'k1-a')).toHaveLength(3);
+    });
+
+    it('대화마다 따로, 모두 지우기는 그 사용자 것만', async () => {
+      const store = await create([]);
+      await withPlan(store, 'k1', 'k1-a');
+      await withPlan(store, 'k1', 'k1-b');
+      await withPlan(store, 'k2', 'k2-a');
+      const slot = { day: 'fri', meal: 'lunch' } as const;
+      await store.setCheck('k1', 'k1-a', slot, true, AT);
+      await store.setCheck('k1', 'k1-b', { day: 'sat', meal: 'lunch' }, true, AT);
+      await store.setCheck('k2', 'k2-a', slot, true, AT);
+      expect(await store.checksOf('k1', 'k1-a')).toEqual([slot]);
+      expect(await store.checksOf('k1', 'k1-b')).toEqual([{ day: 'sat', meal: 'lunch' }]);
+      await store.deleteChecksOf('k1');
+      expect(await store.checksOf('k1', 'k1-a')).toEqual([]);
+      expect(await store.checksOf('k1', 'k1-b')).toEqual([]);
+      expect(await store.checksOf('k2', 'k2-a')).toEqual([slot]);
     });
   });
 }

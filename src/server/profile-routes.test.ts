@@ -83,6 +83,22 @@ describe('DELETE /api/profile: 대화 기록도 지운다 (T15)', () => {
     expect(await guardStore.conversationsOf('u2')).toEqual(['u2-a']);
   });
 
+  it('먹었어요 체크도 그 사용자 것만 지운다 (T25)', async () => {
+    for (const [user, id] of [
+      ['u1', 'u1-a'],
+      ['u2', 'u2-a'],
+    ] as const) {
+      await guardStore.recordConversation(user, id, '2026-11-08T01:00:00.000Z');
+      await guardStore.markConversationPlan(id, '2026-11-09', '2026-11-08T01:00:00.000Z');
+      await guardStore.setCheck(user, id, { day: 'mon', meal: 'lunch' }, true, '2026-11-08T02:00:00.000Z');
+    }
+
+    await call('DELETE', 't1');
+
+    expect(await guardStore.checksOf('u1', 'u1-a')).toEqual([]);
+    expect(await guardStore.checksOf('u2', 'u2-a')).toEqual([{ day: 'mon', meal: 'lunch' }]);
+  });
+
   it('못 지운 대화 수를 알려 주고, 그 대화는 기록에 남는다. D1 프로필은 지운다', async () => {
     await storage.saveProfile({ ...profileA, userId: 'u1' });
     await guardStore.recordConversation('u1', 'u1-a', '2026-11-08T01:00:00.000Z');

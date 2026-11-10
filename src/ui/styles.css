@@ -1102,3 +1102,41 @@ button.secondary.current {
   gap: 8px;
   width: 100%;
 }
+
+/* 먹었어요 체크 (T25) */
+.eaten {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 2px;
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.eaten input {
+  width: 1.05em;
+  height: 1.05em;
+  accent-color: var(--ink);
+}
+
+.eaten input:focus-visible {
+  outline: 3px solid var(--out);
+  outline-offset: 1px;
+}
+
+.eaten:has(input:checked) {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.check-summary {
+  margin: 0 0 12px;
+  font-weight: 600;
+}
+
+.check-error {
+  margin: -4px 0 12px;
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+}

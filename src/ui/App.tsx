@@ -293,6 +293,8 @@ export function App({ token, userId }: { token: string; userId: string }) {
           editNotice={view.editNotice}
           onEdit={edit}
           onStartOver={startOver}
+          token={token}
+          conversationId={conversationId}
         />
       )}
 

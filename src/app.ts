@@ -9,6 +9,7 @@ import type { Wipeable } from './agents/wipe-extension.ts';
 import { conversationRoutes } from './server/conversation-routes.ts';
 import { guardAgentRoutes, meHandler } from './server/guard.ts';
 import { profileRoutes } from './server/profile-routes.ts';
+import { checkRoutes } from './server/check-routes.ts';
 import { registerRoutes } from './server/register-routes.ts';
 import { apiSecurityHeaders } from './server/security-headers.ts';
 import { D1Storage, type D1Like } from './storage/d1-storage.ts';
@@ -50,6 +51,8 @@ app.route(
 );
 // 지난 식단표 목록 (T17)
 app.route('/api/conversations', conversationRoutes({ getGuardStore: guard.getStore }));
+// 식단표 칸 먹었어요 체크 (T25)
+app.route('/api/checks', checkRoutes({ getGuardStore: guard.getStore }));
 app.get('/api/ping', (c) => c.text('pong'));
 
 export default app;

@@ -52,7 +52,10 @@ export type GuardErrorType =
   | 'message_rejected'
   | 'busy'
   | 'invalid_invite'
-  | 'register_limit';
+  | 'register_limit'
+  | 'check_rejected'
+  | 'check_limit'
+  | 'check_not_found';
 
 const MESSAGES: Record<GuardErrorType, string> = {
   message_rejected: '보낼 수 없는 메시지예요. 너무 길거나 첨부가 있어요.',
@@ -66,6 +69,10 @@ const MESSAGES: Record<GuardErrorType, string> = {
   // 초대 코드로 토큰 받기 (T24). 틀린 코드와 다 쓴 코드를 가리지 않는다
   invalid_invite: '초대 코드가 맞지 않거나 이미 다 쓰였어요.',
   register_limit: '오늘은 더 시도할 수 없어요. 오전 9시 이후에 다시 해 주세요.',
+  // 먹었어요 체크 (T25)
+  check_rejected: '체크를 저장할 수 없는 요청이에요.',
+  check_limit: '오늘은 체크를 더 바꿀 수 없어요. 오전 9시 이후에 다시 해 주세요.',
+  check_not_found: '이 식단표는 체크할 수 없어요.',
 };
 
 /**

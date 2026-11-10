@@ -38,8 +38,8 @@ export function registerRoutes(options: RegisterRouteOptions) {
     // Cloudflare가 붙이는 접속 IP. 로컬 개발 서버에는 없어 한 묶음으로 센다
     const ip = c.req.header('cf-connecting-ip') ?? 'local';
     if (
-      !(await store.tryCountRegister(REGISTER_TOTAL_KEY, day, REGISTER_DAILY_ATTEMPTS_TOTAL)) ||
-      !(await store.tryCountRegister(await registerIpKey(ip, day), day, REGISTER_DAILY_ATTEMPTS_PER_IP))
+      !(await store.tryCountKey(REGISTER_TOTAL_KEY, day, REGISTER_DAILY_ATTEMPTS_TOTAL)) ||
+      !(await store.tryCountKey(await registerIpKey(ip, day), day, REGISTER_DAILY_ATTEMPTS_PER_IP))
     ) {
       return c.json(errorBody('register_limit'), 429);
     }
@@ -50,7 +50,7 @@ export function registerRoutes(options: RegisterRouteOptions) {
 
     const codeHash = await hashToken(code);
     // 모르는 코드도 센다(행이 생기지만 전체 상한 안이다). 코드가 있는지 응답으로 드러내지 않으려고 같은 429를 쓴다
-    if (!(await store.tryCountRegister(inviteDailyKey(codeHash), day, INVITE_DAILY_USES_PER_CODE))) {
+    if (!(await store.tryCountKey(inviteDailyKey(codeHash), day, INVITE_DAILY_USES_PER_CODE))) {
       return c.json(errorBody('register_limit'), 429);
     }
 

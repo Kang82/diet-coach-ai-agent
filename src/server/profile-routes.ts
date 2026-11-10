@@ -42,6 +42,8 @@ export function profileRoutes(options: ProfileRouteOptions) {
     const now = (options.now ?? (() => new Date()))().toISOString();
     if (await guardStore.hasActiveReservation(userId, now)) return c.json(errorBody('busy'), 409);
     await options.getStorage(c).deleteUser(userId);
+    // 먹었어요 체크 (T25). 저장 동의와 관계없이 남기므로 함께 지운다
+    await guardStore.deleteChecksOf(userId);
     const { failed } = await wipeUserConversations(guardStore, userId, options.getWipeOne(c));
     return c.json({ failed });
   });
