@@ -50,7 +50,9 @@ export type GuardErrorType =
   | 'user_kind_limit'
   | 'global_daily_limit'
   | 'message_rejected'
-  | 'busy';
+  | 'busy'
+  | 'invalid_invite'
+  | 'register_limit';
 
 const MESSAGES: Record<GuardErrorType, string> = {
   message_rejected: '보낼 수 없는 메시지예요. 너무 길거나 첨부가 있어요.',
@@ -61,6 +63,9 @@ const MESSAGES: Record<GuardErrorType, string> = {
   global_daily_limit: QUOTA_EXCEEDED_MESSAGE,
   // 사용자당 비싼 요청은 하나씩 (T19-7). 다른 대화나 탭에서 만들기·분류·칸 수정이 아직 도는 중
   busy: '앞 요청이 아직 진행 중이에요. 끝난 뒤 다시 시도해 주세요.',
+  // 초대 코드로 토큰 받기 (T24). 틀린 코드와 다 쓴 코드를 가리지 않는다
+  invalid_invite: '초대 코드가 맞지 않거나 이미 다 쓰였어요.',
+  register_limit: '오늘은 더 시도할 수 없어요. 오전 9시 이후에 다시 해 주세요.',
 };
 
 /**

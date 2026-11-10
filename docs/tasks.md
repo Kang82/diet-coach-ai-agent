@@ -99,6 +99,7 @@
 | B20. 리뷰 정확성 버그 | T19-1 ~ T19-5 | 11-08 서브 에이전트 코드 리뷰. 사전 점검 지수 시간(탭·DO 멈춤)이 가장 급하다. 모두 순수 로직·화면 상태 TDD | 없음 |
 | B21. 바깥 턴 비용 보호 | T19-6 ~ T19-8 | 11-08 서브 에이전트 보안 리뷰. 자유 문장 메시지만으로 전체 한도를 쓸 수 있다. 요청 앞단·바깥 턴 요청 보정 자리라 함께 정한다 | 로컬 데모 바깥 턴 몇 회(약 20 Neuron) |
 | B22. "나중에" 정리 | T22-1 ~ T22-6 | "나중에" 중 Neuron 없이 바로 끝나는 것(2026-11-09 사용자 선택): 무응답 재요청, 보안 헤더, 목록 순서, 지우기 경쟁, 메뉴 오타 안내, 대화 ID 형식 | 없음 (빌드본 화면 로드만, Neuron 0) |
+| B24. 초대 코드로 직접 토큰 받기 | T24-1 ~ T24-4 | 운영자가 사람마다 토큰 링크를 만들지 않게(사용자 요청 2026-11-10). 저장소·API·화면이 한 흐름이라 함께 한다 | 없음 (발급은 LLM을 부르지 않음, Neuron 0) |
 | B23. 분류에서 태그 정하기 (되돌림) | T13-4 | 외식 칸 태그가 실행마다 달라(샌드위치 `refined_carb_main`) 분류가 메뉴마다 한 번 정하게 해 봤다. 메뉴 30개에서 분류가 너무 비싸 되돌림 | 실제 약 5,700 Neuron(계획 1,000~1,500 초과) |
 | 평가 세트 확장 | T1-7 | 열린 질문 1은 2026-11-07에 정했다. 생성 방식이 바뀌는 B11 뒤에 한 번만 돌린다 | 페르소나 B·C·D 각 2회. 약 3,000~4,000 Neuron |
 
@@ -468,6 +469,18 @@
 - [x] **T9-6. 일정을 다 넣으면 입력 폼이 사라지는 문제** (리뷰 13번) (2026-11-07): 화면 상태 함수로 재현하고 고친다
   - `ui/period-view-state.ts`의 `periodFormState`. 넣을 끼니가 없으면 폼 자리에 "모든 끼니에 일정을 넣었어요. 일정을 빼면…" 안내. `validateEvents`에 `no_meals_left`(모든 끼니가 일정)를 더해 화면은 "다음"을 막고, 서버(`classify_menus`)는 `bad_request`
   - 확인: 단위 테스트만. 화면까지 가려면 인터뷰 제출(바깥 턴 실제 호출)이 필요해 Chrome 확인은 생략했다
+
+### T24. 초대 코드로 직접 토큰 받기 (B24, 2026-11-10)
+
+로그인 없이, 공용 초대 코드를 가진 사람이 처음 들어올 때 개인 토큰을 받아 localStorage에 둔다. 결정(사용자, 11-10): 공용 코드 + 코드당 사용 상한 + IP당 하루 상한. 1회용 코드는 사람마다 전달해야 해서 지금의 토큰 링크 발급과 다르지 않아 택하지 않음. Cloudflare Access(이메일 일회용 코드)는 고칠 곳이 많아 보류
+
+- [x] **T24-1. 저장소:** `migrations/0007_invites.sql`(`code_hash`, `max_uses`, `used`), `GuardStore.registerWithInvite`(확인·증가 한 문장 `UPDATE … WHERE used < max_uses RETURNING`, 그다음 사용자 넣기), `tryCountRegister`(`usage_daily` 재사용). 계약 테스트 4개(Memory·D1)
+- [x] **T24-2. API:** `POST /api/register { code }` → `{ token, userId }` (`server/register-routes.ts`). 순서: IP 하루 시도 5회(성공·실패, 본문이 틀려도 센다) → 본문 1KB·코드 모양 → 코드 사용. 틀린 코드·다 쓴 코드 같은 400 `invalid_invite`, IP 초과 429 `register_limit`. IP는 `SHA-256(day|ip)` 앞 16자를 key로만(`core/registration.ts`). 코드는 Crockford base32 12자(60비트), 입력은 공백·하이픈 무시·대소문자 무시
+- [x] **T24-3. 코드 만들기:** `npm run issue-invite -- --local|--remote --max N [--origin …]`가 코드·링크(`/?invite=XXXX-XXXX-XXXX`)·해시를 한 번 출력. 폐기는 `UPDATE invites SET max_uses = used WHERE code_hash = '…'`
+- [x] **T24-4. 화면:** `AccessGate`가 토큰 없음·401이면 `InviteView`(링크 코드는 주소에서 지우고 바로 보냄), 받으면 `MyLinkView`(개인 링크·복사·"링크를 가진 사람은 내 기록을 볼 수 있다" 안내) 뒤 App. App 아래 "다른 기기에서 열기"(`MyLinkFoot`). 순수 로직은 `ui/invite.ts`
+- 확인: 테스트 918개(새 33개), 타입 검사, 빌드. 개발 서버 Chrome(Neuron 0): 토큰 없음 → 코드 화면 / `/?invite=` → 주소에서 지움·링크 안내 → 시작하기 → 인터뷰, `/api/me` 200 / 새로고침 유지 / `--max 2` 코드 2번째(소문자·공백 입력) 성공, 3번째 400 / 같은 IP 6번째 시도 429 / 모르는 저장 토큰 → 코드 화면, 폼 제출 오류 문구 표시
+- [x] **T24-6. 리뷰 반영** (11-10 서브 에이전트 리뷰): ① IPv6는 /64 안에서 주소를 바꿔 IP 상한을 피하고 코드를 혼자 다 쓸 수 있었다 → `ipBucket`(IPv6 /64로 묶음), 코드 하루 사용 10회(`invite:<해시 앞 16자>`) ② 토큰 없는 API가 시도마다 D1에 써서 주소를 돌리면 쓰기 한도를 쓸 수 있었다 → 전체 하루 시도 200회(`register:all`)를 먼저 확인 ③ 모바일망 IP 공유 → IP 상한 5 → 10 ④ localStorage 저장 실패(사생활 보호 창)를 링크 안내 화면에 알림(`saveToken`이 boolean) ⑤ `AccessGate` 상태 판단을 `ui/access-state.ts`로 빼서 테스트. 남긴 것: 코드 사용·사용자 넣기가 두 문장(넣기 실패 시 코드 자리 하나 손실, 사실상 없음), 코드 해시 솔트 없음(유출 시 폐기), `usage_daily` 지난 행 정리 없음(전체 상한으로 하루 약 400행 이하), `/api/register` WAF 속도 제한("나중에"의 WAF와 함께). 테스트 931개(새 13개)
+- [ ] **T24-5. 배포:** `npx wrangler d1 migrations apply diet-coach --remote` → `npm run deploy` → `npm run issue-invite -- --remote --origin https://diet-coach.jjangyeesoo1.workers.dev`. 외부 공개라 사용자 확인 뒤
 
 ### T22. "나중에" 정리 (B22, 2026-11-09)
 

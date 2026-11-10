@@ -2,13 +2,22 @@ import { useLocalD1 } from './__fixtures__/local-d1.ts';
 import { D1GuardStore, MemoryGuardStore } from './guard-store.ts';
 import { guardStoreContract } from './guard-store-contract.ts';
 
-guardStoreContract('MemoryGuardStore', (users) => new MemoryGuardStore(users));
+guardStoreContract('MemoryGuardStore', (users, invites) => new MemoryGuardStore(users, invites));
 
 const local = useLocalD1();
 
-guardStoreContract('D1GuardStore', async (users) => {
-  await local.reset(['users', 'usage_daily', 'usage_hourly', 'usage_reservations']);
+guardStoreContract('D1GuardStore', async (users, invites = []) => {
+  await local.reset(['users', 'usage_daily', 'usage_hourly', 'usage_reservations', 'invites']);
   const db = local.db();
+  if (invites.length > 0) {
+    await db.batch(
+      invites.map((i) =>
+        db
+          .prepare('INSERT INTO invites (code_hash, max_uses, used, created_at) VALUES (?, ?, ?, ?)')
+          .bind(i.codeHash, i.maxUses, i.used ?? 0, '2026-11-10T00:00:00Z'),
+      ),
+    );
+  }
   if (users.length > 0) {
     await db.batch(
       users.map((u) =>

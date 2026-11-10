@@ -20,6 +20,7 @@ import { progressFromResult } from './interview-form-state.ts';
 import { loadCarryClasses, prepareMenuEdit } from './menu-edit.ts';
 import { PeriodView } from './PeriodView.tsx';
 import { ForgetLink } from './ForgetLink.tsx';
+import { MyLinkFoot } from './MyLinkView.tsx';
 import { PastPlansLink } from './PastPlansLink.tsx';
 import { clearLegacyProfile, deleteMyRecords, fetchSavedProfile, type DeleteResult, type SavedProfile } from './saved-profile.ts';
 import { defaultConsentFor, shouldOfferSaved, type StartChoice as StartChoiceKind } from './start-choice-state.ts';
@@ -313,6 +314,7 @@ export function App({ token, userId }: { token: string; userId: string }) {
       )}
       <footer className="page-foot">
         <PastPlansLink key={conversationId} token={token} conversationId={conversationId} onOpen={openConversation} />
+        <MyLinkFoot token={token} />
         <ForgetLink key={userId} onForget={forgetAll} />
       </footer>
     </main>

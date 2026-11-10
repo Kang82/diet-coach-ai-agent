@@ -38,7 +38,8 @@ npm run build                              # vite build → Cloudflare Worker (d
 npm run dev                                # vite dev (workerd). AI 호출은 원격이라 `npx wrangler login` 필요
 npm run evals -- -t 페르소나A              # 평가 세트 (스펙 8.5). 개발 서버(5199)와 DIET_COACH_TOKEN이 필요하다. 1회 약 5~6분, 약 450 Neuron(분류 gemma 포함)
 npm run db:migrate:local                   # 로컬 D1(.wrangler/state)에 migrations/ 적용. 개발 서버 전에 한 번
-npm run issue-token -- --local             # 로컬 사용자 토큰 발급. 링크와 토큰을 한 번만 출력한다
+npm run issue-token -- --local             # 로컬 사용자 토큰 발급. 링크와 토큰을 한 번만 출력한다 (평가 세트용)
+npm run issue-invite -- --local --max 30   # 공용 초대 코드(코드당 30명). 이 코드로 화면에서 직접 토큰을 받는다(B24, 상한은 core/registration.ts)
 # 로컬 D1은 wrangler.jsonc의 database_id별로 따로 생긴다. id가 바뀌면(B9) 마이그레이션과 토큰 발급을 다시 한다
 ```
 
@@ -47,7 +48,7 @@ npm run issue-token -- --local             # 로컬 사용자 토큰 발급. 링
 - 에이전트 경로(`/agents/diet-coach/*`)와 `/api/me`에는 사용자 링크 토큰이 필요하다(스펙 11.4, `server/guard.ts`). 개발 서버도 같다. 브라우저는 `issue-token`이 출력한 링크(`/?t=…`)로 열고, curl은 `-H "authorization: Bearer <토큰>"`을 붙이며 대화 ID는 `<userId>-…`로 시작해야 한다(`GET /api/me`로 확인). 메시지 POST는 사용자당 하루 30회이고 Worker 전체 Neuron이 8,000이면 막힌다. 본문은 32KB까지, 첨부·signal은 거절한다(스펙 11.4-4). 비싼 메시지(분류·만들기·칸 수정)는 종류별 하루 횟수(5·5·15)와 진행 중 예약(`usage_reservations`)도 걸린다(B13, 스펙 11.4-6). 인터뷰 뒤에는 접두어(`core/message-kind.ts`)에 맞는 도구 하나만 마운트하고, 접두어 없는 메시지는 미들웨어가 400으로 거절한다(B21). 비싼 메시지는 사용자당 하나씩만 돈다(진행 중이면 429 `busy`, 예약 key는 사용자 ID). 로컬에서 막히면 `npx wrangler d1 execute diet-coach --local --command "DELETE FROM usage_daily; DELETE FROM usage_hourly; DELETE FROM usage_reservations"`. 바깥 턴 요청은 `output-caps.ts`의 `fitRequest`가 이번 사용자 메시지부터로 자르고 출력 상한 2,048을 넣는다. Flue는 사용자 메시지 뒤에 `<signal …>`을 user 역할로 붙이니 요청 본문을 다룰 때 주의한다. 평가 세트는 같은 토큰으로 만들기 6회째부터 막히니 그 전에 지운다.
 - 배포 주소는 https://diet-coach.jjangyeesoo1.workers.dev (B9). `npm run deploy`는 외부 공개라 사용자에게 확인받고 쓴다. 배포 직후 몇 초는 404나 에러 1042가 날 수 있다.
 - 배포본 로그(B10): 대시보드 Workers → diet-coach → Observability(요청·Durable Object·D1 스팬), Durable Objects → FlueDietCoachAgent → Observability. 실시간은 `npx wrangler tail`. 요청 헤더는 이름만 남고 토큰 값은 남지 않는다(확인함). 도구 안 Flue `log.info`는 Workers Logs에 나오지 않는다(대화 스트림에만, 11-08 확인). 모델 호출 시각·토큰 수·상태는 AI Gateway(`default` 게이트웨이) 로그가 가장 정확하다. 이 둘로 11-06 생성 지연을 찾았다(tasks.md T8). 다만 게이트웨이 로그는 요청·응답 본문(건강 정보)을 남겨 Collect Logs를 껐다(T19-8). 조사할 때만 테스트 페르소나로 잠깐 켠다.
-- 원격 사용자 토큰: `npm run issue-token -- --remote --origin https://diet-coach.jjangyeesoo1.workers.dev`. 테이블을 바꾸면 `npx wrangler d1 migrations apply diet-coach --remote`도 한다.
+- 원격 사용자 토큰: `npm run issue-token -- --remote --origin https://diet-coach.jjangyeesoo1.workers.dev`. 원격 초대 코드는 `issue-invite -- --remote --max N --origin …`, 폐기는 `UPDATE invites SET max_uses = used WHERE code_hash = '…'`. 로컬에서 발급이 막히면 `DELETE FROM usage_daily WHERE key LIKE 'register:%' OR key LIKE 'invite:%'`. 테이블을 바꾸면 `npx wrangler d1 migrations apply diet-coach --remote`도 한다.
 - 평가 세트를 배포본에 돌리려면 `DIET_COACH_URL=https://diet-coach.jjangyeesoo1.workers.dev/agents/diet-coach`와 원격 토큰을 준다. 배포본의 하루 한도도 같은 계정 10,000 Neuron이다.
 
 ## 구조

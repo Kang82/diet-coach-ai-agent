@@ -1,10 +1,13 @@
 // 한도 보호 카운터 저장소 계약 테스트 (스펙 11.4). 모든 GuardStore 구현이 통과해야 한다.
 import { describe, expect, it } from 'vitest';
-import type { GuardStore } from './guard-store.ts';
+import type { GuardStore, InviteSeed } from './guard-store.ts';
 
 export function guardStoreContract(
   name: string,
-  create: (users: readonly { userId: string; tokenHash: string }[]) => GuardStore | Promise<GuardStore>,
+  create: (
+    users: readonly { userId: string; tokenHash: string }[],
+    invites?: readonly InviteSeed[],
+  ) => GuardStore | Promise<GuardStore>,
 ) {
   describe(name, () => {
     it('해시로 사용자를 찾고, 모르는 해시는 null', async () => {
@@ -165,6 +168,42 @@ export function guardStoreContract(
       expect((await store.planConversations('r1')).map((c) => c.conversationId)).toEqual(['r1-a', 'r1-b']);
       await store.forgetConversations('r1', ['r1-a']);
       expect((await store.planConversations('r1')).map((c) => c.conversationId)).toEqual(['r1-b']);
+    });
+
+    // T24: 초대 코드로 사용자 만들기
+    const newUser = (n: number) => ({ userId: `n${n}`, tokenHash: `nh${n}`, at: '2026-11-10T00:00:00.000Z' });
+
+    it('초대 코드는 상한까지만 쓰이고, 쓰인 만큼 사용자가 생긴다', async () => {
+      const store = await create([], [{ codeHash: 'c1', maxUses: 2 }]);
+      expect(await store.registerWithInvite('c1', newUser(1))).toBe(true);
+      expect(await store.registerWithInvite('c1', newUser(2))).toBe(true);
+      expect(await store.registerWithInvite('c1', newUser(3))).toBe(false);
+      expect(await store.findUserByTokenHash('nh1')).toBe('n1');
+      expect(await store.findUserByTokenHash('nh2')).toBe('n2');
+      expect(await store.findUserByTokenHash('nh3')).toBeNull();
+    });
+
+    it('모르는 코드나 이미 다 쓴 코드는 false이고 사용자를 만들지 않는다', async () => {
+      const store = await create([], [{ codeHash: 'c1', maxUses: 3, used: 3 }]);
+      expect(await store.registerWithInvite('c2', newUser(1))).toBe(false);
+      expect(await store.registerWithInvite('c1', newUser(2))).toBe(false);
+      expect(await store.findUserByTokenHash('nh1')).toBeNull();
+      expect(await store.findUserByTokenHash('nh2')).toBeNull();
+    });
+
+    it('마지막 한 자리에 동시에 와도 하나만 쓴다', async () => {
+      const store = await create([], [{ codeHash: 'c1', maxUses: 1 }]);
+      const results = await Promise.all([1, 2, 3].map((n) => store.registerWithInvite('c1', newUser(n))));
+      expect(results.filter(Boolean)).toHaveLength(1);
+    });
+
+    it('발급 시도 수는 key·날짜마다 상한까지 센다', async () => {
+      const store = await create([]);
+      expect(await store.tryCountRegister('register:a', '2026-11-10', 2)).toBe(true);
+      expect(await store.tryCountRegister('register:a', '2026-11-10', 2)).toBe(true);
+      expect(await store.tryCountRegister('register:a', '2026-11-10', 2)).toBe(false);
+      expect(await store.tryCountRegister('register:b', '2026-11-10', 2)).toBe(true);
+      expect(await store.tryCountRegister('register:a', '2026-11-11', 2)).toBe(true);
     });
   });
 }

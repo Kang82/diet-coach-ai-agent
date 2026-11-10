@@ -98,7 +98,7 @@ export function guardAgentRoutes(mount: string, options: GuardOptions): Middlewa
 }
 
 /** 요청 본문 복사본을 maxBytes까지만 읽는다. 넘으면 undefined (본문 전체를 메모리에 올리지 않는다) */
-async function readLimited(request: Request, maxBytes: number): Promise<string | undefined> {
+export async function readLimited(request: Request, maxBytes: number): Promise<string | undefined> {
   const declared = Number(request.headers.get('content-length'));
   if (Number.isFinite(declared) && declared > maxBytes) return undefined;
   const body = request.clone().body;

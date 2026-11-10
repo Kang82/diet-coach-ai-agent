@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "evals": "vitest run --config vitest.evals.config.ts",
     "db:migrate:local": "wrangler d1 migrations apply diet-coach --local",
-    "issue-token": "node scripts/issue-token.mjs"
+    "issue-token": "node scripts/issue-token.mjs",
+    "issue-invite": "node scripts/issue-invite.mjs"
   },
   "license": "UNLICENSED",
   "type": "module",

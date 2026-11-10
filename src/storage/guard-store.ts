@@ -1,12 +1,20 @@
 // 스펙 11.4 한도 보호의 저장소: 토큰 해시 → 사용자, 날짜별 사용자 메시지 수, 시간별 Worker 전체 Neuron 추정치.
 // 테이블은 migrations/0002_guard.sql(users, usage_daily), 0003_usage_hourly.sql, 0004_usage_reservations.sql,
-// 0005_conversations.sql(사용자별 대화 ID, 대화 기록 지우기용), 0006(지난 식단표 목록용 열). 계약 테스트는 guard-store-contract.ts.
+// 0005_conversations.sql(사용자별 대화 ID, 대화 기록 지우기용), 0006(지난 식단표 목록용 열), 0007_invites.sql(초대 코드, T24).
+// 계약 테스트는 guard-store-contract.ts.
 import type { ExpensiveKind } from '../core/message-kind.ts';
 import type { D1Like } from './d1-storage.ts';
 
 export interface GuardStore {
   /** 토큰 해시로 사용자 ID를 찾는다. 없으면 null */
   findUserByTokenHash(tokenHash: string): Promise<string | null>;
+  /**
+   * 초대 코드 하나를 쓰고 사용자를 만든다 (T24). 모르는 코드거나 상한까지 썼으면 false이고 사용자를 만들지 않는다.
+   * 코드 사용은 확인과 증가를 한 번에 해서 동시 요청이 마지막 자리를 함께 쓰지 못한다
+   */
+  registerWithInvite(codeHash: string, user: NewUser): Promise<boolean>;
+  /** 그날 발급 시도 수를 하나 늘린다(key는 core/registration.ts registerIpKey). 이미 limit이면 false (T24) */
+  tryCountRegister(key: string, day: string, limit: number): Promise<boolean>;
   /** 그날(UTC 'YYYY-MM-DD') 메시지 수를 하나 늘린다. 이미 limit이면 늘리지 않고 false */
   tryCountMessage(userId: string, day: string, limit: number): Promise<boolean>;
   /** fromHour(UTC 'YYYY-MM-DDTHH') 칸부터 지금까지 Worker 전체 Neuron 추정치 합계 (tasks.md T7-5) */
@@ -35,6 +43,19 @@ export interface GuardStore {
   markConversationPlan(conversationId: string, weekStart: string, at: string): Promise<void>;
   /** 식단표가 있는 대화. 최근(plan_at) 순, limit개까지 */
   planConversations(userId: string, limit?: number): Promise<PlanConversation[]>;
+}
+
+export interface NewUser {
+  userId: string;
+  tokenHash: string;
+  /** 만든 시각(ISO) */
+  at: string;
+}
+
+export interface InviteSeed {
+  codeHash: string;
+  maxUses: number;
+  used?: number;
 }
 
 export interface PlanConversation {
@@ -67,13 +88,32 @@ export class MemoryGuardStore implements GuardStore {
   private readonly neurons = new Map<string, number>();
   private readonly reservations = new Map<string, { neurons: number; expiresAt: string }>();
   private readonly conversations = new Map<string, { userId: string; at: string; plan?: { weekStart: string; at: string } }>();
+  private readonly invites: Map<string, { maxUses: number; used: number }>;
 
-  constructor(users: readonly { userId: string; tokenHash: string }[] = []) {
+  constructor(users: readonly { userId: string; tokenHash: string }[] = [], invites: readonly InviteSeed[] = []) {
     this.users = new Map(users.map((u) => [u.tokenHash, u.userId]));
+    this.invites = new Map(invites.map((i) => [i.codeHash, { maxUses: i.maxUses, used: i.used ?? 0 }]));
   }
 
   async findUserByTokenHash(tokenHash: string): Promise<string | null> {
     return this.users.get(tokenHash) ?? null;
+  }
+
+  async registerWithInvite(codeHash: string, user: NewUser): Promise<boolean> {
+    const invite = this.invites.get(codeHash);
+    if (!invite || invite.used >= invite.maxUses) return false;
+    invite.used += 1;
+    this.users.set(user.tokenHash, user.userId);
+    return true;
+  }
+
+  async tryCountRegister(key: string, day: string, limit: number): Promise<boolean> {
+    return this.tryCount(`${day}|${key}`, limit);
+  }
+
+  /** 테스트용: 그 코드를 쓴 수 */
+  inviteUsed(codeHash: string): number | undefined {
+    return this.invites.get(codeHash)?.used;
   }
 
   async tryCountMessage(userId: string, day: string, limit: number): Promise<boolean> {
@@ -167,6 +207,25 @@ export class D1GuardStore implements GuardStore {
       .bind(tokenHash)
       .first<{ user_id: string }>();
     return row?.user_id ?? null;
+  }
+
+  async registerWithInvite(codeHash: string, user: NewUser): Promise<boolean> {
+    // 확인과 증가를 한 문장으로 한다. 상한이면 갱신되지 않아 행이 안 나온다
+    const used = await this.db
+      .prepare('UPDATE invites SET used = used + 1 WHERE code_hash = ?1 AND used < max_uses RETURNING used')
+      .bind(codeHash)
+      .first<{ used: number }>();
+    if (used === null) return false;
+    // 사용자 넣기가 실패하면(토큰 해시 충돌, 사실상 없음) 그 코드 자리 하나는 쓴 채로 남는다
+    await this.db
+      .prepare('INSERT INTO users (user_id, token_hash, created_at) VALUES (?1, ?2, ?3)')
+      .bind(user.userId, user.tokenHash, user.at)
+      .run();
+    return true;
+  }
+
+  async tryCountRegister(key: string, day: string, limit: number): Promise<boolean> {
+    return this.tryCount(day, key, limit);
   }
 
   async tryCountMessage(userId: string, day: string, limit: number): Promise<boolean> {

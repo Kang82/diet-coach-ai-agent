@@ -9,6 +9,7 @@ import type { Wipeable } from './agents/wipe-extension.ts';
 import { conversationRoutes } from './server/conversation-routes.ts';
 import { guardAgentRoutes, meHandler } from './server/guard.ts';
 import { profileRoutes } from './server/profile-routes.ts';
+import { registerRoutes } from './server/register-routes.ts';
 import { apiSecurityHeaders } from './server/security-headers.ts';
 import { D1Storage, type D1Like } from './storage/d1-storage.ts';
 import { D1GuardStore } from './storage/guard-store.ts';
@@ -31,6 +32,8 @@ const guard = { getStore: (c: { env: { DB: D1Like } }) => new D1GuardStore(c.env
 app.use(`${AGENT_MOUNT}/*`, guardAgentRoutes(AGENT_MOUNT, guard));
 app.route(AGENT_MOUNT, createAgentRouter(DietCoach));
 app.get('/api/me', meHandler(guard));
+// 초대 코드로 개인 토큰 받기 (T24). 토큰 없이 부르는 유일한 API라 IP당 하루 시도 수로 막는다
+app.route('/api/register', registerRoutes({ getGuardStore: guard.getStore }));
 // 저장한 프로필 불러오기, 내 기록(프로필·식단표·대화) 지우기 (T6-2, T15)
 app.route(
   '/api/profile',

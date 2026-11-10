@@ -1054,3 +1054,51 @@ button.secondary.current {
   color: var(--ink-soft);
   font-size: 0.8125rem;
 }
+
+/* 초대 코드 입력, 개인 링크 (T24) */
+.invite-form {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  max-width: 22em;
+}
+
+.invite-form input,
+.my-link-url {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--tray);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.invite-form input {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.invite-form input:focus-visible,
+.my-link-url:focus-visible {
+  outline: 3px solid var(--out);
+  outline-offset: 1px;
+}
+
+.my-link {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  max-width: 34em;
+}
+
+.my-link-url {
+  font-size: 0.875rem;
+}
+
+.my-link-foot {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
