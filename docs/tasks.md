@@ -484,7 +484,7 @@
 - [x] **T28-4. 도구:** `create-plan-tool.ts`가 `start` 뒤 `history` step에서 `loadLastWeekQuietly`(실패는 경고만)
 - 확인: 테스트 993개(새 23개), 타입 검사, 빌드
 - [x] **T28-5. 로컬 실제 확인** ([기록](experiments/2026-11-10-b28-last-week.md), 약 650 Neuron): 기준 만들기 82초 → 4칸 체크 → 반영 만들기 137초, 둘 다 다시 추천 0. 입력 +190토큰, 안내 문구 나옴, `plans.conversation_id` 저장. 먹은 메뉴는 모두 들어갔지만 기준에도 있어 효과는 안 보임. 안내 날짜를 고른 대화의 시작 월요일로 고침
-- [ ] **T28-6. 배포:** 원격 마이그레이션 `npx wrangler d1 migrations apply diet-coach --remote`(0010) → `npm run deploy`(사용자 확인). 배포 뒤 효과는 B26 측정(기준 2)으로 본다
+- [x] **T28-6. 배포** (2026-11-10, 버전 `bedb78a0`, 커밋 `417f442`): 원격 마이그레이션 `0010_plan_conversation.sql` → `npm run deploy`(사용자가 `!`로 실행). 확인: ping 200, 토큰 없는 `/api/me`·`/api/checks` 401, 화면 번들 `index-6taPJJm0.js`. 원격 `plans`는 0행이라(저장 동의한 식단표 없음) 반영은 동의한 사용자가 식단표를 만들고 체크한 다음 주부터 일어난다. 효과는 B26 측정(기준 2)으로 본다
 
 ### T27. K-EXAONE 2.5 검토 (B27, 2026-11-10)
 
