@@ -480,7 +480,7 @@
 - [x] **T24-4. 화면:** `AccessGate`가 토큰 없음·401이면 `InviteView`(링크 코드는 주소에서 지우고 바로 보냄), 받으면 `MyLinkView`(개인 링크·복사·"링크를 가진 사람은 내 기록을 볼 수 있다" 안내) 뒤 App. App 아래 "다른 기기에서 열기"(`MyLinkFoot`). 순수 로직은 `ui/invite.ts`
 - 확인: 테스트 918개(새 33개), 타입 검사, 빌드. 개발 서버 Chrome(Neuron 0): 토큰 없음 → 코드 화면 / `/?invite=` → 주소에서 지움·링크 안내 → 시작하기 → 인터뷰, `/api/me` 200 / 새로고침 유지 / `--max 2` 코드 2번째(소문자·공백 입력) 성공, 3번째 400 / 같은 IP 6번째 시도 429 / 모르는 저장 토큰 → 코드 화면, 폼 제출 오류 문구 표시
 - [x] **T24-6. 리뷰 반영** (11-10 서브 에이전트 리뷰): ① IPv6는 /64 안에서 주소를 바꿔 IP 상한을 피하고 코드를 혼자 다 쓸 수 있었다 → `ipBucket`(IPv6 /64로 묶음), 코드 하루 사용 10회(`invite:<해시 앞 16자>`) ② 토큰 없는 API가 시도마다 D1에 써서 주소를 돌리면 쓰기 한도를 쓸 수 있었다 → 전체 하루 시도 200회(`register:all`)를 먼저 확인 ③ 모바일망 IP 공유 → IP 상한 5 → 10 ④ localStorage 저장 실패(사생활 보호 창)를 링크 안내 화면에 알림(`saveToken`이 boolean) ⑤ `AccessGate` 상태 판단을 `ui/access-state.ts`로 빼서 테스트. 남긴 것: 코드 사용·사용자 넣기가 두 문장(넣기 실패 시 코드 자리 하나 손실, 사실상 없음), 코드 해시 솔트 없음(유출 시 폐기), `usage_daily` 지난 행 정리 없음(전체 상한으로 하루 약 400행 이하), `/api/register` WAF 속도 제한("나중에"의 WAF와 함께). 테스트 931개(새 13개)
-- [ ] **T24-5. 배포:** `npx wrangler d1 migrations apply diet-coach --remote` → `npm run deploy` → `npm run issue-invite -- --remote --origin https://diet-coach.jjangyeesoo1.workers.dev`. 외부 공개라 사용자 확인 뒤
+- [x] **T24-5. 배포** (11-10, 버전 `2e80c91d`, 커밋 `adf5542`): 원격 마이그레이션 `0007_invites.sql` → `npm run deploy` (auto mode가 배포 명령을 막아 사용자가 `!`로 실행). 확인: ping 200, 토큰 없는 `/api/me` 401, 틀린 코드 `/api/register` 400 `invalid_invite`와 보안 헤더(CSP·`X-Frame-Options`·`no-referrer`), 화면 로드. 원격 초대 코드는 `npm run issue-invite -- --remote --max 30 --origin https://diet-coach.jjangyeesoo1.workers.dev`로 사용자가 만든다(코드는 출력에만 남음)
 
 ### T22. "나중에" 정리 (B22, 2026-11-09)
 
