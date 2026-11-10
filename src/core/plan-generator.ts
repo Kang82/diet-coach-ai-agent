@@ -1,5 +1,6 @@
 // 스펙 4.3, 4.4. 식단표를 만드는 LLM 호출의 포트.
 // 점검·다시 추천 루프(4.4)는 이 인터페이스만 알고, 실제 구현(Flue)은 src/agents에 둔다.
+import type { LastWeek } from './last-week.ts';
 import type { StreamStats } from './llm-timeout.ts';
 import type {
   CriteriaRules,
@@ -36,6 +37,8 @@ export interface GeneratePlanInput {
   classes: MenuClassification[];
   weekStart: string;
   events: PlanEvent[];
+  /** 지난주 체크로 만든 선호 (T28). 없으면 프롬프트에 넣지 않는다. 다시 추천에는 넣지 않는다 */
+  lastWeek?: LastWeek;
 }
 
 export interface RegenerateCellsInput {

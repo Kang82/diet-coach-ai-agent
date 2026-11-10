@@ -12,10 +12,10 @@ export async function persistInterview(storage: Storage, userId: string, result:
   else await storage.deleteUser(userId);
 }
 
-/** 저장했으면 true */
-export async function persistPlan(storage: Storage, userId: string, plan: Plan): Promise<boolean> {
+/** 저장했으면 true. conversationId는 지난주 체크와 메뉴를 잇는 데 쓴다 (T28) */
+export async function persistPlan(storage: Storage, userId: string, plan: Plan, conversationId?: string): Promise<boolean> {
   const profile = await storage.getProfile(userId);
   if (!profile?.consentedAt) return false;
-  await storage.savePlan({ ...plan, userId, profileVersion: profile.version });
+  await storage.savePlan({ ...plan, userId, profileVersion: profile.version }, conversationId);
   return true;
 }

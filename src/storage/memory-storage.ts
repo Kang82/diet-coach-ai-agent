@@ -4,7 +4,7 @@ import { ConsentRequiredError, type Storage } from './storage.ts';
 
 export class MemoryStorage implements Storage {
   private profiles = new Map<string, Profile>();
-  private plans: Plan[] = [];
+  private plans: { plan: Plan; conversationId?: string }[] = [];
 
   async getProfile(userId: string): Promise<Profile | null> {
     const profile = this.profiles.get(userId);
@@ -21,15 +21,20 @@ export class MemoryStorage implements Storage {
 
   async deleteUser(userId: string): Promise<void> {
     this.profiles.delete(userId);
-    this.plans = this.plans.filter((plan) => plan.userId !== userId);
+    this.plans = this.plans.filter(({ plan }) => plan.userId !== userId);
   }
 
-  async savePlan(plan: Plan): Promise<void> {
-    this.plans.push(structuredClone(plan));
+  async savePlan(plan: Plan, conversationId?: string): Promise<void> {
+    this.plans.push({ plan: structuredClone(plan), conversationId });
   }
 
   async getLatestPlan(userId: string): Promise<Plan | null> {
-    const latest = this.plans.findLast((plan) => plan.userId === userId);
-    return latest ? structuredClone(latest) : null;
+    const latest = this.plans.findLast(({ plan }) => plan.userId === userId);
+    return latest ? structuredClone(latest.plan) : null;
+  }
+
+  async getPlanOfConversation(userId: string, conversationId: string): Promise<Plan | null> {
+    const found = this.plans.findLast((row) => row.plan.userId === userId && row.conversationId === conversationId);
+    return found ? structuredClone(found.plan) : null;
   }
 }

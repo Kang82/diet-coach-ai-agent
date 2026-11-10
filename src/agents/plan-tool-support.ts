@@ -11,7 +11,8 @@ import type { InterviewToolOutput } from '../core/interview-tool-output.ts';
 import type { ClassifyToolOutput } from '../core/classify-tool-output.ts';
 import type { EditToolOutput, PlanToolOutput, PlanToolStats } from '../core/plan-tool-output.ts';
 import type { GuardStore } from '../storage/guard-store.ts';
-import type { MenuClassification, Plan } from '../core/types.ts';
+import type { MenuClassification, Plan, Profile } from '../core/types.ts';
+import { lastWeekFeedback, pickLastWeek, type LastWeek } from '../core/last-week.ts';
 import { createDemoPlanGenerator } from './demo-plan-generator.ts';
 import { createFluePlanGenerator, type PromptHarness } from './flue-plan-generator.ts';
 import { meteredHarness, type NeuronMeter } from './metered-harness.ts';
@@ -60,8 +61,41 @@ export interface UserStore {
   userId: string;
   /** 지난 식단표 목록 표시용 (T17). 대화 ID와 conversations 테이블 */
   conversationId: string;
-  /** 지난 식단표 목록 표시(T17), 측정 숫자(T26) */
-  guard: Pick<GuardStore, 'markConversationPlan' | 'setProfileEdits'>;
+  /** 지난 식단표 목록 표시(T17), 측정 숫자(T26), 지난주 체크 읽기(T28) */
+  guard: Pick<GuardStore, 'markConversationPlan' | 'setProfileEdits' | 'planConversations' | 'checksOf'>;
+}
+
+/** 표시·측정 숫자만 쓰는 곳 */
+type MarkStore = { conversationId: string; guard: Pick<GuardStore, 'markConversationPlan' | 'setProfileEdits'> };
+
+/**
+ * 지난주 체크를 읽어 생성 프롬프트에 넣을 선호를 만든다 (T28, Task2 R3).
+ * 지난주 식단표 대화(pickLastWeek) → 체크한 칸 → 그 대화의 저장한 식단표(저장 동의한 사람만, D1 plans) 순으로 읽는다.
+ * durable 도구라 history step에 둔다(복구 때 같은 값). 읽기 실패는 경고만 남기고 반영 없이(null) 만든다
+ */
+export async function loadLastWeekQuietly(
+  log: Pick<FlueLogger, 'warn' | 'info'>,
+  step: { do: <T>(name: string, fn: () => Promise<T>) => Promise<T> },
+  store: Pick<UserStore, 'storage' | 'userId' | 'conversationId'> & { guard: Pick<GuardStore, 'planConversations' | 'checksOf'> },
+  { weekStart, profile, classes }: { weekStart: string; profile: Pick<Profile, 'meals'>; classes: readonly MenuClassification[] },
+): Promise<LastWeek | undefined> {
+  const found = await step.do('history', async (): Promise<LastWeek | null> => {
+    try {
+      const last = pickLastWeek(await store.guard.planConversations(store.userId), store.conversationId, weekStart);
+      if (!last) return null;
+      const checks = await store.guard.checksOf(store.userId, last.conversationId);
+      if (checks.length === 0) return null;
+      const plan = await store.storage.getPlanOfConversation(store.userId, last.conversationId);
+      const feedback = plan && lastWeekFeedback(plan, checks, profile, classes);
+      // 안내 날짜는 고른 대화의 시작 월요일(지난 식단표 목록과 같은 값)
+      return feedback ? { ...feedback, weekStart: last.weekStart } : null;
+    } catch (error) {
+      log.warn('지난주 체크 읽기 실패', { message: error instanceof Error ? error.message : String(error) });
+      return null;
+    }
+  });
+  log.info('지난주 체크', { used: found !== null, eaten: found?.eaten.length ?? 0, skipped: found?.skipped.length ?? 0 });
+  return found ?? undefined;
 }
 
 /**
@@ -73,7 +107,7 @@ export interface UserStore {
 export async function markPlanQuietly(
   log: Pick<FlueLogger, 'warn' | 'info'>,
   step: { do: <T>(name: string, fn: () => Promise<T>) => Promise<T> },
-  store: Pick<UserStore, 'conversationId' | 'guard'>,
+  store: MarkStore,
   plan: Pick<Plan, 'weekStart' | 'cells'>,
   { edited, now = () => new Date().toISOString() }: { edited: boolean; now?: () => string },
 ): Promise<void> {
@@ -90,7 +124,7 @@ export async function markPlanQuietly(
  */
 export async function recordProfileEditsQuietly(
   log: Pick<FlueLogger, 'warn' | 'info'>,
-  store: Pick<UserStore, 'conversationId' | 'guard'>,
+  store: MarkStore,
   count: number | undefined,
 ): Promise<void> {
   if (count === undefined) return;

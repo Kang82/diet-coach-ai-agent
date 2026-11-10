@@ -53,13 +53,21 @@ export class D1Storage implements Storage {
     ]);
   }
 
-  async savePlan(plan: Plan): Promise<void> {
+  async savePlan(plan: Plan, conversationId?: string): Promise<void> {
     await this.db
       .prepare(
-        'INSERT INTO plans (plan_id, user_id, week_start, data, created_at) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO plans (plan_id, user_id, week_start, data, created_at, conversation_id) VALUES (?, ?, ?, ?, ?, ?)',
       )
-      .bind(plan.planId, plan.userId, plan.weekStart, JSON.stringify(plan), plan.createdAt)
+      .bind(plan.planId, plan.userId, plan.weekStart, JSON.stringify(plan), plan.createdAt, conversationId ?? null)
       .run();
+  }
+
+  async getPlanOfConversation(userId: string, conversationId: string): Promise<Plan | null> {
+    const row = await this.db
+      .prepare('SELECT data FROM plans WHERE user_id = ? AND conversation_id = ? ORDER BY seq DESC LIMIT 1')
+      .bind(userId, conversationId)
+      .first<{ data: string }>();
+    return row ? (JSON.parse(row.data) as Plan) : null;
   }
 
   async getLatestPlan(userId: string): Promise<Plan | null> {

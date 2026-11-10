@@ -4,8 +4,10 @@ import { LLM_TIMEOUT_MESSAGE, LlmTimeoutError } from '../core/llm-timeout.ts';
 import { PlanLoopError } from '../core/plan-loop.ts';
 import { TOOL_ERROR_MESSAGE } from '../core/tool-failure.ts';
 import { MODEL_CANDIDATES } from './models.ts';
-import { markPlanQuietly, planFailure, prepareSafely, recordProfileEditsQuietly, runGuarded } from './plan-tool-support.ts';
-import { planA } from '../core/__fixtures__/persona-a.ts';
+import { loadLastWeekQuietly, markPlanQuietly, planFailure, prepareSafely, recordProfileEditsQuietly, runGuarded } from './plan-tool-support.ts';
+import { classesA, planA, profileA } from '../core/__fixtures__/persona-a.ts';
+import { MemoryStorage } from '../storage/memory-storage.ts';
+import type { Slot } from '../core/types.ts';
 
 const log = { warn: () => {}, error: () => {} };
 
@@ -149,5 +151,50 @@ describe('markPlanQuietly', () => {
       edited: false,
     });
     expect(warnings).toHaveLength(1);
+  });
+});
+
+// tasks.md T28 (Task2 R3): 지난주 체크를 읽어 생성 선호로
+describe('loadLastWeekQuietly', () => {
+  const quiet = { warn: () => {}, info: () => {} };
+  const conv = (conversationId: string, weekStart: string, planAt: string) => ({ conversationId, weekStart, planAt });
+
+  async function setup({ checks = [{ day: 'mon', meal: 'lunch' }] as Slot[], consent = true } = {}) {
+    const storage = new MemoryStorage();
+    if (consent) await storage.savePlan(planA, 'u1-last');
+    const guard = {
+      planConversations: async () => [conv('u1-now', '2026-11-16', '2026-11-15T10:00:00Z'), conv('u1-last', planA.weekStart, '2026-11-09T10:00:00Z')],
+      checksOf: async (_u: string, c: string) => (c === 'u1-last' ? checks : []),
+    };
+    const steps: string[] = [];
+    const step = { do: async <T,>(name: string, fn: () => Promise<T>) => (steps.push(name), fn()) };
+    return { store: { storage, userId: planA.userId, conversationId: 'u1-now', guard }, step, steps };
+  }
+  const input = { weekStart: '2026-11-16', profile: profileA, classes: classesA };
+
+  it('history step에서 지난주 대화의 체크와 저장한 식단표로 선호를 만든다', async () => {
+    const { store, step, steps } = await setup();
+    const result = await loadLastWeekQuietly(quiet, step, store, input);
+    expect(steps).toEqual(['history']);
+    expect(result?.weekStart).toBe(planA.weekStart);
+    expect(result?.eaten).toEqual([{ menu: '회덮밥', count: 1 }]);
+  });
+
+  it('체크가 없거나 저장한 식단표가 없으면(동의 안 함) undefined', async () => {
+    const noChecks = await setup({ checks: [] });
+    expect(await loadLastWeekQuietly(quiet, noChecks.step, noChecks.store, input)).toBeUndefined();
+    const noConsent = await setup({ consent: false });
+    expect(await loadLastWeekQuietly(quiet, noConsent.step, noConsent.store, input)).toBeUndefined();
+  });
+
+  it('읽기가 실패해도 던지지 않고 경고만 남긴다', async () => {
+    const { store, step } = await setup();
+    const warnings: string[] = [];
+    store.guard.checksOf = async () => {
+      throw new Error('d1 down');
+    };
+    const result = await loadLastWeekQuietly({ warn: (m: string) => void warnings.push(m), info: () => {} }, step, store, input);
+    expect(result).toBeUndefined();
+    expect(warnings).toEqual(['지난주 체크 읽기 실패']);
   });
 });

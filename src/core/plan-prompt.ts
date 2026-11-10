@@ -2,6 +2,7 @@
 // 규칙의 기준은 checkPlan(3.2)이다. 여기 적은 규칙은 LLM이 처음부터 지키도록 돕는 안내일 뿐이고,
 // 지켰는지는 checkPlan이 판정한다.
 import { MAIN_INGREDIENT_WEEKLY_MAX } from './check-plan.ts';
+import type { LastWeek } from './last-week.ts';
 import { cellTagsOf } from './menu-tags.ts';
 import { menuWeeklyMaxFor } from './plan-feasibility.ts';
 import { requiredSlots } from './plan-slots.ts';
@@ -82,6 +83,7 @@ export function buildGeneratePrompt(input: GeneratePlanInput): string {
     sectionGoals(input.profile),
     sectionSlots(input.profile, input.classes, slots, input.events),
     sectionRules(input.profile, input.rules, menuWeeklyMaxFor(input.profile, input.classes, input.events)),
+    ...(input.lastWeek ? [sectionLastWeek(input.lastWeek)] : []),
     sectionCellFormat(),
   ].join('\n');
 }
@@ -200,6 +202,23 @@ function sectionRules(profile: Profile, rules: CriteriaRules, weeklyMax: number)
       (rules.criteria.includes('reduce_saturated_fat') ? ' (예: 포화지방 줄이기면 삼겹살·갈비보다 살코기나 생선)' : ''),
     '',
   );
+  return lines.join('\n');
+}
+
+/**
+ * 지난주 체크 (T28, Task2 R3). 선호일 뿐이라 규칙 절 뒤에 두고, 규칙이 앞선다고 적는다.
+ * 지켰는지는 checkPlan이 보지 않는다(선호를 어겨도 위반 아님)
+ */
+function sectionLastWeek(lastWeek: LastWeek): string {
+  const lines = ['## 지난주 기록 (선호)'];
+  if (lastWeek.eaten.length > 0) {
+    const eaten = lastWeek.eaten.map(({ menu, count }) => (count > 1 ? `${menu} ${count}번` : menu)).join(', ');
+    lines.push(`- 지난주에 먹었다고 체크한 메뉴: ${eaten}. 위 규칙을 지키는 안에서 이 메뉴나 비슷한 메뉴를 우선 넣습니다.`);
+  }
+  if (lastWeek.skipped.length > 0) {
+    lines.push(`- 지난주에 넣었지만 체크하지 않은 메뉴: ${lastWeek.skipped.join(', ')}. 되도록 줄입니다.`);
+  }
+  lines.push('- 위 "지켜야 할 규칙"(횟수 제한, 같은 메뉴 반복 금지 등)이 이 선호보다 앞섭니다.', '');
   return lines.join('\n');
 }
 

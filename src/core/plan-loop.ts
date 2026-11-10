@@ -1,5 +1,6 @@
 // 스펙 4.4 점검과 다시 추천 루프.
 // LLM은 PlanGenerator 포트로만 부른다. 입력 식단표는 고치지 않고 새 객체를 만든다.
+import type { LastWeek } from './last-week.ts';
 import { checkPlan, requiredSlots } from './check-plan.ts';
 import { compareSlots, menuKey, sameSlot, slotOrder, toSlot } from './helpers.ts';
 import { LlmTimeoutError, MIN_REGENERATE_MS } from './llm-timeout.ts';
@@ -52,6 +53,8 @@ export interface CreatePlanInput {
   createdAt: string;
   weekStart: string;
   events: PlanEvent[];
+  /** 지난주 체크로 만든 선호 (T28). 처음 생성 프롬프트에만 넣는다 */
+  lastWeek?: LastWeek;
   budget?: TimeBudget;
 }
 
@@ -112,7 +115,10 @@ export async function createPlan(
   const stats: LoopStats = { usages: [], regenerations: 0 };
   const clock = deadline(input.budget);
   try {
-    const generated = await generator.generatePlan({ ...ctx, weekStart: input.weekStart, events: input.events }, clock.options());
+    const generated = await generator.generatePlan(
+      { ...ctx, weekStart: input.weekStart, events: input.events, ...(input.lastWeek ? { lastWeek: input.lastWeek } : {}) },
+      clock.options(),
+    );
     stats.usages.push(generated.usage);
 
     // LLM에는 칸만 받는다. 일정과 날짜는 입력 값을 쓴다.

@@ -21,6 +21,7 @@ import type { NeuronMeter } from './metered-harness.ts';
 import { persistPlan } from '../storage/persist.ts';
 import {
   metered,
+  loadLastWeekQuietly,
   markPlanQuietly,
   persistQuietly,
   pickGenerator,
@@ -127,6 +128,10 @@ export function createWeekPlanTool({
             weekStart: planWeekStart(period?.weekStart, new Date()),
           }));
           const { startedAt } = start;
+          // 지난주 체크를 선호로 (T28). 저장 동의한 사람의 지난 식단표가 있고 체크가 있을 때만
+          const lastWeek = store
+            ? await loadLastWeekQuietly(log, step, store, { weekStart: start.weekStart, profile: ctx.profile, classes })
+            : undefined;
 
           try {
             // LLM 호출(사용량 기록 포함)은 llm:N step 안에서 돈다. 끝난 호출은 복구 때 다시 부르지 않는다
@@ -136,6 +141,7 @@ export function createWeekPlanTool({
               createdAt: start.createdAt,
               weekStart: start.weekStart,
               events: structuredClone(period?.events ?? []),
+              ...(lastWeek ? { lastWeek } : {}),
               // 도구 전체 시간 상한 (tasks.md T8-4)
               budget: { totalMs: PLAN_TOOL_BUDGETS.createPlan, now: Date.now, startedAt },
             });
@@ -149,7 +155,7 @@ export function createWeekPlanTool({
               savePlan(result.plan);
               if (store) {
                 const plan = result.plan;
-                await persistQuietly(log, '식단표', () => step.do('persist', () => persistPlan(store.storage, store.userId, plan)));
+                await persistQuietly(log, '식단표', () => step.do('persist', () => persistPlan(store.storage, store.userId, plan, store.conversationId)));
                 await markPlanQuietly(log, step, store, plan, { edited: false });
               }
               return {
@@ -162,6 +168,7 @@ export function createWeekPlanTool({
                     ctx.profile,
                     { chosen: period?.weekStart, weekStart: start.weekStart, hasEvents: (period?.events.length ?? 0) > 0 },
                     feasibility.menuWeeklyMax,
+                    lastWeek?.weekStart,
                   ),
                   stats,
                 }),

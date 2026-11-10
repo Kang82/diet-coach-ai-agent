@@ -108,6 +108,17 @@ describe('createPlan', () => {
     expect(fake.calls[0]!.input).toMatchObject({ events });
   });
 
+  it('지난주 기록은 처음 생성에만 넘긴다 (T28)', async () => {
+    const lastWeek = { weekStart: '2026-11-02', eaten: [{ menu: '백반', count: 1 }], skipped: [] };
+    const fake = new FakePlanGenerator({ plans: [planA.cells] });
+    await createPlan(fake, ctx(), { ...weekInput(), lastWeek });
+    expect(fake.calls[0]!.input).toMatchObject({ lastWeek });
+
+    const without = new FakePlanGenerator({ plans: [planA.cells] });
+    await createPlan(without, ctx(), weekInput());
+    expect(without.calls[0]!.input).not.toHaveProperty('lastWeek');
+  });
+
   it('LLM이 돌려준 칸 순서와 관계없이 시간순으로 정리한다', async () => {
     const fake = new FakePlanGenerator({ plans: [[...planA.cells].reverse()] });
 

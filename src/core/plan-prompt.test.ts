@@ -260,3 +260,28 @@ describe('같은 메뉴 허용 횟수', () => {
     expect(regenerate).toContain('- 같은 메뉴는 1주일에 3번까지만 넣습니다.');
   });
 });
+
+// tasks.md T28 (Task2 R3): 지난주 체크를 선호로 넣는다. 규칙 절 뒤, 규칙이 앞선다고 적는다
+describe('지난주 기록 (T28)', () => {
+  const lastWeek = { weekStart: '2026-11-02', eaten: [{ menu: '백반', count: 2 }, { menu: '두부 채소 볶음', count: 1 }], skipped: ['쌀국수'] };
+
+  it('없으면 절을 넣지 않는다', () => {
+    expect(buildGeneratePrompt(generateInput())).not.toContain('지난주 기록');
+  });
+
+  it('있으면 규칙 절 뒤, 칸 작성 방법 앞에 먹은 메뉴(횟수)·안 먹은 메뉴와 규칙 우선을 적는다', () => {
+    const prompt = buildGeneratePrompt(generateInput({ lastWeek }));
+    const at = (text: string) => prompt.indexOf(text);
+    expect(at('## 지켜야 할 규칙')).toBeLessThan(at('## 지난주 기록 (선호)'));
+    expect(at('## 지난주 기록 (선호)')).toBeLessThan(at('## 칸 작성 방법'));
+    expect(prompt).toContain('지난주에 먹었다고 체크한 메뉴: 백반 2번, 두부 채소 볶음.');
+    expect(prompt).toContain('지난주에 넣었지만 체크하지 않은 메뉴: 쌀국수.');
+    expect(prompt).toContain('이 선호보다 앞섭니다');
+  });
+
+  it('한쪽이 비면 그 줄은 없다', () => {
+    const prompt = buildGeneratePrompt(generateInput({ lastWeek: { ...lastWeek, skipped: [] } }));
+    expect(prompt).not.toContain('체크하지 않은 메뉴');
+    expect(prompt).toContain('먹었다고 체크한 메뉴');
+  });
+});

@@ -36,6 +36,13 @@ describe('persistPlan', () => {
     expect(await storage.getLatestPlan('u1')).toMatchObject({ planId: planA.planId, userId: 'u1', profileVersion: 1 });
   });
 
+  it('대화 ID를 함께 저장한다 (T28)', async () => {
+    const storage = new MemoryStorage();
+    await persistInterview(storage, 'u1', consented, now);
+    await persistPlan(storage, 'u1', planA, 'u1-c1');
+    expect((await storage.getPlanOfConversation('u1', 'u1-c1'))?.planId).toBe(planA.planId);
+  });
+
   it('저장한 프로필이 없으면(동의 안 함) 저장하지 않는다', async () => {
     const storage = new MemoryStorage();
     expect(await persistPlan(storage, 'u1', planA)).toBe(false);

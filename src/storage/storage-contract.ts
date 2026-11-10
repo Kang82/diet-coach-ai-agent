@@ -47,6 +47,25 @@ export function storageContract(name: string, create: () => Storage | Promise<St
       expect((await storage.getLatestPlan(planA.userId))?.planId).toBe('plan-a-2');
     });
 
+    it('대화의 식단표는 그 대화에서 가장 나중에 저장한 것 (T28)', async () => {
+      const storage = await create();
+      await storage.savePlan(planA, 'c1');
+      await storage.savePlan({ ...planA, planId: 'edited' }, 'c1');
+      await storage.savePlan({ ...planA, planId: 'other-conv' }, 'c2');
+      await storage.savePlan({ ...planA, planId: 'no-conv' });
+      expect((await storage.getPlanOfConversation(planA.userId, 'c1'))?.planId).toBe('edited');
+      expect((await storage.getPlanOfConversation(planA.userId, 'c2'))?.planId).toBe('other-conv');
+      expect(await storage.getPlanOfConversation(planA.userId, 'c3')).toBeNull();
+    });
+
+    it('다른 사용자의 대화 식단표는 돌려주지 않고, deleteUser가 지운다 (T28)', async () => {
+      const storage = await create();
+      await storage.savePlan(planA, 'c1');
+      expect(await storage.getPlanOfConversation('user-b', 'c1')).toBeNull();
+      await storage.deleteUser(planA.userId);
+      expect(await storage.getPlanOfConversation(planA.userId, 'c1')).toBeNull();
+    });
+
     it('deleteUser는 프로필과 식단표를 모두 지우고 다른 사용자는 남긴다', async () => {
       const storage = await create();
       await storage.saveProfile(profileA);

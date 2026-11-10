@@ -1,6 +1,6 @@
 // 스펙 7장: 의료 조언 아님 안내, 약 복용 중이면 상담 권고 추가
 import { describe, expect, it } from 'vitest';
-import { AVOID_CHECK_NOTICE, buildPlanNotices, MEDICAL_DISCLAIMER, MEDICATION_ADVICE } from './plan-notices.ts';
+import { AVOID_CHECK_NOTICE, buildPlanNotices, lastWeekNotice, MEDICAL_DISCLAIMER, MEDICATION_ADVICE } from './plan-notices.ts';
 
 describe('buildPlanNotices', () => {
   it('약 복용이 없으면 의료 조언 아님 안내 1줄', () => {
@@ -73,6 +73,30 @@ describe('같은 메뉴 허용 횟수 안내', () => {
     expect(buildPlanNotices({ medication: 'none' }, { chosen: '2026-11-09', weekStart: '2026-11-16', hasEvents: false }, 3)).toEqual([
       '고른 주(11/9~)가 이미 시작돼 다음 주(11/16~)로 만들었어요.',
       '외식 메뉴가 적어 같은 메뉴를 1주일에 3번까지 넣었어요.',
+      MEDICAL_DISCLAIMER,
+    ]);
+  });
+});
+
+// tasks.md T28: 지난주 체크를 생성에 반영했으면 알린다
+describe('지난주 체크 반영 안내 (T28)', () => {
+  it('반영하지 않았으면 안내 없음', () => {
+    expect(buildPlanNotices({ medication: 'none' }, undefined, undefined, undefined)).toEqual([MEDICAL_DISCLAIMER]);
+  });
+
+  it('반영했으면 주 밀림 안내 뒤, 피할 음식·의료 안내 앞', () => {
+    expect(lastWeekNotice('2026-11-09')).toBe('지난주(11/9~)에 먹었다고 체크한 메뉴를 우선해 짰어요.');
+    expect(
+      buildPlanNotices(
+        { medication: 'none', avoid: ['egg'] },
+        { chosen: '2026-11-09', weekStart: '2026-11-16', hasEvents: false },
+        undefined,
+        '2026-11-02',
+      ),
+    ).toEqual([
+      '고른 주(11/9~)가 이미 시작돼 다음 주(11/16~)로 만들었어요.',
+      lastWeekNotice('2026-11-02'),
+      AVOID_CHECK_NOTICE,
       MEDICAL_DISCLAIMER,
     ]);
   });
