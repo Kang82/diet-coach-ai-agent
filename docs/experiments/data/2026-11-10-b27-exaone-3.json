@@ -1,0 +1,151 @@
+{
+  "step": 3,
+  "effort": "low",
+  "at": "2026-11-10T13:17:19.561Z",
+  "request": {
+    "model": "k-exaone_v2.5",
+    "messages": [
+      {
+        "role": "system",
+        "content": "당신은 도우미입니다. 결과는 반드시 finish 도구로만 보내세요."
+      },
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "1 더하기 1은? finish로 답하세요."
+          }
+        ]
+      },
+      {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "abc123XYZ",
+            "type": "function",
+            "function": {
+              "name": "lookup",
+              "arguments": "{\"q\":\"1+1\"}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "abc123XYZ",
+        "content": "2"
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "lookup",
+          "description": "계산 조회",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "q": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "q"
+            ]
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "finish",
+          "description": "최종 결과를 보낸다",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "answer": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "answer"
+            ]
+          }
+        }
+      }
+    ],
+    "reasoning_effort": "low",
+    "max_tokens": 1024
+  },
+  "response": {
+    "status": 200,
+    "rateHeaders": {
+      "x-day-rate-limit": "100",
+      "x-day-rate-limit-remaining": "97",
+      "x-minute-rate-limit": "60",
+      "x-minute-rate-limit-remaining": "57",
+      "x-request-id": "01a1c59b-15e6-7292-b38c-3e35597b214d",
+      "x-second-rate-limit": "1",
+      "x-second-rate-limit-remaining": "0"
+    },
+    "firstByteMs": 0,
+    "elapsedMs": 1948,
+    "body": {
+      "id": "3bf3ada96b2d4ab3a2942e5584113011",
+      "choices": [
+        {
+          "finish_reason": "tool_calls",
+          "index": 0,
+          "logprobs": null,
+          "message": {
+            "content": "\n\n",
+            "refusal": null,
+            "role": "assistant",
+            "annotations": null,
+            "audio": null,
+            "function_call": null,
+            "tool_calls": [
+              {
+                "id": "call_1bc78942512f4f9d9ef11f80",
+                "function": {
+                  "arguments": "{\"answer\": \"2\"}",
+                  "name": "finish"
+                },
+                "type": "function",
+                "index": 0
+              }
+            ],
+            "reasoning_content": "The user asks in Korean: \"1 더하기 1은? finish로 답하세요.\" (1 plus 1 is? answer with finish.)\n\nI should call finish with the answer.\n"
+          },
+          "matched_stop": null
+        }
+      ],
+      "created": 1794316639,
+      "model": "k-exaone_v2.5",
+      "object": "chat.completion",
+      "metadata": {
+        "weight_version": "default",
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 62
+          }
+        ]
+      },
+      "moderation": null,
+      "service_tier": null,
+      "system_fingerprint": null,
+      "usage": {
+        "completion_tokens": 62,
+        "prompt_tokens": 296,
+        "total_tokens": 358,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 39
+      }
+    }
+  }
+}

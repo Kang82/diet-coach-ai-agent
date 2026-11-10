@@ -1,0 +1,75 @@
+{
+  "step": 1,
+  "effort": "low",
+  "at": "2026-11-10T13:17:03.790Z",
+  "request": {
+    "model": "k-exaone_v2.5",
+    "messages": [
+      {
+        "role": "user",
+        "content": "김치찌개에 들어가는 주재료 세 가지를 한 줄로 알려 주세요."
+      }
+    ],
+    "reasoning_effort": "low",
+    "max_tokens": 512
+  },
+  "response": {
+    "status": 200,
+    "rateHeaders": {
+      "x-day-rate-limit": "100",
+      "x-day-rate-limit-remaining": "99",
+      "x-minute-rate-limit": "60",
+      "x-minute-rate-limit-remaining": "59",
+      "x-request-id": "01a1c59a-d413-738f-a1b6-5222dc355a6e",
+      "x-second-rate-limit": "1",
+      "x-second-rate-limit-remaining": "0"
+    },
+    "firstByteMs": 0,
+    "elapsedMs": 3037,
+    "body": {
+      "id": "03b2b641d07b46518085c3a8a1c1c0c8",
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "logprobs": null,
+          "message": {
+            "content": "\n\n김치, 돼지고기, 두부",
+            "refusal": null,
+            "role": "assistant",
+            "annotations": null,
+            "audio": null,
+            "function_call": null,
+            "tool_calls": null,
+            "reasoning_content": "We need answer in Korean. User asks: \"김치찌개에 들어가는 주재료 세 가지를 한 줄로 알려 주세요.\" Need one line with three main ingredients. Likely 김치, 돼지고기, 두부. Could also be 김치, 돼지고기, 대파? Common main ingredients: 김치, 돼지고기, 두부. Need just one line. Ensure Korean. Maybe \"김치, 돼지고기, 두부\" One line. Final only.\n"
+          },
+          "matched_stop": 53
+        }
+      ],
+      "created": 1794316623,
+      "model": "k-exaone_v2.5",
+      "object": "chat.completion",
+      "metadata": {
+        "weight_version": "default",
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 83
+          }
+        ]
+      },
+      "moderation": null,
+      "service_tier": null,
+      "system_fingerprint": null,
+      "usage": {
+        "completion_tokens": 83,
+        "prompt_tokens": 29,
+        "total_tokens": 112,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 76
+      }
+    }
+  }
+}

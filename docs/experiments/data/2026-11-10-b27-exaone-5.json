@@ -1,0 +1,81 @@
+{
+  "step": 5,
+  "effort": "low",
+  "at": "2026-11-10T13:17:23.832Z",
+  "request": {
+    "model": "k-exaone_v2.5",
+    "messages": [
+      {
+        "role": "system",
+        "content": "당신은 도우미입니다. 결과는 반드시 finish 도구로만 보내세요."
+      },
+      {
+        "role": "user",
+        "content": "1 더하기 1은?"
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "finish",
+          "description": "최종 결과를 보낸다",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "answer": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "answer"
+            ]
+          }
+        }
+      }
+    ],
+    "reasoning_effort": "low",
+    "max_tokens": 1024,
+    "stream": true,
+    "stream_options": {
+      "include_usage": true
+    },
+    "chat_template_kwargs": {
+      "preserve_thinking": true
+    }
+  },
+  "response": {
+    "status": 200,
+    "rateHeaders": {
+      "x-day-rate-limit": "100",
+      "x-day-rate-limit-remaining": "96",
+      "x-minute-rate-limit": "60",
+      "x-minute-rate-limit-remaining": "56",
+      "x-request-id": "01a1c59b-267d-7126-94d5-7c55352139e3",
+      "x-second-rate-limit": "1",
+      "x-second-rate-limit-remaining": "0"
+    },
+    "firstByteMs": 323,
+    "elapsedMs": 1977,
+    "stream": {
+      "chunks": 19,
+      "maxGapMs": 448,
+      "finishReason": "tool_calls",
+      "usage": {
+        "completion_tokens": 53,
+        "prompt_tokens": 186,
+        "total_tokens": 239,
+        "reasoning_tokens": 29
+      },
+      "reasoningChars": 136,
+      "reasoningHead": "We need answer in Korean likely. Need use finish tool only? The instruction says 결과 반드시 finish 도구로만 보내세요. Need call finish with answer.\n",
+      "content": "\n\n",
+      "tools": [
+        {
+          "name": "finish",
+          "args": "{\"answer\": \"2입니다.\"}"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "step": 2,
+  "effort": "low",
+  "at": "2026-11-10T13:17:12.025Z",
+  "request": {
+    "model": "k-exaone_v2.5",
+    "messages": [
+      {
+        "role": "system",
+        "content": "당신은 도우미입니다. 결과는 반드시 finish 도구로만 보내세요."
+      },
+      {
+        "role": "user",
+        "content": "1 더하기 1은?"
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "finish",
+          "description": "최종 결과를 보낸다",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "answer": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "answer"
+            ]
+          }
+        }
+      }
+    ],
+    "reasoning_effort": "low",
+    "max_tokens": 1024
+  },
+  "response": {
+    "status": 200,
+    "rateHeaders": {
+      "x-day-rate-limit": "100",
+      "x-day-rate-limit-remaining": "98",
+      "x-minute-rate-limit": "60",
+      "x-minute-rate-limit-remaining": "58",
+      "x-request-id": "01a1c59a-f7b0-7257-9260-7585d8aceca3",
+      "x-second-rate-limit": "1",
+      "x-second-rate-limit-remaining": "0"
+    },
+    "firstByteMs": 0,
+    "elapsedMs": 2155,
+    "body": {
+      "id": "a86b82802a484e1ca5b45a7312cc9089",
+      "choices": [
+        {
+          "finish_reason": "tool_calls",
+          "index": 0,
+          "logprobs": null,
+          "message": {
+            "content": "\n\n2입니다. (1 + 1 = 2)\n",
+            "refusal": null,
+            "role": "assistant",
+            "annotations": null,
+            "audio": null,
+            "function_call": null,
+            "tool_calls": [
+              {
+                "id": "call_992f7239fb0e46d7ae7b23d0",
+                "function": {
+                  "arguments": "{\"answer\": \"2\"}",
+                  "name": "finish"
+                },
+                "type": "function",
+                "index": 0
+              }
+            ],
+            "reasoning_content": "The user asks in Korean: \"What is 1 plus 1?\" This is simple arithmetic. Answer: 2.\n"
+          },
+          "matched_stop": null
+        }
+      ],
+      "created": 1794316631,
+      "model": "k-exaone_v2.5",
+      "object": "chat.completion",
+      "metadata": {
+        "weight_version": "default",
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 59
+          }
+        ]
+      },
+      "moderation": null,
+      "service_tier": null,
+      "system_fingerprint": null,
+      "usage": {
+        "completion_tokens": 59,
+        "prompt_tokens": 186,
+        "total_tokens": 245,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 24
+      }
+    }
+  }
+}
