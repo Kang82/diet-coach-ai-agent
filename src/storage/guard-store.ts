@@ -1,6 +1,6 @@
 // 스펙 11.4 한도 보호의 저장소: 토큰 해시 → 사용자, 날짜별 사용자 메시지 수, 시간별 Worker 전체 Neuron 추정치.
 // 테이블은 migrations/0002_guard.sql(users, usage_daily), 0003_usage_hourly.sql, 0004_usage_reservations.sql,
-// 0005_conversations.sql(사용자별 대화 ID, 대화 기록 지우기용), 0006(지난 식단표 목록용 열), 0007_invites.sql(초대 코드, T24), 0008_plan_checks.sql(먹었어요 체크, T25).
+// 0005_conversations.sql(사용자별 대화 ID, 대화 기록 지우기용), 0006(지난 식단표 목록용 열), 0007_invites.sql(초대 코드, T24), 0008_plan_checks.sql(먹었어요 체크, T25), 0009_metrics.sql(측정 숫자, T26).
 // 계약 테스트는 guard-store-contract.ts.
 import type { ExpensiveKind } from '../core/message-kind.ts';
 import { compareSlots } from '../core/plan-check.ts';
@@ -42,7 +42,11 @@ export interface GuardStore {
   /** 그 사용자의 대화 중 준 ID를 기록에서 뺀다 (DO를 지운 뒤) */
   forgetConversations(userId: string, conversationIds: readonly string[]): Promise<void>;
   /** 식단표를 만들었거나 고친 대화에 시작 월요일과 시각을 둔다. 기록 없는 대화면 아무 일도 없다 (T17) */
-  markConversationPlan(conversationId: string, weekStart: string, at: string): Promise<void>;
+  markConversationPlan(conversationId: string, weekStart: string, at: string, metrics?: PlanMarkMetrics): Promise<void>;
+  /** 인터뷰 제출이 끝났을 때 프로필 확인 화면에서 다시 연 항목 수 (T26). 기록 없는 대화면 아무 일도 없다 */
+  setProfileEdits(conversationId: string, count: number): Promise<void>;
+  /** 측정 숫자 (T26). 기록 없는 대화면 null, 아직 정하지 않은 값은 null */
+  conversationMetrics(conversationId: string): Promise<ConversationMetrics | null>;
   /** 식단표가 있는 대화. 최근(plan_at) 순, limit개까지 */
   planConversations(userId: string, limit?: number): Promise<PlanConversation[]>;
   /**
@@ -54,6 +58,21 @@ export interface GuardStore {
   checksOf(userId: string, conversationId: string): Promise<Slot[]>;
   /** 그 사용자의 체크를 모두 지운다 ("내 기록 모두 지우기") */
   deleteChecksOf(userId: string): Promise<void>;
+}
+
+/**
+ * 식단표 표시와 함께 남기는 측정 숫자 (T26, 기획서 5장 성공 기준). cells: 식단표 칸 수(일정 칸 제외).
+ * edited=false(만들기)면 칸 수정 수를 0으로, true(칸 수정)면 1 더한다
+ */
+export interface PlanMarkMetrics {
+  cells: number;
+  edited: boolean;
+}
+
+export interface ConversationMetrics {
+  planCells: number | null;
+  planEdits: number | null;
+  profileEdits: number | null;
 }
 
 export interface NewUser {
@@ -98,7 +117,10 @@ export class MemoryGuardStore implements GuardStore {
   private readonly calls = new Map<string, number>();
   private readonly neurons = new Map<string, number>();
   private readonly reservations = new Map<string, { neurons: number; expiresAt: string }>();
-  private readonly conversations = new Map<string, { userId: string; at: string; plan?: { weekStart: string; at: string } }>();
+  private readonly conversations = new Map<
+    string,
+    { userId: string; at: string; plan?: { weekStart: string; at: string }; metrics?: ConversationMetrics }
+  >();
   private readonly invites: Map<string, { maxUses: number; used: number }>;
   /** 대화 ID → 칸('day|meal') → 체크 */
   private readonly checks = new Map<string, Map<string, { userId: string; slot: Slot; at: string }>>();
@@ -203,9 +225,27 @@ export class MemoryGuardStore implements GuardStore {
     for (const id of conversationIds) if (this.conversations.get(id)?.userId === userId) this.conversations.delete(id);
   }
 
-  async markConversationPlan(conversationId: string, weekStart: string, at: string): Promise<void> {
+  async markConversationPlan(conversationId: string, weekStart: string, at: string, metrics?: PlanMarkMetrics): Promise<void> {
     const c = this.conversations.get(conversationId);
-    if (c) c.plan = { weekStart, at };
+    if (!c) return;
+    c.plan = { weekStart, at };
+    if (metrics) {
+      const m = (c.metrics ??= { planCells: null, planEdits: null, profileEdits: null });
+      m.planCells = metrics.cells;
+      m.planEdits = metrics.edited ? (m.planEdits ?? 0) + 1 : 0;
+    }
+  }
+
+  async setProfileEdits(conversationId: string, count: number): Promise<void> {
+    const c = this.conversations.get(conversationId);
+    if (!c) return;
+    (c.metrics ??= { planCells: null, planEdits: null, profileEdits: null }).profileEdits = count;
+  }
+
+  async conversationMetrics(conversationId: string): Promise<ConversationMetrics | null> {
+    const c = this.conversations.get(conversationId);
+    if (!c) return null;
+    return { ...(c.metrics ?? { planCells: null, planEdits: null, profileEdits: null }) };
   }
 
   async planConversations(userId: string, limit = PLAN_CONVERSATIONS_LIMIT): Promise<PlanConversation[]> {
@@ -366,11 +406,35 @@ export class D1GuardStore implements GuardStore {
       .map(([id]) => id);
   }
 
-  async markConversationPlan(conversationId: string, weekStart: string, at: string): Promise<void> {
+  async markConversationPlan(conversationId: string, weekStart: string, at: string, metrics?: PlanMarkMetrics): Promise<void> {
+    if (!metrics) {
+      await this.db
+        .prepare('UPDATE conversations SET plan_week_start = ?1, plan_at = ?2 WHERE conversation_id = ?3')
+        .bind(weekStart, at, conversationId)
+        .run();
+      return;
+    }
+    // 표시와 측정 숫자를 한 문장으로 (T26). 칸 수정이면 이전 값에 1을 더하고, 만들기면 0
     await this.db
-      .prepare('UPDATE conversations SET plan_week_start = ?1, plan_at = ?2 WHERE conversation_id = ?3')
-      .bind(weekStart, at, conversationId)
+      .prepare(
+        `UPDATE conversations SET plan_week_start = ?1, plan_at = ?2, plan_cells = ?4,
+           plan_edits = CASE WHEN ?5 = 1 THEN COALESCE(plan_edits, 0) + 1 ELSE 0 END
+         WHERE conversation_id = ?3`,
+      )
+      .bind(weekStart, at, conversationId, metrics.cells, metrics.edited ? 1 : 0)
       .run();
+  }
+
+  async setProfileEdits(conversationId: string, count: number): Promise<void> {
+    await this.db.prepare('UPDATE conversations SET profile_edits = ?1 WHERE conversation_id = ?2').bind(count, conversationId).run();
+  }
+
+  async conversationMetrics(conversationId: string): Promise<ConversationMetrics | null> {
+    const row = await this.db
+      .prepare('SELECT plan_cells, plan_edits, profile_edits FROM conversations WHERE conversation_id = ?')
+      .bind(conversationId)
+      .first<{ plan_cells: number | null; plan_edits: number | null; profile_edits: number | null }>();
+    return row ? { planCells: row.plan_cells, planEdits: row.plan_edits, profileEdits: row.profile_edits } : null;
   }
 
   async planConversations(userId: string, limit = PLAN_CONVERSATIONS_LIMIT): Promise<PlanConversation[]> {

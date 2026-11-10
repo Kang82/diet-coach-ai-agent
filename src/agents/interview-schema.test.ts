@@ -38,6 +38,15 @@ describe('parseInterviewSubmission', () => {
     expect(parseInterviewSubmission({ draft: {}, stopFlags: [], consent: 'yes' })).toBeUndefined();
   });
 
+  it('프로필 고친 항목 수는 0~10 정수만 받고, 없으면 없다 (T26)', () => {
+    expect(parseInterviewSubmission({ draft: {}, stopFlags: [], profileEdits: 0 })).toEqual({ draft: {}, stopFlags: [], profileEdits: 0 });
+    expect(parseInterviewSubmission({ draft: {}, stopFlags: [], profileEdits: 10 })?.profileEdits).toBe(10);
+    expect(parseInterviewSubmission({ draft: {}, stopFlags: [] })).toEqual({ draft: {}, stopFlags: [] });
+    for (const bad of [-1, 11, 1.5, '2']) {
+      expect(parseInterviewSubmission({ draft: {}, stopFlags: [], profileEdits: bad })).toBeUndefined();
+    }
+  });
+
   it.each([
     ['모르는 목표', { draft: { goals: ['muscle_gain'] }, stopFlags: [] }],
     ['모르는 필드', { draft: { userId: 'x' }, stopFlags: [] }],

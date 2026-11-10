@@ -4,6 +4,7 @@ import { avoidUpdate, cookMinutesUpdate, goalsUpdate, mealsUpdate, medicationUpd
 import { profileA } from '../core/__fixtures__/persona-a.ts';
 import {
   advance,
+  profileEditCount,
   progressFromResult,
   reopen,
   resolveProgress,
@@ -122,6 +123,36 @@ describe('프로필 확인 화면 (B6)', () => {
 
   it('고치기: 목표를 고치면 목표부터', () => {
     expect(reopen(progressFromResult(resultA), { kind: 'goals' }).next).toEqual({ kind: 'ask', field: 'goals' });
+  });
+});
+
+// T26: 프로필 확인 화면에서 다시 연 항목 수 (측정 기록)
+describe('프로필에서 고친 항목 수 (T26)', () => {
+  const lunch = { dayType: 'weekday' as const, meal: 'lunch' as const };
+  const dinner = { dayType: 'weekday' as const, meal: 'dinner' as const };
+
+  it('고치기 없이 끝나면 0', () => {
+    expect(profileEditCount(progressFromResult(resultA))).toBe(0);
+  });
+
+  it('다시 연 항목을 모으고, 답한 뒤 다시 확인 화면에서도 남는다', () => {
+    let p = reopen(progressFromResult(resultA), { kind: 'cookMinutes', meal: dinner });
+    p = advance(p, cookMinutesUpdate(dinner, 30));
+    expect(p.next.kind).toBe('done');
+    expect(profileEditCount(p)).toBe(1);
+    p = reopen(p, { kind: 'menus', meal: lunch });
+    expect(profileEditCount(p)).toBe(2);
+  });
+
+  it('같은 항목을 두 번 고치면 하나로, 다른 끼니는 다른 항목으로', () => {
+    let p = reopen(progressFromResult(resultA), { kind: 'cookMinutes', meal: dinner });
+    p = advance(p, cookMinutesUpdate(dinner, 30));
+    p = reopen(p, { kind: 'cookMinutes', meal: dinner });
+    p = advance(p, cookMinutesUpdate(dinner, 20));
+    expect(profileEditCount(p)).toBe(1);
+    p = reopen(p, { kind: 'menus', meal: lunch });
+    p = reopen(p, { kind: 'goals' });
+    expect(profileEditCount(p)).toBe(3);
   });
 });
 

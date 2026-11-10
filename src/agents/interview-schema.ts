@@ -33,17 +33,20 @@ export const InterviewSubmissionSchema = v.strictObject({
   draft: DraftSchema,
   stopFlags: v.array(v.picklist(STOP_FLAGS)),
   consent: v.optional(v.boolean()),
+  /** 프로필 확인 화면에서 다시 연 항목 수 (T26). 항목은 목표·약·피할 음식·끼니 정도라 10이면 넉넉하다 */
+  profileEdits: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(10))),
 });
 
 /** 형식이 틀리면 undefined */
 export function parseInterviewSubmission(json: unknown): InterviewSubmission | undefined {
   const res = v.safeParse(InterviewSubmissionSchema, json);
   if (!res.success) return undefined;
-  const { draft, stopFlags, consent } = res.output;
+  const { draft, stopFlags, consent, profileEdits } = res.output;
   return {
     draft: draft as InterviewDraft & { meals?: DraftMealSetting[] },
     stopFlags: [...stopFlags],
     ...(consent ? { consent: true } : {}),
+    ...(profileEdits !== undefined ? { profileEdits } : {}),
   };
 }
 

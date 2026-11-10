@@ -114,7 +114,7 @@ export function editPlanCellsTool({
               if (store) {
                 const plan = result.plan;
                 await persistQuietly(log, '고친 식단표', () => step.do('persist', () => persistPlan(store.storage, store.userId, plan)));
-                await markPlanQuietly(log, step, store, plan);
+                await markPlanQuietly(log, step, store, plan, { edited: true });
               }
               return done({
                 status: 'ok',

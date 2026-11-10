@@ -39,6 +39,7 @@ npm run dev                                # vite dev (workerd). AI 호출은 �
 npm run evals -- -t 페르소나A              # 평가 세트 (스펙 8.5). 개발 서버(5199)와 DIET_COACH_TOKEN이 필요하다. 1회 약 5~6분, 약 450 Neuron(분류 gemma 포함)
 npm run db:migrate:local                   # 로컬 D1(.wrangler/state)에 migrations/ 적용. 개발 서버 전에 한 번
 npm run issue-token -- --local             # 로컬 사용자 토큰 발급. 링크와 토큰을 한 번만 출력한다 (평가 세트용)
+npm run metrics -- --local                 # 효과 측정(기획서 5장 기준). 숫자만 읽고 사용자 ID는 출력하지 않는다(B26). 배포본은 --remote
 npm run issue-invite -- --local --max 30   # 공용 초대 코드(코드당 30명). 이 코드로 화면에서 직접 토큰을 받는다(B24, 상한은 core/registration.ts)
 # 로컬 D1은 wrangler.jsonc의 database_id별로 따로 생긴다. id가 바뀌면(B9) 마이그레이션과 토큰 발급을 다시 한다
 ```

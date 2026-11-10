@@ -24,6 +24,8 @@ export interface FormProgress {
    * 끼니를 다시 답하면 장소가 같은 끼니의 메뉴·조리 시간을 이어 붙인다. 다시 확인 화면(done)이 되면 없어진다
    */
   previous?: { draft: InterviewDraft; menuFollowUps: MealKey[] };
+  /** 프로필 확인 화면에서 "고치기"로 다시 연 항목(sectionKey, 중복 없음). 제출 때 수를 싣는다 (T26) */
+  editedSections?: string[];
 }
 
 /** 지금 묻는 단계의 기본값 (이전 답). 고치기가 아니면 빈 값 */
@@ -59,7 +61,18 @@ export function advance(progress: FormProgress, update: InterviewUpdate): FormPr
     ...(progress.basedOn ? { basedOn: progress.basedOn } : {}),
     // 고치기 중(다음 단계가 ask)에만 이전 답을 넘긴다
     ...(progress.previous && turn.next.kind === 'ask' ? { previous: progress.previous } : {}),
+    ...(progress.editedSections?.length ? { editedSections: progress.editedSections } : {}),
   };
+}
+
+/** 프로필 확인 화면에서 다시 연 항목을 구분하는 키. 끼니별 메뉴·조리 시간은 끼니마다 다른 항목이다 */
+function sectionKey(section: ProfileSection): string {
+  return 'meal' in section ? `${section.kind}:${section.meal.dayType}:${section.meal.meal}` : section.kind;
+}
+
+/** 제출에 싣는 "프로필에서 고친 항목 수" (T26, 기획서 5장 첫 시연 기준) */
+export function profileEditCount(progress: FormProgress): number {
+  return progress.editedSections?.length ?? 0;
 }
 
 /** 고치기에서 끼니를 다시 답하면 장소가 같은 끼니의 메뉴·조리 시간과 "메뉴가 적어요" 추가 질문 기록을 이어 붙인다 (T16) */
@@ -111,7 +124,10 @@ const NO_ANSWER: InterviewUpdate = { filled: {}, stopFlags: [], turnFlags: [] };
 /** 프로필 확인 화면의 "고치기" (B6). 그 항목만 비우고 다음 질문을 다시 계산한다. 다 답하면 다시 확인 화면(done) */
 export function reopen(progress: FormProgress, section: ProfileSection): FormProgress {
   const previous = { draft: structuredClone(progress.state.draft), menuFollowUps: structuredClone(progress.state.menuFollowUps) };
-  return advance({ ...progress, state: reopenSection(progress.state, section), previous }, NO_ANSWER);
+  const key = sectionKey(section);
+  const edited = progress.editedSections ?? [];
+  const editedSections = edited.includes(key) ? edited : [...edited, key];
+  return advance({ ...progress, state: reopenSection(progress.state, section), previous, editedSections }, NO_ANSWER);
 }
 
 /** 저장된 프로필로 시작 (B6 "바뀐 항목 고치기"): 끝난 진행이라 프로필 확인 화면부터 */

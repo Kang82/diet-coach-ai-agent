@@ -4,7 +4,7 @@ import { LLM_TIMEOUT_MESSAGE, LlmTimeoutError } from '../core/llm-timeout.ts';
 import { PlanLoopError } from '../core/plan-loop.ts';
 import { TOOL_ERROR_MESSAGE } from '../core/tool-failure.ts';
 import { MODEL_CANDIDATES } from './models.ts';
-import { markPlanQuietly, planFailure, prepareSafely, runGuarded } from './plan-tool-support.ts';
+import { markPlanQuietly, planFailure, prepareSafely, recordProfileEditsQuietly, runGuarded } from './plan-tool-support.ts';
 import { planA } from '../core/__fixtures__/persona-a.ts';
 
 const log = { warn: () => {}, error: () => {} };
@@ -81,21 +81,73 @@ describe('runGuarded', () => {
   });
 });
 
+// T26: 인터뷰가 끝나면 프로필 고친 항목 수를 남긴다
+describe('recordProfileEditsQuietly', () => {
+  const log = { warn: () => {}, info: () => {} };
+
+  it('값이 있으면 대화에 남기고, 없으면(이전 화면) 부르지 않는다', async () => {
+    const calls: unknown[][] = [];
+    const store = {
+      conversationId: 'u1-a',
+      guard: { markConversationPlan: async () => {}, setProfileEdits: async (...args: unknown[]) => void calls.push(args) },
+    };
+    await recordProfileEditsQuietly(log, store, 2);
+    await recordProfileEditsQuietly(log, store, undefined);
+    expect(calls).toEqual([['u1-a', 2]]);
+  });
+
+  it('실패해도 던지지 않고 경고만 남긴다', async () => {
+    const warnings: string[] = [];
+    const store = {
+      conversationId: 'u1-a',
+      guard: {
+        markConversationPlan: async () => {},
+        setProfileEdits: async () => {
+          throw new Error('d1');
+        },
+      },
+    };
+    await recordProfileEditsQuietly({ warn: (m: string) => void warnings.push(m), info: () => {} }, store, 0);
+    expect(warnings).toHaveLength(1);
+  });
+});
+
 // T17: 만들기·칸 수정이 성공하면 지난 식단표 목록에 이 대화를 표시한다 (mark step, 실패해도 결과는 그대로)
 describe('markPlanQuietly', () => {
-  it('mark step 안에서 대화에 시작 월요일과 시각을 표시한다', async () => {
+  const noProfile = { setProfileEdits: async () => {} };
+
+  it('mark step 안에서 대화에 시작 월요일·시각과 측정 숫자(칸 수, 만들기/칸 수정)를 표시한다 (T26)', async () => {
     const marks: unknown[][] = [];
     const steps: string[] = [];
-    const store = { conversationId: 'u1-a', guard: { markConversationPlan: async (...args: unknown[]) => void marks.push(args) } };
-    await markPlanQuietly({ warn: () => {}, info: () => {} }, { do: async (name, fn) => (steps.push(name), fn()) }, store, planA, () => '2026-11-08T12:00:00.000Z');
-    expect(steps).toEqual(['mark']);
-    expect(marks).toEqual([['u1-a', planA.weekStart, '2026-11-08T12:00:00.000Z']]);
+    const store = {
+      conversationId: 'u1-a',
+      guard: { ...noProfile, markConversationPlan: async (...args: unknown[]) => void marks.push(args) },
+    };
+    const step = { do: async <T,>(name: string, fn: () => Promise<T>) => (steps.push(name), fn()) };
+    const now = () => '2026-11-08T12:00:00.000Z';
+    await markPlanQuietly({ warn: () => {}, info: () => {} }, step, store, planA, { edited: false, now });
+    await markPlanQuietly({ warn: () => {}, info: () => {} }, step, store, planA, { edited: true, now });
+    expect(steps).toEqual(['mark', 'mark']);
+    expect(marks).toEqual([
+      ['u1-a', planA.weekStart, '2026-11-08T12:00:00.000Z', { cells: planA.cells.length, edited: false }],
+      ['u1-a', planA.weekStart, '2026-11-08T12:00:00.000Z', { cells: planA.cells.length, edited: true }],
+    ]);
   });
 
   it('표시가 실패해도 던지지 않고 경고만 남긴다', async () => {
     const warnings: string[] = [];
-    const store = { conversationId: 'u1-a', guard: { markConversationPlan: async () => { throw new Error('d1'); } } };
-    await markPlanQuietly({ warn: (m: string) => void warnings.push(m), info: () => {} }, { do: async (_n, fn) => fn() }, store, planA);
+    const store = {
+      conversationId: 'u1-a',
+      guard: {
+        ...noProfile,
+        markConversationPlan: async () => {
+          throw new Error('d1');
+        },
+      },
+    };
+    await markPlanQuietly({ warn: (m: string) => void warnings.push(m), info: () => {} }, { do: async (_n, fn) => fn() }, store, planA, {
+      edited: false,
+    });
     expect(warnings).toHaveLength(1);
   });
 });

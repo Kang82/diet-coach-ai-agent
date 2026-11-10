@@ -92,6 +92,8 @@ export interface InterviewSubmission {
   stopFlags: StopFlag[];
   /** 프로필 확인 화면의 저장 동의 (tasks.md B6). 없으면 동의하지 않음 */
   consent?: boolean;
+  /** 프로필 확인 화면에서 "고치기"로 다시 연 항목 수 (T26, 측정 기록). 없으면 남기지 않는다 */
+  profileEdits?: number;
 }
 
 export function formatInterviewSubmission(submission: InterviewSubmission): string {

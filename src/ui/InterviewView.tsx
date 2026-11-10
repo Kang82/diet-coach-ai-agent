@@ -6,7 +6,7 @@ import { draftMeal, type InterviewSubmission } from '../core/interview-form.ts';
 import { questionText } from '../core/interview-text.ts';
 import type { InterviewUpdate } from '../core/types.ts';
 import type { ProfileSection } from '../core/profile-edit.ts';
-import { advance, progressKey, reopen, resolveProgress, stepDefaults, type FormProgress } from './interview-form-state.ts';
+import { advance, profileEditCount, progressKey, reopen, resolveProgress, stepDefaults, type FormProgress } from './interview-form-state.ts';
 import type { InterviewViewState } from './interview-view-state.ts';
 import { AvoidStep, CookMinutesStep, GoalsStep, MealsStep, MedicationStep, MenusStep } from './InterviewSteps.tsx';
 import { ProfileConfirmView } from './ProfileConfirmView.tsx';
@@ -50,7 +50,8 @@ export function InterviewView({
 
   /** 프로필 확인 화면의 "이대로 진행". 보내기에 실패하면(alert) 같은 화면에서 다시 누른다 */
   function submit(consent: boolean) {
-    onSubmit({ draft: progress.state.draft, stopFlags: progress.state.stopFlags, consent });
+    // 고친 항목 수는 측정 기록(T26)으로 서버에 숫자만 남는다
+    onSubmit({ draft: progress.state.draft, stopFlags: progress.state.stopFlags, consent, profileEdits: profileEditCount(progress) });
   }
 
   const next = progress.next;

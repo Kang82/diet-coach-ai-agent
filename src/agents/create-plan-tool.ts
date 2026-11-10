@@ -150,7 +150,7 @@ export function createWeekPlanTool({
               if (store) {
                 const plan = result.plan;
                 await persistQuietly(log, '식단표', () => step.do('persist', () => persistPlan(store.storage, store.userId, plan)));
-                await markPlanQuietly(log, step, store, plan);
+                await markPlanQuietly(log, step, store, plan, { edited: false });
               }
               return {
                 output: toJson({

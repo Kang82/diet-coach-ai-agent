@@ -60,23 +60,41 @@ export interface UserStore {
   userId: string;
   /** 지난 식단표 목록 표시용 (T17). 대화 ID와 conversations 테이블 */
   conversationId: string;
-  guard: Pick<GuardStore, 'markConversationPlan'>;
+  /** 지난 식단표 목록 표시(T17), 측정 숫자(T26) */
+  guard: Pick<GuardStore, 'markConversationPlan' | 'setProfileEdits'>;
 }
 
 /**
- * 만들기·칸 수정이 성공하면 지난 식단표 목록에 이 대화를 표시한다 (T17). 저장 동의와 관계없다(날짜만).
- * durable 도구라 mark step에 둔다(시각도 step 안에서 정해 복구 때 같은 값). 실패해도 결과는 대화에 남아 경고만
+ * 만들기·칸 수정이 성공하면 지난 식단표 목록에 이 대화를 표시한다 (T17). 저장 동의와 관계없다(날짜·숫자만).
+ * 같은 문장에서 측정 숫자(칸 수, 칸 수정 수)도 남긴다 (T26). edited: 칸 수정이면 true(수정 수 +1), 만들기면 false(0으로).
+ * durable 도구라 mark step에 둔다(시각도 step 안에서 정해 복구 때 같은 값, 끝난 step은 다시 돌지 않아 두 번 세지 않는다).
+ * 실패해도 결과는 대화에 남아 경고만
  */
 export async function markPlanQuietly(
   log: Pick<FlueLogger, 'warn' | 'info'>,
   step: { do: <T>(name: string, fn: () => Promise<T>) => Promise<T> },
   store: Pick<UserStore, 'conversationId' | 'guard'>,
-  plan: Pick<Plan, 'weekStart'>,
-  now: () => string = () => new Date().toISOString(),
+  plan: Pick<Plan, 'weekStart' | 'cells'>,
+  { edited, now = () => new Date().toISOString() }: { edited: boolean; now?: () => string },
 ): Promise<void> {
   await persistQuietly(log, '지난 식단표 목록 표시', () =>
-    step.do('mark', () => store.guard.markConversationPlan(store.conversationId, plan.weekStart, now())),
+    step.do('mark', () =>
+      store.guard.markConversationPlan(store.conversationId, plan.weekStart, now(), { cells: plan.cells.length, edited }),
+    ),
   );
+}
+
+/**
+ * 인터뷰 제출이 끝나면(done) 프로필 확인 화면에서 다시 연 항목 수를 남긴다 (T26, 기획서 5장 첫 시연 기준).
+ * 화면이 보낸 값이 없으면(이전 화면) 남기지 않는다. 실패해도 결과는 그대로
+ */
+export async function recordProfileEditsQuietly(
+  log: Pick<FlueLogger, 'warn' | 'info'>,
+  store: Pick<UserStore, 'conversationId' | 'guard'>,
+  count: number | undefined,
+): Promise<void> {
+  if (count === undefined) return;
+  await persistQuietly(log, '프로필 고친 항목 수', () => store.guard.setProfileEdits(store.conversationId, count));
 }
 
 /** 서버 저장은 실패해도 도구 결과를 깨지 않는다. 결과는 대화에 남아 있다 (storage/persist.ts) */

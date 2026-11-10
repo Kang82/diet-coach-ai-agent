@@ -206,6 +206,34 @@ export function guardStoreContract(
       expect(await store.tryCountKey('register:a', '2026-11-11', 2)).toBe(true);
     });
 
+    // T26: 측정 숫자
+    it('만들기 표시는 칸 수와 수정 0, 칸 수정 표시는 +1, 다시 만들면 0으로', async () => {
+      const store = await create([]);
+      await store.recordConversation('m1', 'm1-a', '2026-11-10T00:00:00.000Z');
+      expect(await store.conversationMetrics('m1-a')).toEqual({ planCells: null, planEdits: null, profileEdits: null });
+      await store.markConversationPlan('m1-a', '2026-11-16', '2026-11-10T01:00:00.000Z', { cells: 14, edited: false });
+      expect(await store.conversationMetrics('m1-a')).toEqual({ planCells: 14, planEdits: 0, profileEdits: null });
+      await store.markConversationPlan('m1-a', '2026-11-16', '2026-11-10T02:00:00.000Z', { cells: 14, edited: true });
+      await store.markConversationPlan('m1-a', '2026-11-16', '2026-11-10T03:00:00.000Z', { cells: 14, edited: true });
+      expect(await store.conversationMetrics('m1-a')).toEqual({ planCells: 14, planEdits: 2, profileEdits: null });
+      await store.markConversationPlan('m1-a', '2026-11-16', '2026-11-10T04:00:00.000Z', { cells: 12, edited: false });
+      expect(await store.conversationMetrics('m1-a')).toEqual({ planCells: 12, planEdits: 0, profileEdits: null });
+      // 숫자 없이 표시해도(이전 호출 모양) 숫자는 그대로
+      await store.markConversationPlan('m1-a', '2026-11-16', '2026-11-10T05:00:00.000Z');
+      expect(await store.conversationMetrics('m1-a')).toEqual({ planCells: 12, planEdits: 0, profileEdits: null });
+    });
+
+    it('프로필 고친 항목 수는 덮어쓰고, 기록 없는 대화는 무시한다', async () => {
+      const store = await create([]);
+      await store.recordConversation('m1', 'm1-a', '2026-11-10T00:00:00.000Z');
+      await store.setProfileEdits('m1-a', 2);
+      await store.setProfileEdits('m1-a', 1);
+      expect((await store.conversationMetrics('m1-a'))?.profileEdits).toBe(1);
+      await store.setProfileEdits('m1-zzz', 3);
+      await store.markConversationPlan('m1-zzz', '2026-11-16', '2026-11-10T01:00:00.000Z', { cells: 14, edited: false });
+      expect(await store.conversationMetrics('m1-zzz')).toBeNull();
+    });
+
     // T25: 먹었어요 체크
     const AT = '2026-11-10T00:00:00.000Z';
     async function withPlan(store: GuardStore, userId: string, conversationId: string) {

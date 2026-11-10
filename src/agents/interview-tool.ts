@@ -14,7 +14,7 @@ import { goalNoteModel } from './models.ts';
 import { failureKind, failureMessage } from '../core/tool-failure.ts';
 import type { NeuronMeter } from './metered-harness.ts';
 import { persistInterview } from '../storage/persist.ts';
-import { countNeurons, metered, persistQuietly, toJson, type UserStore } from './plan-tool-support.ts';
+import { countNeurons, metered, persistQuietly, recordProfileEditsQuietly, toJson, type UserStore } from './plan-tool-support.ts';
 
 export const INTERVIEW_TOOL = 'submit_interview';
 
@@ -72,6 +72,8 @@ export function submitInterviewTool({
           if (store) {
             const result = out.result;
             await persistQuietly(log, '프로필', () => persistInterview(store.storage, store.userId, result, new Date()));
+            // 측정 숫자 (T26): 프로필 확인 화면에서 다시 연 항목 수
+            await recordProfileEditsQuietly(log, store, submission.profileEdits);
           }
           return done({ status: 'done', message: out.message, summary: out.summary, result: out.result, stats });
         case 'ask':
