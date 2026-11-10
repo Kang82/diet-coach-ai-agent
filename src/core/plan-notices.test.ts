@@ -1,6 +1,6 @@
 // 스펙 7장: 의료 조언 아님 안내, 약 복용 중이면 상담 권고 추가
 import { describe, expect, it } from 'vitest';
-import { buildPlanNotices, MEDICAL_DISCLAIMER, MEDICATION_ADVICE } from './plan-notices.ts';
+import { AVOID_CHECK_NOTICE, buildPlanNotices, MEDICAL_DISCLAIMER, MEDICATION_ADVICE } from './plan-notices.ts';
 
 describe('buildPlanNotices', () => {
   it('약 복용이 없으면 의료 조언 아님 안내 1줄', () => {
@@ -9,6 +9,30 @@ describe('buildPlanNotices', () => {
 
   it.each(['glucose', 'cholesterol', 'other'] as const)('약 복용(%s)이면 상담 권고를 더한다', (medication) => {
     expect(buildPlanNotices({ medication })).toEqual([MEDICAL_DISCLAIMER, MEDICATION_ADVICE]);
+  });
+});
+
+// tasks.md T13-4: 외식 칸 태그는 빠질 수 있어 피할 음식이 있으면 직접 확인하라고 알린다
+describe('피할 음식이 있을 때 안내 (T13-4)', () => {
+  it('피할 음식이 없거나 모르면 안내 없음', () => {
+    expect(buildPlanNotices({ medication: 'none', avoid: [] })).toEqual([MEDICAL_DISCLAIMER]);
+    expect(buildPlanNotices({ medication: 'none' })).toEqual([MEDICAL_DISCLAIMER]);
+  });
+
+  it('있으면 다른 안내 뒤, 의료 안내 앞에 넣는다', () => {
+    expect(
+      buildPlanNotices(
+        { medication: 'glucose', avoid: ['egg'] },
+        { chosen: '2026-11-09', weekStart: '2026-11-16', hasEvents: false },
+        3,
+      ),
+    ).toEqual([
+      '고른 주(11/9~)가 이미 시작돼 다음 주(11/16~)로 만들었어요.',
+      '외식 메뉴가 적어 같은 메뉴를 1주일에 3번까지 넣었어요.',
+      AVOID_CHECK_NOTICE,
+      MEDICAL_DISCLAIMER,
+      MEDICATION_ADVICE,
+    ]);
   });
 });
 

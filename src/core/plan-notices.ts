@@ -15,13 +15,24 @@ export interface WeekShift {
 }
 
 /**
+ * 외식 칸 태그(재료)는 모델이 정해 실행마다 빠질 수 있다(T13-4, 열린 질문 3 결정 2026-11-10). 피할 음식이 있으면
+ * 규칙 점검을 통과한 외식 메뉴에도 들어 있을 수 있어 직접 확인하라고 알린다
+ */
+export const AVOID_CHECK_NOTICE = '외식 메뉴에 들어간 재료는 정확히 알 수 없어 피할 음식이 다 걸러지지 않을 수 있어요. 주문할 때 직접 확인하세요.';
+
+/**
  * menuWeeklyMax: 사전 점검이 정한 같은 메뉴 허용 횟수 (B15, plan-feasibility.ts). 기본(2)보다 크면 알린다
  */
-export function buildPlanNotices(profile: Pick<Profile, 'medication'>, shift?: WeekShift, menuWeeklyMax = MENU_WEEKLY_MAX): string[] {
+export function buildPlanNotices(
+  profile: Pick<Profile, 'medication'> & Partial<Pick<Profile, 'avoid'>>,
+  shift?: WeekShift,
+  menuWeeklyMax = MENU_WEEKLY_MAX,
+): string[] {
   const notices = profile.medication === 'none' ? [MEDICAL_DISCLAIMER] : [MEDICAL_DISCLAIMER, MEDICATION_ADVICE];
   const head: string[] = [];
   if (shift?.chosen && shift.chosen !== shift.weekStart) head.push(weekShiftNotice(shift));
   if (menuWeeklyMax > MENU_WEEKLY_MAX) head.push(`외식 메뉴가 적어 같은 메뉴를 1주일에 ${menuWeeklyMax}번까지 넣었어요.`);
+  if ((profile.avoid?.length ?? 0) > 0) head.push(AVOID_CHECK_NOTICE);
   return [...head, ...notices];
 }
 
